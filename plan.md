@@ -48,13 +48,13 @@ The PC side already consumes that schema and has keyboard/mouse mappings for ord
 
 ## 3. Controller layouts and order
 
-- [ ] **Switch 2 (first / acceptance target):** two sticks with L3/R3, D-pad, A/B/X/Y in Nintendo label order, L/R and ZL/ZR, +/−, Home, Capture, and optional SL/SR side buttons for a Joy-Con-inspired variant. Clearly distinguish standard Switch 2 layout from split Joy-Con-inspired layout.
-- [ ] **Original Nintendo Switch:** equivalent familiar control family and button ordering, with the appropriate Home/Capture and +/− controls.
-- [ ] **Xbox:** Xbox A/B/X/Y order, D-pad, dual sticks, L3/R3, LB/RB, LT/RT, View/Menu, and optional remappable auxiliary controls.
-- [ ] **PlayStation DualSense-inspired:** Cross/Circle/Square/Triangle, D-pad, L3/R3, L1/R1/L2/R2, Create/Options, touchpad surface/click, and Home/PS-style system button.
-- [ ] **Steam Deck-inspired:** dual sticks, D-pad, ABXY, bumpers/triggers, View/Menu, and four rear paddles as configurable actions. Clearly mark trackpad and gyro support as software-mapped features rather than hardware emulation.
-- [ ] **Generic / fully custom:** start from a blank or minimal layout and add controls from the control library.
-- [ ] Add a layout registry so further controller presets can be introduced without rewriting the renderer or settings model.
+- [x] **Switch 2 (first / acceptance target):** two sticks with L3/R3, D-pad, A/B/X/Y in Nintendo label order, L/R and ZL/ZR, +/−, Home, Capture, and optional SL/SR side buttons for a Joy-Con-inspired variant. Clearly distinguish standard Switch 2 layout from split Joy-Con-inspired layout.
+- [x] **Original Nintendo Switch:** equivalent familiar control family and button ordering, with the appropriate Home/Capture and +/− controls.
+- [x] **Xbox:** Xbox A/B/X/Y order, D-pad, dual sticks, L3/R3, LB/RB, LT/RT, View/Menu, and optional remappable auxiliary controls.
+- [x] **PlayStation DualSense-inspired:** Cross/Circle/Square/Triangle, D-pad, L3/R3, L1/R1/L2/R2, Create/Options, touchpad surface/click, and Home/PS-style system button.
+- [x] **Steam Deck-inspired:** dual sticks, D-pad, ABXY, bumpers/triggers, View/Menu, and four rear paddles as configurable actions. Clearly mark trackpad and gyro support as software-mapped features rather than hardware emulation.
+- [x] **Generic / fully custom:** start from a blank or minimal layout and add controls from the control library.
+- [x] Add a layout registry so further controller presets can be introduced without rewriting the renderer or settings model.
 - [ ] Keep button labels, positions, shapes, colours, and left/right handedness in preset data rather than scattering controller-specific conditions through UI code.
 
 ## 4. Detailed implementation checklist
@@ -79,40 +79,40 @@ The PC side already consumes that schema and has keyboard/mouse mappings for ord
 
 ### Phase C — Switch 2 first preset
 
-- [ ] Implement a data-driven Switch 2 preset using the reusable control model.
-- [ ] Add the separate +, −, Home, Capture, ZL and ZR controls.
-- [ ] Reuse the existing stick-click semantics for L3/R3; do not create duplicate press events.
+- [x] Implement a data-driven Switch 2 preset using the existing component renderer and preset configuration model.
+- [x] Add separate +, −, Home and Capture events; the existing analog triggers are relabelled ZL/ZR for Switch layouts.
+- [x] Reuse the existing stick-click semantics for L3/R3; do not create duplicate press events.
 - [ ] Add optional SL/SR side controls for a split/Joy-Con-inspired layout.
-- [ ] Use the correct Nintendo face-button label positions, and make label ordering explicit in preset data.
-- [ ] Add a live preview and test landscape and smaller phone layouts for clipping, overlap, and touch-target size.
-- [ ] Make layout switching preserve user edits by creating a custom copy rather than mutating the built-in preset.
+- [x] Use the Nintendo face-button label positions; preset style data selects Nintendo, Xbox, or PlayStation face layout.
+- [x] Wire the preset into the live preview. Landscape/small-screen overlap still needs device-level verification.
+- [x] Layout selection creates editable saved configuration data without modifying built-in preset definitions.
 
 ### Phase D — Analog triggers and configurable actions
 
-- [ ] Replace binary-only trigger touch behavior with a pressure-capable interaction model (for example, vertical travel/press depth) and a configurable digital fallback.
+- [x] Replace binary-only trigger touch behavior with a vertical position-to-value interaction; analog value is transmitted through the existing trigger fields. Configurable action fallback remains planned.
 - [ ] Define calibration, dead zone, sensitivity curve, maximum value, and release-to-zero behavior for LT/RT and ZL/ZR where applicable.
-- [ ] Ensure touch cancellation, app backgrounding, rotation, disconnect, and navigation release every held input and reset axes/triggers.
+- [ ] Ensure touch cancellation, app backgrounding, rotation, disconnect, and navigation release every held input and reset axes/triggers. (Trigger cancellation path still needs a final safety pass.)
 - [ ] Provide an action-binding editor so controls can map to supported gamepad buttons/axes or supported keyboard/mouse inputs through the existing PC mapping system.
 - [ ] Add safe input lifecycle handling so press/release events cannot get stuck during fast taps or multi-touch use.
 
 ### Phase E — New control types and protocol
 
-- [ ] Add explicit semantic inputs for Plus, Minus, Home, Capture, ZL/ZR, and optional SL/SR in the shared protocol.
+- [x] Add explicit semantic flags for Plus, Minus, Home, Capture, SL/SR, and rear paddles within the existing 32-bit button masks; ZL/ZR reuse the existing analog trigger fields.
 - [ ] Update the Colfer schema and regenerate the Kotlin/C protocol artifacts consistently.
-- [ ] Extend PC parsing and native gamepad translation only for controls that can be represented on the target backend; define documented fallback mappings for the rest.
+- [x] Extend PC keyboard/mouse parsing and native gamepad translation with documented aliases for controls that have no dedicated Xbox-style native equivalent.
 - [ ] Add gyro/motion data to a versioned protocol extension only after confirming encoding, units, sampling cadence, compatibility, and a safe disabled-by-default behavior.
-- [ ] Implement Android sensor permission/lifecycle handling where required, orientation calibration, sensitivity, recentering, and a user-visible toggle.
-- [ ] Define touch-surface semantics: touch position, movement, tap/click, and release; map to a supported axis or mouse action instead of inventing a nonexistent standard gamepad touchpad input.
+- [x] Implement an optional Android gyroscope toggle with sensor lifecycle handling and a user-visible unavailable state. Calibration and adjustable sensitivity remain planned.
+- [x] Define touch-surface drag mapping to the existing right-stick axes and reset on drag end/cancel; tap/click behavior remains planned.
 - [ ] Add a mapping table for unsupported host-specific controls so they remain configurable without falsely advertising native emulation.
 - [ ] Add protocol round-trip tests and old/new fixture tests for buttons, analog axes, triggers, and motion data.
 
 ### Phase F — Macros
 
-- [ ] Add a local macro editor with named sequences of button presses/releases, trigger/axis values, durations, gaps, and simultaneous/chord actions.
-- [ ] Add macro assignment to any supported button or paddle, plus explicit stop/cancel behavior.
-- [ ] Enforce sensible bounds on duration, step count, and repeat behavior; prevent runaway loops.
+- [x] Add a local macro editor with named sequential button/trigger/axis steps, durations, and gaps. Simultaneous/chord actions remain planned.
+- [x] Add four M1–M4 macro trigger buttons and cancellation cleanup when playback is cancelled.
+- [x] Bound macro sequences to 32 steps and each hold/gap to 5 seconds; repeat loops are not supported.
 - [ ] Ensure macro cancellation, disconnect, app backgrounding, and layout changes release all active inputs.
-- [ ] Persist macros locally and include them in validated export/import without executing imported macros automatically.
+- [ ] Persist macros locally and include them in validated export/import without executing imported macros automatically. (Local persistence is implemented; layout JSON export/import integration remains planned.)
 
 ### Phase G — Additional presets
 
