@@ -43,6 +43,7 @@ enum class FaceButtonType {
 enum class FaceButtonLayout {
     XBOX,
     NINTENDO_SWITCH,
+    PLAYSTATION,
 }
 
 private val faceButtonColourMap = mapOf(
@@ -60,6 +61,7 @@ fun FaceButton(
     backgroundColour: Color = darken(faceButtonColourMap[type]!!, 0.8f),
     size: Dp,
     gamepadState: GamepadReading,
+    labelOverride: String? = null,
 ) {
     val view = LocalView.current
     val gameButton = when (type) {
@@ -68,7 +70,7 @@ fun FaceButton(
         FaceButtonType.X -> GameButtons.X
         FaceButtonType.Y -> GameButtons.Y
     }
-    val label = when (type) {
+    val label = labelOverride ?: when (type) {
         FaceButtonType.A -> stringResource(R.string.button_a)
         FaceButtonType.B -> stringResource(R.string.button_b)
         FaceButtonType.X -> stringResource(R.string.button_x)
@@ -129,34 +131,50 @@ fun FaceButtons(
         FaceButton(
             type = FaceButtonType.A,
             modifier = Modifier.align(
-                if (layout == FaceButtonLayout.NINTENDO_SWITCH) Alignment.CenterEnd else Alignment.BottomCenter
+                when (layout) {
+                    FaceButtonLayout.NINTENDO_SWITCH -> Alignment.CenterEnd
+                    else -> Alignment.BottomCenter
+                }
             ),
             size = 2 * size / 5,
             gamepadState = gamepadState,
+            labelOverride = if (layout == FaceButtonLayout.PLAYSTATION) "×" else null,
         )
         FaceButton(
             type = FaceButtonType.B,
             modifier = Modifier.align(
-                if (layout == FaceButtonLayout.NINTENDO_SWITCH) Alignment.BottomCenter else Alignment.CenterEnd
+                when (layout) {
+                    FaceButtonLayout.NINTENDO_SWITCH -> Alignment.BottomCenter
+                    else -> Alignment.CenterEnd
+                }
             ),
             size = 2 * size / 5,
             gamepadState = gamepadState,
+            labelOverride = if (layout == FaceButtonLayout.PLAYSTATION) "○" else null,
         )
         FaceButton(
             type = FaceButtonType.X,
             modifier = Modifier.align(
-                if (layout == FaceButtonLayout.NINTENDO_SWITCH) Alignment.TopCenter else Alignment.CenterStart
+                when (layout) {
+                    FaceButtonLayout.NINTENDO_SWITCH -> Alignment.TopCenter
+                    else -> Alignment.CenterStart
+                }
             ),
             size = 2 * size / 5,
             gamepadState = gamepadState,
+            labelOverride = if (layout == FaceButtonLayout.PLAYSTATION) "□" else null,
         )
         FaceButton(
             type = FaceButtonType.Y,
             modifier = Modifier.align(
-                if (layout == FaceButtonLayout.NINTENDO_SWITCH) Alignment.CenterStart else Alignment.TopCenter
+                when (layout) {
+                    FaceButtonLayout.NINTENDO_SWITCH -> Alignment.CenterStart
+                    else -> Alignment.TopCenter
+                }
             ),
             size = 2 * size / 5,
             gamepadState = gamepadState,
+            labelOverride = if (layout == FaceButtonLayout.PLAYSTATION) "△" else null,
         )
     }
 }
