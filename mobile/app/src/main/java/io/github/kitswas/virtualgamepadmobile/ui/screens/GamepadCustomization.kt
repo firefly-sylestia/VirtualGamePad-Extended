@@ -463,3 +463,150 @@ fun GamepadCustomizationScreenPreview() {
         )
     }
 }
+
+
+@Composable
+fun MacroEditorDialog(
+    macros: List<MacroDefinition>,
+    onSave: (List<MacroDefinition>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val initial = remember(macros) {
+        (0..3).map { slot ->
+            macros.getOrNull(slot) ?: MacroDefinition(name = "Macro ${slot + 1}")
+        }
+    }
+    var definitions by remember(macros) { mutableStateOf(initial) }
+    var slot by rememberSaveable { mutableIntStateOf(0) }
+    var name by rememberSaveable { mutableStateOf(initial.first().name) }
+    var steps by remember { mutableStateOf(initial.first().steps) }
+    var action by rememberSaveable { mutableStateOf(MacroAction.A) }
+    var value by rememberSaveable { mutableStateOf(1f) }
+    var holdMillis by rememberSaveable { mutableIntStateOf(120) }
+    var gapMillis by rememberSaveable { mutableIntStateOf(40) }
+
+    fun commitCurrent(): List<MacroDefinition> {
+        val updated = definitions.toMutableList()
+        updated[slot] = MacroDefinition(
+            name = name.trim().ifEmpty { "Macro ${slot + 1}" },
+            steps = steps.take(32),
+        )
+        definitions = updated
+        return updated
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Macro editor") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Create up to four macros. Button and D-pad steps use press/release; trigger and axis steps use the value below.")
+                ListItemPicker(
+                    modifier = Modifier.fillMaxWidth(),
+                    list = (0..3).asIterable(),
+                    selectedItem = slot,
+                    label = "Macro slot",
+                    formattedDisplay = { Text("M${it + 1}") },
+                    onItemSelected = { nextSlot ->
+                        commitCurrent()
+                        slot = nextSlot
+                        name = definitions[nextSlot].name
+                        steps = definitions[nextSlot].steps
+                    }
+                )
+                TextField(
+                    value = name,
+                    onValueChange = { name = it.take(48) },
+                    label = { Text("Macro name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                ListItemPicker(
+                    modifier = Modifier.fillMaxWidth(),
+                    list = MacroAction.entries.asIterable(),
+                    selectedItem = action,
+                    label = "Action",
+                    formattedDisplay = { Text(it.name.replace('_', ' ')) },
+                    onItemSelected = { action = it }
+                )
+                BoundedNumericInput(
+                    value = value,
+                    onValueChange = { value = it },
+                    label = "Axis / trigger value",
+                    minValue = -1f,
+                    maxValue = 1f,
+                    parseValue = { it.toFloatOrNull() },
+                    formatValue = { "%.2f".format(it) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BoundedNumericInput(
+                        value = holdMillis,
+                        onValueChange = { holdMillis = it },
+                        label = "Hold (ms)",
+                        minValue = 10,
+                        maxValue = 5000,
+                        parseValue = { it.toIntOrNull() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    BoundedNumericInput(
+                        value = gapMillis,
+                        onValueChange = { gapMillis = it },
+                        label = "Gap (ms)",
+                        minValue = 0,
+                        maxValue = 5000,
+                        parseValue = { it.toIntOrNull() },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Button(
+                    onClick = {
+                        if (steps.size < 32) {
+                            steps = steps + MacroStep(
+                                action = action,
+                                value = value,
+                                holdMillis = holdMillis,
+                                gapMillis = gapMillis,
+                            )
+                        }
+                    },
+                    enabled = steps.size < 32,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Add step (${steps.size}/32)")
+                }
+                steps.forEachIndexed { index, step ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${index + 1}. ${step.action.name.replace('_', ' ')} · ${step.holdMillis} ms",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Button(onClick = { steps = steps.filterIndexed { i, _ -> i != index } }) {
+                            Text("Remove")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(commitCurrent()) }) {
+                Text("Save macros")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
