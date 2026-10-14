@@ -143,6 +143,7 @@
     <string name="component_rear_paddles">Rear Paddles (P1–P4)</string>
     <string name="component_touch_surface">Touch Surface</string>
     <string name="component_gyro_toggle">Gyroscope Aim Toggle</string>
+    <string name="component_macro_buttons">Macro Triggers (M1–M4)</string>
 
     <!-- Color Schemes -->
     <string name="scheme_light">Light Mode</string>
