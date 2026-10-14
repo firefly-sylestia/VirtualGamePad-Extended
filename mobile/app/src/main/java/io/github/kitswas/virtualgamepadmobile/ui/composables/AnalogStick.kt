@@ -112,8 +112,9 @@ private fun toggleThumbstickButton(
     type: AnalogStickType,
     gamepadState: GamepadReading,
     view: android.view.View,
+    buttonMask: Int? = null,
 ) {
-    val mask = thumbstickButtonMask(type)
+    val mask = buttonMask ?: thumbstickButtonMask(type)
     if (!state.isPressed) {
         state.isPressed = true
         gamepadState.ButtonsDown = gamepadState.ButtonsDown or mask
@@ -138,6 +139,7 @@ fun AnalogStick(
     innerCircleRadius: Dp = 32.dp,
     gamepadState: GamepadReading,
     type: AnalogStickType,
+    clickButtonMask: Int? = null,
 ) {
     val density = LocalDensity.current
     val view = LocalView.current
@@ -205,7 +207,7 @@ fun AnalogStick(
                         .pointerInput(Unit) {
                             detectTapGestures(
                                 onLongPress = { _ ->
-                                    toggleThumbstickButton(state, type, gamepadState, view)
+                                    toggleThumbstickButton(state, type, gamepadState, view, clickButtonMask)
                                 }
                             )
                         }
