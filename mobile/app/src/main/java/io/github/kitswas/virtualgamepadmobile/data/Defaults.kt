@@ -90,5 +90,37 @@ val defaultButtonConfigs = mapOf(
         offsetX = 0.25f, // baseDp/4
         offsetY = 0.25f, // baseDp/4
         anchor = ButtonAnchor.TOP_CENTER
+    ),
+    ButtonComponent.PLUS_MINUS to ButtonConfig(
+        component = ButtonComponent.PLUS_MINUS,
+        visible = true,
+        scale = 0.85f,
+        offsetX = 0f,
+        offsetY = 0.38f,
+        anchor = ButtonAnchor.TOP_CENTER
+    ),
+    ButtonComponent.HOME_CAPTURE to ButtonConfig(
+        component = ButtonComponent.HOME_CAPTURE,
+        visible = true,
+        scale = 0.85f,
+        offsetX = 0f,
+        offsetY = 0.52f,
+        anchor = ButtonAnchor.TOP_CENTER
+    ),
+    ButtonComponent.SIDE_BUTTONS to ButtonConfig(
+        component = ButtonComponent.SIDE_BUTTONS,
+        visible = false,
+        scale = 0.8f,
+        offsetX = 0f,
+        offsetY = 0f,
+        anchor = ButtonAnchor.CENTER
+    ),
+    ButtonComponent.REAR_PADDLES to ButtonConfig(
+        component = ButtonComponent.REAR_PADDLES,
+        visible = false,
+        scale = 0.8f,
+        offsetX = 0f,
+        offsetY = 0f,
+        anchor = ButtonAnchor.BOTTOM_CENTER
     )
 )
