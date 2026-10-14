@@ -31,6 +31,7 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.R
 import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
 import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
+import io.github.kitswas.virtualgamepadmobile.ui.utils.GamepadButtonDispatcher
 import io.github.kitswas.virtualgamepadmobile.ui.theme.darken
 import io.github.kitswas.virtualgamepadmobile.ui.utils.HapticUtils
 
@@ -68,14 +69,13 @@ fun DpadButton(
     if (isPressed) {
         Log.d("DPadButton ${type.name}", "Pressed")
         HapticUtils.performButtonPressFeedback(view)
-        gamepadState.ButtonsDown = gamepadState.ButtonsDown or buttonMask
+        GamepadButtonDispatcher.press(gamepadState, "dpad_${type.name}", buttonMask)
         //Use if + DisposableEffect to wait for the press action is completed
         DisposableEffect(buttonMask) {
             onDispose {
                 Log.d("DPadButton ${type.name}", "Released")
                 HapticUtils.performButtonReleaseFeedback(view)
-                gamepadState.ButtonsDown = gamepadState.ButtonsDown and buttonMask.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or buttonMask
+                GamepadButtonDispatcher.release(gamepadState, "dpad_${type.name}")
             }
         }
     }
