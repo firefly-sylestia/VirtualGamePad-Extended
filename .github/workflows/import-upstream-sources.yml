@@ -1,0 +1,70 @@
+name: Import upstream source trees
+
+on:
+  push:
+    paths:
+      - ".github/workflows/import-upstream-sources.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vendor-upstream-sources
+  cancel-in-progress: false
+
+jobs:
+  vendor:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out destination repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Clone both upstream repositories with submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --recurse-submodules https://github.com/kitswas/VirtualGamePad-Mobile.git /tmp/vgp-mobile
+          git clone --depth 1 --recurse-submodules https://github.com/kitswas/VirtualGamePad-PC.git /tmp/vgp-pc
+
+      - name: Replace submodule pointers with real source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf mobile pc
+          mkdir -p mobile pc
+          rsync -a --exclude='.git' /tmp/vgp-mobile/ mobile/
+          rsync -a --exclude='.git' /tmp/vgp-pc/ pc/
+          # The source trees have been materialized, so submodule metadata is no longer needed.
+          rm -f .gitmodules mobile/.gitmodules pc/.gitmodules
+          cat > README.md <<'EOF'
+          # VirtualGamePad Extended
+
+          Combined source tree for the Android mobile app and desktop/PC app.
+
+          ## Projects
+
+          - **Android / Mobile:** `mobile/` (from [VirtualGamePad-Mobile](https://github.com/kitswas/VirtualGamePad-Mobile))
+          - **Desktop / PC:** `pc/` (from [VirtualGamePad-PC](https://github.com/kitswas/VirtualGamePad-PC))
+
+          Both projects are vendored as actual files, not Git submodule pointers. Upstream source files, build configuration, assets, and workflow definitions are retained in each project's directory. GitHub only automatically runs workflow files under the repository-root `.github/workflows/`; workflows retained under `mobile/` and `pc/` are source copies and may need root-level wrappers to run in this combined repository.
+
+          The upstream projects are licensed under GPL-3.0. Refer to the respective project license files for applicable terms.
+          EOF
+
+      - name: Commit vendored source trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to import."
+            exit 0
+          fi
+          git commit -m "Vendor mobile and PC source trees"
+          git push origin HEAD:main
