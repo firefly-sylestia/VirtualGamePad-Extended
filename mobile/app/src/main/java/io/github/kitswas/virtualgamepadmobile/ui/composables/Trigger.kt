@@ -80,21 +80,25 @@ fun Trigger(
                         }
                         updateFromY(down.position.y)
                         HapticUtils.performButtonPressFeedback(view)
-                        var released = false
-                        while (!released) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id }
-                            if (change == null || !change.pressed) {
-                                released = true
-                            } else {
-                                updateFromY(change.position.y)
+                        try {
+                            var released = false
+                            while (!released) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id }
+                                if (change == null || !change.pressed) {
+                                    released = true
+                                } else {
+                                    updateFromY(change.position.y)
+                                }
                             }
+                        } finally {
+                            // Also release on gesture cancellation or composition disposal.
+                            when (type) {
+                                TriggerType.LEFT -> gamepadState.LeftTrigger = 0f
+                                TriggerType.RIGHT -> gamepadState.RightTrigger = 0f
+                            }
+                            HapticUtils.performButtonReleaseFeedback(view)
                         }
-                        when (type) {
-                            TriggerType.LEFT -> gamepadState.LeftTrigger = 0f
-                            TriggerType.RIGHT -> gamepadState.RightTrigger = 0f
-                        }
-                        HapticUtils.performButtonReleaseFeedback(view)
                     }
                 },
             shape = triggerShape,
