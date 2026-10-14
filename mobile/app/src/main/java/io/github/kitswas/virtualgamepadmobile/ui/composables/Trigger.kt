@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.AbsoluteCutCornerShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,58 +46,61 @@ fun Trigger(
 ) {
     val view = LocalView.current
 
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    DisposableEffect(isPressed) {
-        if (isPressed) {
-            Log.d("TriggerButton", "Trigger ${type.name} pressed")
-            when (type) {
-                TriggerType.LEFT -> gamepadState.LeftTrigger = 1f
-                TriggerType.RIGHT -> gamepadState.RightTrigger = 1f
-            }
-            HapticUtils.performButtonPressFeedback(view)
-        }
-        onDispose {
-            Log.d("TriggerButton", "Trigger ${type.name} released")
-            when (type) {
-                TriggerType.LEFT -> gamepadState.LeftTrigger = 0f
-                TriggerType.RIGHT -> gamepadState.RightTrigger = 0f
-            }
-            HapticUtils.performButtonReleaseFeedback(view)
-        }
-    }
-
-    val label = labelOverride ?: when (type) {
+    // Trigger input is pressure-like: touching near the top sends a high value,
+    // dragging toward the bottom lowers it, and releasing always returns to zero.
+    val triggerLabel = labelOverride ?: when (type) {
         TriggerType.LEFT -> stringResource(R.string.button_lt)
         TriggerType.RIGHT -> stringResource(R.string.button_rt)
     }
 
     val triggerShape = when (type) {
-        TriggerType.LEFT -> AbsoluteCutCornerShape(
-            topRight = size * 0.4f,
-        )
-
-        TriggerType.RIGHT -> AbsoluteCutCornerShape(
-            topLeft = size * 0.4f,
-        )
+        TriggerType.LEFT -> AbsoluteCutCornerShape(topRight = size * 0.4f)
+        TriggerType.RIGHT -> AbsoluteCutCornerShape(topLeft = size * 0.4f)
     }
 
     Box(
         modifier = modifier
             .width(size)
-            .height(size * 1.25f)
-            .fillMaxSize(),
+            .height(size * 1.25f),
         contentAlignment = Alignment.Center
     ) {
         Button(
             onClick = {},
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(type, size) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        fun updateFromY(y: Float) {
+                            val value = (1f - y / this@pointerInput.size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                            when (type) {
+                                TriggerType.LEFT -> gamepadState.LeftTrigger = value
+                                TriggerType.RIGHT -> gamepadState.RightTrigger = value
+                            }
+                        }
+                        updateFromY(down.position.y)
+                        HapticUtils.performButtonPressFeedback(view)
+                        var released = false
+                        while (!released) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id }
+                            if (change == null || !change.pressed) {
+                                released = true
+                            } else {
+                                updateFromY(change.position.y)
+                            }
+                        }
+                        when (type) {
+                            TriggerType.LEFT -> gamepadState.LeftTrigger = 0f
+                            TriggerType.RIGHT -> gamepadState.RightTrigger = 0f
+                        }
+                        HapticUtils.performButtonReleaseFeedback(view)
+                    }
+                },
             shape = triggerShape,
             border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
-            interactionSource = interactionSource,
         ) {
-            Text(label)
+            Text(triggerLabel)
         }
     }
 }
