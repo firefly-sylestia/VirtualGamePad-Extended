@@ -210,6 +210,18 @@ fun DrawGamepad(
                     )
                 )
             }
+
+            // Touch surface maps gestures onto the existing right-stick axes.
+            RenderComponent(ButtonComponent.TOUCH_SURFACE) { config ->
+                TouchSurface(
+                    gamepadState = gamepadState,
+                    size = (baseDp / 3 * config.scale).dp,
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    )
+                )
+            }
         }
     }
 }
