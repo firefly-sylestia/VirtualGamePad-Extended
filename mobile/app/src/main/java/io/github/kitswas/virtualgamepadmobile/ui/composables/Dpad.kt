@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.times
 import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.R
+import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
+import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
 import io.github.kitswas.virtualgamepadmobile.ui.theme.darken
 import io.github.kitswas.virtualgamepadmobile.ui.utils.HapticUtils
 
@@ -44,6 +46,7 @@ fun DpadButton(
     backgroundColour: Color = darken(MaterialTheme.colorScheme.primary, 0.8f),
     size: Dp,
     gamepadState: GamepadReading,
+    actionMask: Int? = null,
 ) {
     val view = LocalView.current
     val rotation = when (type) {
@@ -58,20 +61,21 @@ fun DpadButton(
         DpadButtonType.LEFT -> GameButtons.DPadLeft
         DpadButtonType.RIGHT -> GameButtons.DPadRight
     }
+    val buttonMask = actionMask ?: gameButton.value
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     // See https://stackoverflow.com/a/69157877/8659747
     if (isPressed) {
         Log.d("DPadButton ${type.name}", "Pressed")
         HapticUtils.performButtonPressFeedback(view)
-        gamepadState.ButtonsDown = gamepadState.ButtonsDown or gameButton.value
+        gamepadState.ButtonsDown = gamepadState.ButtonsDown or buttonMask
         //Use if + DisposableEffect to wait for the press action is completed
-        DisposableEffect(Unit) {
+        DisposableEffect(buttonMask) {
             onDispose {
                 Log.d("DPadButton ${type.name}", "Released")
                 HapticUtils.performButtonReleaseFeedback(view)
-                gamepadState.ButtonsDown = gamepadState.ButtonsDown and gameButton.value.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or gameButton.value
+                gamepadState.ButtonsDown = gamepadState.ButtonsDown and buttonMask.inv()
+                gamepadState.ButtonsUp = gamepadState.ButtonsUp or buttonMask
             }
         }
     }
@@ -105,6 +109,7 @@ fun Dpad(
     modifier: Modifier = Modifier,
     size: Dp = 360.dp,
     gamepadState: GamepadReading,
+    bindings: Map<String, ControllerAction> = defaultControllerBindings,
 ) {
     val buttonSize = 2 * size / 5
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
@@ -113,24 +118,28 @@ fun Dpad(
             modifier = Modifier.align(Alignment.TopCenter),
             size = buttonSize,
             gamepadState = gamepadState,
+            actionMask = bindings["dpad_up"]?.mask,
         )
         DpadButton(
             type = DpadButtonType.DOWN,
             modifier = Modifier.align(Alignment.BottomCenter),
             size = buttonSize,
             gamepadState = gamepadState,
+            actionMask = bindings["dpad_down"]?.mask,
         )
         DpadButton(
             type = DpadButtonType.LEFT,
             modifier = Modifier.align(Alignment.CenterStart),
             size = buttonSize,
             gamepadState = gamepadState,
+            actionMask = bindings["dpad_left"]?.mask,
         )
         DpadButton(
             type = DpadButtonType.RIGHT,
             modifier = Modifier.align(Alignment.CenterEnd),
             size = buttonSize,
             gamepadState = gamepadState,
+            actionMask = bindings["dpad_right"]?.mask,
         )
     }
 }
