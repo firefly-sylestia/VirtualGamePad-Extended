@@ -15,6 +15,8 @@ import io.github.kitswas.virtualgamepadmobile.data.ButtonComponent
 import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
 import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
 import io.github.kitswas.virtualgamepadmobile.data.MacroDefinition
+import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
+import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
 
 /**
  * Convert ButtonAnchor to Compose Alignment
@@ -39,6 +41,7 @@ fun DrawGamepad(
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout = ControllerLayout.SWITCH_2,
     macros: List<MacroDefinition> = emptyList(),
+    bindings: Map<String, ControllerAction> = defaultControllerBindings,
 ) {
     // Assuming Landscape orientation
     val baseDp = heightDp
@@ -82,6 +85,7 @@ fun DrawGamepad(
                     innerCircleRadius = (baseDp / 12 * config.scale).dp,
                     gamepadState = gamepadState,
                     type = AnalogStickType.LEFT,
+                    clickButtonMask = bindings["left_stick_click"]?.mask,
                 )
             }
 
@@ -96,6 +100,7 @@ fun DrawGamepad(
                     innerCircleRadius = (baseDp / 12 * config.scale).dp,
                     gamepadState = gamepadState,
                     type = AnalogStickType.RIGHT,
+                    clickButtonMask = bindings["right_stick_click"]?.mask,
                 )
             }
 
@@ -108,6 +113,7 @@ fun DrawGamepad(
                     ),
                     size = (0.45 * baseDp * config.scale).dp,
                     gamepadState = gamepadState,
+                    bindings = bindings,
                 )
             }
 
@@ -125,6 +131,7 @@ fun DrawGamepad(
                         io.github.kitswas.virtualgamepadmobile.data.FaceButtonStyle.PLAYSTATION -> FaceButtonLayout.PLAYSTATION
                         io.github.kitswas.virtualgamepadmobile.data.FaceButtonStyle.XBOX -> FaceButtonLayout.XBOX
                     },
+                    bindings = bindings,
                 )
             }
 
@@ -162,6 +169,7 @@ fun DrawGamepad(
                 gamepadState = gamepadState,
                 buttonConfigs = buttonConfigs,
                 controllerLayout = controllerLayout,
+                bindings = bindings,
             )
 
             // Auxiliary controls used by Switch 2, Joy-Con-inspired, and Steam Deck layouts.
@@ -173,7 +181,8 @@ fun DrawGamepad(
                     modifier = Modifier.offset(
                         x = (config.offsetX * baseDp).dp,
                         y = (config.offsetY * baseDp).dp
-                    )
+                    ),
+                    bindings = bindings,
                 )
             }
 
@@ -185,7 +194,8 @@ fun DrawGamepad(
                     modifier = Modifier.offset(
                         x = (config.offsetX * baseDp).dp,
                         y = (config.offsetY * baseDp).dp
-                    )
+                    ),
+                    bindings = bindings,
                 )
             }
 
@@ -197,7 +207,8 @@ fun DrawGamepad(
                     modifier = Modifier.offset(
                         x = (config.offsetX * baseDp).dp,
                         y = (config.offsetY * baseDp).dp
-                    )
+                    ),
+                    bindings = bindings,
                 )
             }
 
@@ -209,7 +220,8 @@ fun DrawGamepad(
                     modifier = Modifier.offset(
                         x = (config.offsetX * baseDp).dp,
                         y = (config.offsetY * baseDp).dp
-                    )
+                    ),
+                    bindings = bindings,
                 )
             }
 
