@@ -1,9 +1,6 @@
 package io.github.kitswas.virtualgamepadmobile.ui.composables
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,9 +15,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -69,10 +63,11 @@ fun Trigger(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(type, size) {
+                    val pointerHeight = this.size.height.coerceAtLeast(1)
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         fun updateFromY(y: Float) {
-                            val value = (1f - y / this@pointerInput.size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                            val value = (1f - y / pointerHeight).coerceIn(0f, 1f)
                             when (type) {
                                 TriggerType.LEFT -> gamepadState.LeftTrigger = value
                                 TriggerType.RIGHT -> gamepadState.RightTrigger = value
