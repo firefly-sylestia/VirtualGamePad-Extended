@@ -210,12 +210,18 @@ elseif(LINUX)
         INSTALL_RPATH "$ORIGIN/../lib"
         BUILD_WITH_INSTALL_RPATH FALSE
     )
-    qt_generate_deploy_app_script(
-        TARGET VGamepadPC
-        OUTPUT_SCRIPT deploy_script
-    )
-    message(STATUS "Deploy script generated: ${deploy_script}")
-    install(SCRIPT ${deploy_script})
+    # Qt's deployment-script API and package metadata differ across minor releases.
+    # Keep source builds usable with distro Qt packages; use the deploy script on Qt 6.8+.
+    if(Qt6Core_VERSION VERSION_GREATER_EQUAL "6.8.0")
+        qt_generate_deploy_app_script(
+            TARGET VGamepadPC
+            OUTPUT_SCRIPT deploy_script
+        )
+        message(STATUS "Deploy script generated: ${deploy_script}")
+        install(SCRIPT ${deploy_script})
+    else()
+        message(STATUS "Skipping Qt deploy script for Qt ${Qt6Core_VERSION}; use Qt 6.8+ for packaged deployment.")
+    endif()
 endif()
 
 # Platform-specific post-build steps
