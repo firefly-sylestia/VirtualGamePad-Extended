@@ -68,7 +68,8 @@ enum class ButtonComponent(
     PLUS_MINUS(R.string.component_plus_minus, "Plus / Minus (+ / −)", ButtonAnchor.TOP_CENTER),
     HOME_CAPTURE(R.string.component_home_capture, "Home / Capture", ButtonAnchor.TOP_CENTER),
     SIDE_BUTTONS(R.string.component_side_buttons, "Joy-Con SL / SR", ButtonAnchor.TOP_CENTER),
-    REAR_PADDLES(R.string.component_rear_paddles, "Rear Paddles (P1–P4)", ButtonAnchor.BOTTOM_CENTER);
+    REAR_PADDLES(R.string.component_rear_paddles, "Rear Paddles (P1–P4)", ButtonAnchor.BOTTOM_CENTER),
+    TOUCH_SURFACE(R.string.component_touch_surface, "Touch Surface", ButtonAnchor.TOP_CENTER);
 
     override fun toString(): String = displayName
 }
