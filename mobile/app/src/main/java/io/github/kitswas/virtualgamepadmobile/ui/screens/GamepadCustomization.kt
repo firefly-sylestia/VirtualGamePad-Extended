@@ -43,6 +43,8 @@ import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
 import io.github.kitswas.virtualgamepadmobile.data.MacroAction
 import io.github.kitswas.virtualgamepadmobile.data.MacroDefinition
 import io.github.kitswas.virtualgamepadmobile.data.MacroStep
+import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
+import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
 import io.github.kitswas.virtualgamepadmobile.data.buttonConfigsForLayout
 import io.github.kitswas.virtualgamepadmobile.data.PreviewBase
 import io.github.kitswas.virtualgamepadmobile.data.SettingsRepository
@@ -75,6 +77,7 @@ fun GamepadPreview(
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout,
     macros: List<MacroDefinition>,
+    bindings: Map<String, ControllerAction>,
 ) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp
@@ -89,7 +92,8 @@ fun GamepadPreview(
         gamepadState = gamepadState,
         buttonConfigs = buttonConfigs,
         controllerLayout = controllerLayout,
-        macros = macros
+        macros = macros,
+        bindings = bindings
     )
 }
 
@@ -101,6 +105,8 @@ fun GamepadCustomizationScreen(
     val buttonConfigs by settingsRepository.buttonConfigs.collectAsState(initial = defaultButtonConfigs)
     val controllerLayout by settingsRepository.controllerLayout.collectAsState(initial = ControllerLayout.SWITCH_2)
     val macros by settingsRepository.macros.collectAsState(initial = emptyList())
+    val bindings by settingsRepository.controllerBindings.collectAsState(initial = defaultControllerBindings)
+    var showBindingEditor by rememberSaveable { mutableStateOf(false) }
     var showMacroEditor by rememberSaveable { mutableStateOf(false) }
     var modifiedLayout by rememberSaveable { mutableStateOf<ControllerLayout?>(null) }
     var modifiedConfigs by rememberSaveable {
@@ -124,7 +130,7 @@ fun GamepadCustomizationScreen(
 
     if (showPreview) {
         // Full-screen preview overlay
-        GamepadPreview(buttonConfigs = currentConfigs, controllerLayout = currentLayout, macros = macros)
+        GamepadPreview(buttonConfigs = currentConfigs, controllerLayout = currentLayout, macros = macros, bindings = bindings)
         return
     }
 
@@ -132,6 +138,17 @@ fun GamepadCustomizationScreen(
         ExportConfigDialog(
             buttonConfigs = currentConfigs,
             onDismiss = { showExportDialog = false }
+        )
+    }
+
+    if (showBindingEditor) {
+        ControllerBindingsDialog(
+            bindings = bindings,
+            onSave = { updated ->
+                runBlocking { settingsRepository.setControllerBindings(updated) }
+                showBindingEditor = false
+            },
+            onDismiss = { showBindingEditor = false }
         )
     }
 
@@ -262,6 +279,9 @@ fun GamepadCustomizationScreen(
                     }
                     Button(onClick = { showMacroEditor = true }) {
                         Text("Macros")
+                    }
+                    Button(onClick = { showBindingEditor = true }) {
+                        Text("Remap")
                     }
                 }
 
