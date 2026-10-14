@@ -28,6 +28,7 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.ui.theme.darken
 import io.github.kitswas.virtualgamepadmobile.ui.theme.lighten
 import io.github.kitswas.virtualgamepadmobile.ui.utils.HapticUtils
+import io.github.kitswas.virtualgamepadmobile.ui.utils.GamepadButtonDispatcher
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -117,14 +118,13 @@ private fun toggleThumbstickButton(
     val mask = buttonMask ?: thumbstickButtonMask(type)
     if (!state.isPressed) {
         state.isPressed = true
-        gamepadState.ButtonsDown = gamepadState.ButtonsDown or mask
+        GamepadButtonDispatcher.press(gamepadState, "stick_${type.name}", mask)
         HapticUtils.performButtonPressFeedback(view)
         return
     }
 
     state.isPressed = false
-    gamepadState.ButtonsDown = gamepadState.ButtonsDown and mask.inv()
-    gamepadState.ButtonsUp = gamepadState.ButtonsUp or mask
+    GamepadButtonDispatcher.release(gamepadState, "stick_${type.name}")
     HapticUtils.performGestureEndFeedback(view)
 }
 
