@@ -309,6 +309,16 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 		settings.value("button_display_names/LTHUMB", "").toString();
 	buttonDisplayNames[GamepadButtons_RightThumbstick] =
 		settings.value("button_display_names/RTHUMB", "").toString();
+	buttonDisplayNames[GamepadButtons_Plus] = settings.value("button_display_names/PLUS", "+").toString();
+	buttonDisplayNames[GamepadButtons_Minus] = settings.value("button_display_names/MINUS", "-").toString();
+	buttonDisplayNames[GamepadButtons_Home] = settings.value("button_display_names/HOME", "Home").toString();
+	buttonDisplayNames[GamepadButtons_Capture] = settings.value("button_display_names/CAPTURE", "Print Screen").toString();
+	buttonDisplayNames[GamepadButtons_LeftSide] = settings.value("button_display_names/SL", "Q").toString();
+	buttonDisplayNames[GamepadButtons_RightSide] = settings.value("button_display_names/SR", "E").toString();
+	buttonDisplayNames[GamepadButtons_Paddle1] = settings.value("button_display_names/P1", "1").toString();
+	buttonDisplayNames[GamepadButtons_Paddle2] = settings.value("button_display_names/P2", "2").toString();
+	buttonDisplayNames[GamepadButtons_Paddle3] = settings.value("button_display_names/P3", "3").toString();
+	buttonDisplayNames[GamepadButtons_Paddle4] = settings.value("button_display_names/P4", "4").toString();
 
 	// Log mappings for debugging
 	qDebug() << "Loaded mappings:"
@@ -436,6 +446,16 @@ void KeymapProfile::saveToSettings(QSettings &settings) const
 	settings.setValue("buttons/MENU", buttonMap(GamepadButtons_Menu));
 	settings.setValue("buttons/LTHUMB", buttonMap(GamepadButtons_LeftThumbstick));
 	settings.setValue("buttons/RTHUMB", buttonMap(GamepadButtons_RightThumbstick));
+	settings.setValue("buttons/PLUS", buttonMap(GamepadButtons_Plus));
+	settings.setValue("buttons/MINUS", buttonMap(GamepadButtons_Minus));
+	settings.setValue("buttons/HOME", buttonMap(GamepadButtons_Home));
+	settings.setValue("buttons/CAPTURE", buttonMap(GamepadButtons_Capture));
+	settings.setValue("buttons/SL", buttonMap(GamepadButtons_LeftSide));
+	settings.setValue("buttons/SR", buttonMap(GamepadButtons_RightSide));
+	settings.setValue("buttons/P1", buttonMap(GamepadButtons_Paddle1));
+	settings.setValue("buttons/P2", buttonMap(GamepadButtons_Paddle2));
+	settings.setValue("buttons/P3", buttonMap(GamepadButtons_Paddle3));
+	settings.setValue("buttons/P4", buttonMap(GamepadButtons_Paddle4));
 
 	// Button display names
 	settings.setValue("button_display_names/A", buttonDisplayName(GamepadButtons_A));
@@ -452,6 +472,16 @@ void KeymapProfile::saveToSettings(QSettings &settings) const
 	settings.setValue("button_display_names/MENU", buttonDisplayName(GamepadButtons_Menu));
 	settings.setValue("button_display_names/LTHUMB", buttonDisplayName(GamepadButtons_LeftThumbstick));
 	settings.setValue("button_display_names/RTHUMB", buttonDisplayName(GamepadButtons_RightThumbstick));
+	settings.setValue("button_display_names/PLUS", buttonDisplayName(GamepadButtons_Plus));
+	settings.setValue("button_display_names/MINUS", buttonDisplayName(GamepadButtons_Minus));
+	settings.setValue("button_display_names/HOME", buttonDisplayName(GamepadButtons_Home));
+	settings.setValue("button_display_names/CAPTURE", buttonDisplayName(GamepadButtons_Capture));
+	settings.setValue("button_display_names/SL", buttonDisplayName(GamepadButtons_LeftSide));
+	settings.setValue("button_display_names/SR", buttonDisplayName(GamepadButtons_RightSide));
+	settings.setValue("button_display_names/P1", buttonDisplayName(GamepadButtons_Paddle1));
+	settings.setValue("button_display_names/P2", buttonDisplayName(GamepadButtons_Paddle2));
+	settings.setValue("button_display_names/P3", buttonDisplayName(GamepadButtons_Paddle3));
+	settings.setValue("button_display_names/P4", buttonDisplayName(GamepadButtons_Paddle4));
 
 	// Log mapping values for debugging
 	qDebug() << "A:" << buttonMap(GamepadButtons_A) << "B:" << buttonMap(GamepadButtons_B)
