@@ -7,6 +7,7 @@
 #include "../simulation/mouseSim.hpp"
 
 #include <memory>
+#include <unordered_map>
 
 struct ParseResult
 {
@@ -52,6 +53,10 @@ class GamepadExecutor : public ExecutorInterface
 
   private:
 	GamepadInjector m_injector;
+	std::unordered_map<int, int> m_nativeButtonPressCounts;
+
+	void pressNativeButton(int buttonCode);
+	void releaseNativeButton(int buttonCode);
 };
 
 /**
