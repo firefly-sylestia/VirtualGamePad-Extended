@@ -35,6 +35,7 @@ import io.github.kitswas.virtualgamepadmobile.R
 import io.github.kitswas.virtualgamepadmobile.data.ButtonAnchor
 import io.github.kitswas.virtualgamepadmobile.data.ButtonComponent
 import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
+import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
 import io.github.kitswas.virtualgamepadmobile.ui.utils.HapticUtils
 
 /**
@@ -66,13 +67,14 @@ fun ShoulderButton(
     modifier: Modifier = Modifier,
     size: Dp,
     gamepadState: GamepadReading,
+    labelOverride: String? = null,
 ) {
     val view = LocalView.current
     val gameButton = when (type) {
         ShoulderButtonType.LEFT -> GameButtons.LeftShoulder
         ShoulderButtonType.RIGHT -> GameButtons.RightShoulder
     }
-    val text = when (type) {
+    val text = labelOverride ?: when (type) {
         ShoulderButtonType.LEFT -> stringResource(R.string.button_l_shoulder)
         ShoulderButtonType.RIGHT -> stringResource(R.string.button_r_shoulder)
     }
@@ -179,6 +181,7 @@ fun CentralButtons(
     baseDp: Int,
     gamepadState: GamepadReading,
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
+    controllerLayout: ControllerLayout = ControllerLayout.SWITCH_2,
 ) {
     // Helper function to get config for a component
     fun getConfig(component: ButtonComponent) =
@@ -208,6 +211,7 @@ fun CentralButtons(
             ),
             size = (baseDp / 8 * config.scale).dp,
             gamepadState = gamepadState,
+            labelOverride = controllerLayout.leftShoulderLabel,
         )
     }
 
@@ -221,6 +225,7 @@ fun CentralButtons(
             ),
             size = (baseDp / 8 * config.scale).dp,
             gamepadState = gamepadState,
+            labelOverride = controllerLayout.rightShoulderLabel,
         )
     }
 
