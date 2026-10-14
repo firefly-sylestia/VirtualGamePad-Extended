@@ -36,6 +36,8 @@ import io.github.kitswas.virtualgamepadmobile.data.ButtonAnchor
 import io.github.kitswas.virtualgamepadmobile.data.ButtonComponent
 import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
 import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
+import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
+import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
 import io.github.kitswas.virtualgamepadmobile.ui.utils.HapticUtils
 
 /**
@@ -68,12 +70,14 @@ fun ShoulderButton(
     size: Dp,
     gamepadState: GamepadReading,
     labelOverride: String? = null,
+    actionMask: Int? = null,
 ) {
     val view = LocalView.current
     val gameButton = when (type) {
         ShoulderButtonType.LEFT -> GameButtons.LeftShoulder
         ShoulderButtonType.RIGHT -> GameButtons.RightShoulder
     }
+    val buttonMask = actionMask ?: gameButton.value
     val text = labelOverride ?: when (type) {
         ShoulderButtonType.LEFT -> stringResource(R.string.button_l_shoulder)
         ShoulderButtonType.RIGHT -> stringResource(R.string.button_r_shoulder)
@@ -86,15 +90,15 @@ fun ShoulderButton(
     if (isPressed) {
         Log.d(gameButton.name, "Pressed")
         HapticUtils.performButtonPressFeedback(view)
-        gamepadState.ButtonsDown = gamepadState.ButtonsDown or gameButton.value
+        gamepadState.ButtonsDown = gamepadState.ButtonsDown or buttonMask
         //Use if + DisposableEffect to wait for the press action is completed
-        DisposableEffect(Unit) {
+        DisposableEffect(buttonMask) {
             onDispose {
                 Log.d(gameButton.name, "Released")
                 HapticUtils.performButtonReleaseFeedback(view)
                 gamepadState.ButtonsDown =
                     gamepadState.ButtonsDown and gameButton.value.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or gameButton.value
+                gamepadState.ButtonsUp = gamepadState.ButtonsUp or buttonMask
             }
         }
     }
@@ -117,12 +121,14 @@ fun MenuButton(
     modifier: Modifier = Modifier,
     size: Dp,
     gamepadState: GamepadReading,
+    actionMask: Int? = null,
 ) {
     val view = LocalView.current
     val gameButton = when (type) {
         MenuButtonType.VIEW -> GameButtons.View
         MenuButtonType.MENU -> GameButtons.Menu
     }
+    val buttonMask = actionMask ?: gameButton.value
     val iconPainter = when (type) {
         MenuButtonType.VIEW -> null
         MenuButtonType.MENU -> painterResource(R.drawable.ic_menu)
@@ -135,15 +141,15 @@ fun MenuButton(
     if (isPressed) {
         Log.d(gameButton.name, "Pressed")
         HapticUtils.performButtonPressFeedback(view)
-        gamepadState.ButtonsDown = gamepadState.ButtonsDown or gameButton.value
+        gamepadState.ButtonsDown = gamepadState.ButtonsDown or buttonMask
         //Use if + DisposableEffect to wait for the press action is completed
-        DisposableEffect(Unit) {
+        DisposableEffect(buttonMask) {
             onDispose {
                 Log.d(gameButton.name, "Released")
                 HapticUtils.performButtonReleaseFeedback(view)
                 gamepadState.ButtonsDown =
-                    gamepadState.ButtonsDown and gameButton.value.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or gameButton.value
+                    gamepadState.ButtonsDown and buttonMask.inv()
+                gamepadState.ButtonsUp = gamepadState.ButtonsUp or buttonMask
             }
         }
     }
@@ -182,6 +188,7 @@ fun CentralButtons(
     gamepadState: GamepadReading,
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout = ControllerLayout.SWITCH_2,
+    bindings: Map<String, ControllerAction> = defaultControllerBindings,
 ) {
     // Helper function to get config for a component
     fun getConfig(component: ButtonComponent) =
@@ -212,6 +219,7 @@ fun CentralButtons(
             size = (baseDp / 8 * config.scale).dp,
             gamepadState = gamepadState,
             labelOverride = controllerLayout.leftShoulderLabel,
+            actionMask = bindings["left_shoulder"]?.mask,
         )
     }
 
@@ -226,6 +234,7 @@ fun CentralButtons(
             size = (baseDp / 8 * config.scale).dp,
             gamepadState = gamepadState,
             labelOverride = controllerLayout.rightShoulderLabel,
+            actionMask = bindings["right_shoulder"]?.mask,
         )
     }
 
@@ -239,6 +248,7 @@ fun CentralButtons(
             ),
             size = (baseDp / 8 * config.scale).dp,
             gamepadState = gamepadState,
+            actionMask = bindings["view"]?.mask,
         )
     }
 
@@ -252,6 +262,7 @@ fun CentralButtons(
             ),
             size = (baseDp / 8 * config.scale).dp,
             gamepadState = gamepadState,
+            actionMask = bindings["menu"]?.mask,
         )
     }
 }
