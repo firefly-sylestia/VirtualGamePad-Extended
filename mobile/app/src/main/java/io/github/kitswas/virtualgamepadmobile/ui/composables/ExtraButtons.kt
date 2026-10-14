@@ -23,6 +23,7 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.ui.utils.HapticUtils
 import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
 import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
+import io.github.kitswas.virtualgamepadmobile.ui.utils.GamepadButtonDispatcher
 
 enum class ExtraButtonClusterType {
     PLUS_MINUS,
@@ -69,11 +70,10 @@ private fun ExtraButton(
     if (isPressed) {
         DisposableEffect(actionMask) {
             Log.d("ExtraButton", "${gameButton.name} pressed")
-            gamepadState.ButtonsDown = gamepadState.ButtonsDown or actionMask
+            GamepadButtonDispatcher.press(gamepadState, "extra_${gameButton.name}", actionMask)
             HapticUtils.performButtonPressFeedback(view)
             onDispose {
-                gamepadState.ButtonsDown = gamepadState.ButtonsDown and actionMask.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or actionMask
+                GamepadButtonDispatcher.release(gamepadState, "extra_${gameButton.name}")
                 HapticUtils.performButtonReleaseFeedback(view)
             }
         }
