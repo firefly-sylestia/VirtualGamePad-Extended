@@ -76,6 +76,26 @@ std::string getButtonNames(uint32_t buttons)
 		buttonNames.emplace_back("LeftThumbstick");
 	if (buttons & GamepadButtons_RightThumbstick)
 		buttonNames.emplace_back("RightThumbstick");
+	if (buttons & GamepadButtons_Plus)
+		buttonNames.emplace_back("Plus");
+	if (buttons & GamepadButtons_Minus)
+		buttonNames.emplace_back("Minus");
+	if (buttons & GamepadButtons_Home)
+		buttonNames.emplace_back("Home");
+	if (buttons & GamepadButtons_Capture)
+		buttonNames.emplace_back("Capture");
+	if (buttons & GamepadButtons_LeftSide)
+		buttonNames.emplace_back("LeftSide");
+	if (buttons & GamepadButtons_RightSide)
+		buttonNames.emplace_back("RightSide");
+	if (buttons & GamepadButtons_Paddle1)
+		buttonNames.emplace_back("Paddle1");
+	if (buttons & GamepadButtons_Paddle2)
+		buttonNames.emplace_back("Paddle2");
+	if (buttons & GamepadButtons_Paddle3)
+		buttonNames.emplace_back("Paddle3");
+	if (buttons & GamepadButtons_Paddle4)
+		buttonNames.emplace_back("Paddle4");
 
 	if (buttonNames.empty())
 	{
@@ -316,7 +336,17 @@ bool KeyboardMouseExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_readi
 														GamepadButtons_LeftShoulder,
 														GamepadButtons_RightShoulder,
 														GamepadButtons_LeftThumbstick,
-														GamepadButtons_RightThumbstick};
+														GamepadButtons_RightThumbstick,
+														GamepadButtons_Plus,
+														GamepadButtons_Minus,
+														GamepadButtons_Home,
+														GamepadButtons_Capture,
+														GamepadButtons_LeftSide,
+														GamepadButtons_RightSide,
+														GamepadButtons_Paddle1,
+														GamepadButtons_Paddle2,
+														GamepadButtons_Paddle3,
+														GamepadButtons_Paddle4};
 	for (auto button : buttons)
 	{
 		InputKeyCode vk = profile.buttonMap(button);
