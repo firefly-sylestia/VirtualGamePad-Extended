@@ -86,6 +86,8 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
             update(ButtonComponent.HOME_CAPTURE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.52f)
             update(ButtonComponent.SIDE_BUTTONS, visible = false)
             update(ButtonComponent.REAR_PADDLES, visible = false)
+            update(ButtonComponent.TOUCH_SURFACE, visible = false)
+            update(ButtonComponent.GYRO_TOGGLE, visible = true)
         }
         ControllerLayout.SWITCH -> {
             update(ButtonComponent.SELECT_BUTTON, visible = false)
@@ -94,6 +96,8 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
             update(ButtonComponent.HOME_CAPTURE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.52f)
             update(ButtonComponent.SIDE_BUTTONS, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = -0.12f)
             update(ButtonComponent.REAR_PADDLES, visible = false)
+            update(ButtonComponent.TOUCH_SURFACE, visible = false)
+            update(ButtonComponent.GYRO_TOGGLE, visible = true)
         }
         ControllerLayout.XBOX -> {
             update(ButtonComponent.SELECT_BUTTON, visible = true)
@@ -102,6 +106,8 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
             update(ButtonComponent.HOME_CAPTURE, visible = false)
             update(ButtonComponent.SIDE_BUTTONS, visible = false)
             update(ButtonComponent.REAR_PADDLES, visible = false)
+            update(ButtonComponent.TOUCH_SURFACE, visible = false)
+            update(ButtonComponent.GYRO_TOGGLE, visible = false)
         }
         ControllerLayout.PLAYSTATION -> {
             update(ButtonComponent.SELECT_BUTTON, visible = true)
@@ -111,6 +117,7 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
             update(ButtonComponent.SIDE_BUTTONS, visible = false)
             update(ButtonComponent.REAR_PADDLES, visible = false)
             update(ButtonComponent.TOUCH_SURFACE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.18f, scale = 0.75f)
+            update(ButtonComponent.GYRO_TOGGLE, visible = true)
         }
         ControllerLayout.STEAM_DECK -> {
             update(ButtonComponent.SELECT_BUTTON, visible = true)
@@ -120,6 +127,7 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
             update(ButtonComponent.SIDE_BUTTONS, visible = false)
             update(ButtonComponent.REAR_PADDLES, visible = true, anchor = ButtonAnchor.BOTTOM_CENTER, x = 0f, y = -0.08f)
             update(ButtonComponent.TOUCH_SURFACE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.18f, scale = 0.75f)
+            update(ButtonComponent.GYRO_TOGGLE, visible = true)
         }
         ControllerLayout.CUSTOM -> Unit
     }
