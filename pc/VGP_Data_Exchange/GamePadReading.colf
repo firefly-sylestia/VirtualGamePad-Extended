@@ -1,0 +1,14 @@
+package VGP_Data_Exchange
+
+// Inspired by the GamepadReading struct in the Windows API.
+// https://learn.microsoft.com/en-us/uwp/api/windows.gaming.input.gamepadreading
+type GamepadReading struct {
+	ButtonsUp uint32
+	ButtonsDown uint32
+	LeftTrigger float32
+	RightTrigger float32
+	LeftThumbstickX float32
+	LeftThumbstickY float32
+	RightThumbstickX float32
+	RightThumbstickY float32
+}
