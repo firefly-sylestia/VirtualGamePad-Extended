@@ -53,7 +53,7 @@ The PC side already consumes that schema and has keyboard/mouse mappings for ord
 - [x] **Xbox:** Xbox A/B/X/Y order, D-pad, dual sticks, L3/R3, LB/RB, LT/RT, View/Menu, and optional remappable auxiliary controls.
 - [x] **PlayStation DualSense-inspired:** Cross/Circle/Square/Triangle, D-pad, L3/R3, L1/R1/L2/R2, Create/Options, touchpad surface/click, and Home/PS-style system button.
 - [x] **Steam Deck-inspired:** dual sticks, D-pad, ABXY, bumpers/triggers, View/Menu, and four rear paddles as configurable actions. Clearly mark trackpad and gyro support as software-mapped features rather than hardware emulation.
-- [x] **Generic / fully custom:** start from a blank or minimal layout and add controls from the control library.
+- [ ] **Generic / fully custom:** a Custom preset is selectable, but a blank-layout control library with arbitrary add/remove/duplicate instances remains planned.
 - [x] Add a layout registry so further controller presets can be introduced without rewriting the renderer or settings model.
 - [ ] Keep button labels, positions, shapes, colours, and left/right handedness in preset data rather than scattering controller-specific conditions through UI code.
 
@@ -137,7 +137,7 @@ The PC side already consumes that schema and has keyboard/mouse mappings for ord
 ## 5. Acceptance criteria
 
 - [ ] Switch 2 is the first fully usable preset and includes all requested standard controls.
-- [ ] Users can choose a preset, duplicate it, and add/remove/reposition/resize controls without modifying the built-in preset.
+- [ ] Users can choose a preset and reposition/resize/show/hide provided component groups without modifying built-in presets. Duplicating controls and per-button action remapping remain planned.
 - [ ] Existing saved layouts load or migrate safely; invalid imports show a clear error and do not corrupt saved settings.
 - [ ] L3/R3 continue to generate the existing stick-click input exactly once.
 - [ ] Triggers support continuous values when the interaction provides pressure and a reliable digital fallback otherwise.
