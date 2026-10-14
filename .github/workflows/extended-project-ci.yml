@@ -29,17 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Install Linux dependencies
+      - name: Install Linux and Qt dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libevdev-dev ninja-build
-      - name: Install Qt 6.8
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.3"
-          host: linux
-          target: desktop
-          arch: gcc_64
+          sudo apt-get install -y libevdev-dev ninja-build qt6-base-dev qt6-base-dev-tools
       - name: Configure
         working-directory: pc
         run: cmake --preset linux
