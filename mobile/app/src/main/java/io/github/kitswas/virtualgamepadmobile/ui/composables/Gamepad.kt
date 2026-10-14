@@ -222,6 +222,17 @@ fun DrawGamepad(
                     )
                 )
             }
+
+            RenderComponent(ButtonComponent.GYRO_TOGGLE) { config ->
+                GyroControl(
+                    gamepadState = gamepadState,
+                    minSize = (baseDp / 14 * config.scale).dp,
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    )
+                )
+            }
         }
     }
 }
