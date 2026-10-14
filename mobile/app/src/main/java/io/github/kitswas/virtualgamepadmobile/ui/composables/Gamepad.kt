@@ -13,6 +13,8 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.data.ButtonAnchor
 import io.github.kitswas.virtualgamepadmobile.data.ButtonComponent
 import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
+import io.github.kitswas.virtualgamepadmobile.ui.composables.ExtraButtonCluster
+import io.github.kitswas.virtualgamepadmobile.ui.composables.ExtraButtonClusterType
 
 /**
  * Convert ButtonAnchor to Compose Alignment
@@ -151,6 +153,55 @@ fun DrawGamepad(
                 gamepadState = gamepadState,
                 buttonConfigs = buttonConfigs,
             )
+
+            // Auxiliary controls used by Switch 2, Joy-Con-inspired, and Steam Deck layouts.
+            RenderComponent(ButtonComponent.PLUS_MINUS) { config ->
+                ExtraButtonCluster(
+                    type = ExtraButtonClusterType.PLUS_MINUS,
+                    gamepadState = gamepadState,
+                    minButtonSize = (baseDp / 14 * config.scale).dp,
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    )
+                )
+            }
+
+            RenderComponent(ButtonComponent.HOME_CAPTURE) { config ->
+                ExtraButtonCluster(
+                    type = ExtraButtonClusterType.HOME_CAPTURE,
+                    gamepadState = gamepadState,
+                    minButtonSize = (baseDp / 14 * config.scale).dp,
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    )
+                )
+            }
+
+            RenderComponent(ButtonComponent.SIDE_BUTTONS) { config ->
+                ExtraButtonCluster(
+                    type = ExtraButtonClusterType.SIDE_BUTTONS,
+                    gamepadState = gamepadState,
+                    minButtonSize = (baseDp / 14 * config.scale).dp,
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    )
+                )
+            }
+
+            RenderComponent(ButtonComponent.REAR_PADDLES) { config ->
+                ExtraButtonCluster(
+                    type = ExtraButtonClusterType.REAR_PADDLES,
+                    gamepadState = gamepadState,
+                    minButtonSize = (baseDp / 16 * config.scale).dp,
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    )
+                )
+            }
         }
     }
 }
