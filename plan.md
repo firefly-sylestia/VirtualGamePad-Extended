@@ -92,7 +92,7 @@ The PC side already consumes that schema and has keyboard/mouse mappings for ord
 - [x] Replace binary-only trigger touch behavior with a vertical position-to-value interaction; analog value is transmitted through the existing trigger fields. Configurable action fallback remains planned.
 - [ ] Define calibration, dead zone, sensitivity curve, maximum value, and release-to-zero behavior for LT/RT and ZL/ZR where applicable.
 - [ ] Ensure touch cancellation, app backgrounding, rotation, disconnect, and navigation release every held input and reset axes/triggers. (Trigger cancellation path still needs a final safety pass.)
-- [ ] Provide an action-binding editor so controls can map to supported gamepad buttons/axes or supported keyboard/mouse inputs through the existing PC mapping system.
+- [x] Provide a mobile action-binding editor so existing digital controls can be remapped to supported gamepad button actions. Direct keyboard/mouse action selection and analog-trigger-to-button remapping remain planned.
 - [ ] Add safe input lifecycle handling so press/release events cannot get stuck during fast taps or multi-touch use.
 
 ### Phase E — New control types and protocol
