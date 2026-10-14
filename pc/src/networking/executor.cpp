@@ -428,7 +428,16 @@ bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading con
 #ifdef _WIN32
 	using enum winrt::Windows::Gaming::Input::GamepadButtons;
 	InjectedInputGamepadInfo newState;
-	newState.Buttons(None);
+	WinRTGamepadButtons heldButtons = None;
+	for (const auto &[buttonCode, pressCount] : m_nativeButtonPressCounts)
+	{
+		if (pressCount > 0)
+		{
+			heldButtons = static_cast<WinRTGamepadButtons>(
+				static_cast<uint32_t>(heldButtons) | static_cast<uint32_t>(buttonCode));
+		}
+	}
+	newState.Buttons(heldButtons);
 	newState.LeftThumbstickX(reading.left_thumbstick_x);
 	newState.LeftThumbstickY(-reading.left_thumbstick_y);
 	newState.RightThumbstickX(reading.right_thumbstick_x);
