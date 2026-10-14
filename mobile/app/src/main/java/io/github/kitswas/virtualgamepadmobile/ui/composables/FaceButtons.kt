@@ -39,6 +39,12 @@ enum class FaceButtonType {
     A, B, X, Y
 }
 
+/** Physical face-button placement used by controller presets. */
+enum class FaceButtonLayout {
+    XBOX,
+    NINTENDO_SWITCH,
+}
+
 private val faceButtonColourMap = mapOf(
     FaceButtonType.A to Color(0xFF00FF00),
     FaceButtonType.B to Color(0xFFFF0000),
@@ -114,6 +120,7 @@ fun FaceButtons(
     modifier: Modifier = Modifier,
     size: Dp = 360.dp,
     gamepadState: GamepadReading,
+    layout: FaceButtonLayout = FaceButtonLayout.NINTENDO_SWITCH,
 ) {
     Box(
         modifier = modifier.size(size),
@@ -121,25 +128,33 @@ fun FaceButtons(
     ) {
         FaceButton(
             type = FaceButtonType.A,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier.align(
+                if (layout == FaceButtonLayout.NINTENDO_SWITCH) Alignment.CenterEnd else Alignment.BottomCenter
+            ),
             size = 2 * size / 5,
             gamepadState = gamepadState,
         )
         FaceButton(
             type = FaceButtonType.B,
-            modifier = Modifier.align(Alignment.CenterEnd),
+            modifier = Modifier.align(
+                if (layout == FaceButtonLayout.NINTENDO_SWITCH) Alignment.BottomCenter else Alignment.CenterEnd
+            ),
             size = 2 * size / 5,
             gamepadState = gamepadState,
         )
         FaceButton(
             type = FaceButtonType.X,
-            modifier = Modifier.align(Alignment.CenterStart),
+            modifier = Modifier.align(
+                if (layout == FaceButtonLayout.NINTENDO_SWITCH) Alignment.TopCenter else Alignment.CenterStart
+            ),
             size = 2 * size / 5,
             gamepadState = gamepadState,
         )
         FaceButton(
             type = FaceButtonType.Y,
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier.align(
+                if (layout == FaceButtonLayout.NINTENDO_SWITCH) Alignment.CenterStart else Alignment.TopCenter
+            ),
             size = 2 * size / 5,
             gamepadState = gamepadState,
         )
