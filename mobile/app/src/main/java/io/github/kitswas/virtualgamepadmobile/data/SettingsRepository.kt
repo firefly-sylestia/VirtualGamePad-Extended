@@ -51,6 +51,19 @@ class SettingsRepository(context: Context) {
         ControllerLayout.fromStored(preferences[CONTROLLER_LAYOUT])
     }
 
+    val macros: Flow<List<MacroDefinition>> = dataStore.data.map { preferences ->
+        val jsonString = preferences[MACROS]
+        if (jsonString != null) {
+            try {
+                Json.decodeFromString<List<MacroDefinition>>(jsonString)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
     val lastConnectionIpAddress: Flow<String> = dataStore.data.map { preferences ->
         preferences[LAST_CONNECTION_IP_ADDRESS] ?: ""
     }
@@ -121,6 +134,12 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setMacros(macros: List<MacroDefinition>) {
+        dataStore.edit { preferences ->
+            preferences[MACROS] = Json.encodeToString(macros)
+        }
+    }
+
     suspend fun setLastConnectionCredentials(ipAddress: String, port: String) {
         dataStore.edit { preferences ->
             preferences[LAST_CONNECTION_IP_ADDRESS] = ipAddress
@@ -153,6 +172,7 @@ class SettingsRepository(context: Context) {
         private val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
         private val BUTTON_CONFIGS = stringPreferencesKey("button_configs")
         private val CONTROLLER_LAYOUT = stringPreferencesKey("controller_layout")
+        private val MACROS = stringPreferencesKey("controller_macros")
         private val LAST_CONNECTION_IP_ADDRESS = stringPreferencesKey("last_connection_ip_address")
         private val LAST_CONNECTION_PORT = stringPreferencesKey("last_connection_port")
         private val SAVE_CONNECTION_CREDENTIALS =
