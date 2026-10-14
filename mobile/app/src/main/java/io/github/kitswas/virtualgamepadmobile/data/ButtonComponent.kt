@@ -64,7 +64,11 @@ enum class ButtonComponent(
         ButtonAnchor.TOP_CENTER
     ),
     SELECT_BUTTON(R.string.component_select, "Select (View)", ButtonAnchor.TOP_CENTER),
-    START_BUTTON(R.string.component_start, "Start (Menu)", ButtonAnchor.TOP_CENTER);
+    START_BUTTON(R.string.component_start, "Start (Menu)", ButtonAnchor.TOP_CENTER),
+    PLUS_MINUS(R.string.component_plus_minus, "Plus / Minus (+ / −)", ButtonAnchor.TOP_CENTER),
+    HOME_CAPTURE(R.string.component_home_capture, "Home / Capture", ButtonAnchor.TOP_CENTER),
+    SIDE_BUTTONS(R.string.component_side_buttons, "Joy-Con SL / SR", ButtonAnchor.TOP_CENTER),
+    REAR_PADDLES(R.string.component_rear_paddles, "Rear Paddles (P1–P4)", ButtonAnchor.BOTTOM_CENTER);
 
     override fun toString(): String = displayName
 }
