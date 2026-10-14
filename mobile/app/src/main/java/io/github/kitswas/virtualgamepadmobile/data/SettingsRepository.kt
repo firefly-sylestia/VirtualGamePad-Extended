@@ -48,7 +48,12 @@ class SettingsRepository(context: Context) {
         }
 
     val controllerLayout: Flow<ControllerLayout> = dataStore.data.map { preferences ->
-        ControllerLayout.fromStored(preferences[CONTROLLER_LAYOUT])
+        val storedLayout = preferences[CONTROLLER_LAYOUT]
+        when {
+            storedLayout != null -> ControllerLayout.fromStored(storedLayout)
+            preferences[BUTTON_CONFIGS] != null -> ControllerLayout.CUSTOM
+            else -> ControllerLayout.SWITCH_2
+        }
     }
 
     val macros: Flow<List<MacroDefinition>> = dataStore.data.map { preferences ->
