@@ -38,6 +38,7 @@ import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
 import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
 import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
 import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
+import io.github.kitswas.virtualgamepadmobile.ui.utils.GamepadButtonDispatcher
 import io.github.kitswas.virtualgamepadmobile.ui.utils.HapticUtils
 
 /**
@@ -90,7 +91,7 @@ fun ShoulderButton(
     if (isPressed) {
         Log.d(gameButton.name, "Pressed")
         HapticUtils.performButtonPressFeedback(view)
-        gamepadState.ButtonsDown = gamepadState.ButtonsDown or buttonMask
+        GamepadButtonDispatcher.press(gamepadState, "shoulder_${type.name}", buttonMask)
         //Use if + DisposableEffect to wait for the press action is completed
         DisposableEffect(buttonMask) {
             onDispose {
@@ -141,15 +142,13 @@ fun MenuButton(
     if (isPressed) {
         Log.d(gameButton.name, "Pressed")
         HapticUtils.performButtonPressFeedback(view)
-        gamepadState.ButtonsDown = gamepadState.ButtonsDown or buttonMask
+        GamepadButtonDispatcher.press(gamepadState, "menu_${type.name}", buttonMask)
         //Use if + DisposableEffect to wait for the press action is completed
         DisposableEffect(buttonMask) {
             onDispose {
                 Log.d(gameButton.name, "Released")
                 HapticUtils.performButtonReleaseFeedback(view)
-                gamepadState.ButtonsDown =
-                    gamepadState.ButtonsDown and buttonMask.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or buttonMask
+                GamepadButtonDispatcher.release(gamepadState, "menu_${type.name}")
             }
         }
     }
