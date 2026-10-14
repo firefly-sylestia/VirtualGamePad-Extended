@@ -70,7 +70,8 @@ enum class ButtonComponent(
     SIDE_BUTTONS(R.string.component_side_buttons, "Joy-Con SL / SR", ButtonAnchor.TOP_CENTER),
     REAR_PADDLES(R.string.component_rear_paddles, "Rear Paddles (P1–P4)", ButtonAnchor.BOTTOM_CENTER),
     TOUCH_SURFACE(R.string.component_touch_surface, "Touch Surface", ButtonAnchor.TOP_CENTER),
-    GYRO_TOGGLE(R.string.component_gyro_toggle, "Gyroscope Aim Toggle", ButtonAnchor.BOTTOM_CENTER);
+    GYRO_TOGGLE(R.string.component_gyro_toggle, "Gyroscope Aim Toggle", ButtonAnchor.BOTTOM_CENTER),
+    MACRO_BUTTONS(R.string.component_macro_buttons, "Macro Triggers (M1–M4)", ButtonAnchor.BOTTOM_CENTER);
 
     override fun toString(): String = displayName
 }
