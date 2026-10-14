@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.ui.utils.HapticUtils
+import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
+import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
 
 enum class ExtraButtonClusterType {
     PLUS_MINUS,
@@ -29,26 +31,26 @@ enum class ExtraButtonClusterType {
     REAR_PADDLES,
 }
 
-private data class ExtraButtonSpec(val label: String, val button: GameButtons)
+private data class ExtraButtonSpec(val label: String, val button: GameButtons, val bindingKey: String)
 
 private fun ExtraButtonClusterType.buttons(): List<ExtraButtonSpec> = when (this) {
     ExtraButtonClusterType.PLUS_MINUS -> listOf(
-        ExtraButtonSpec("+", GameButtons.Plus),
-        ExtraButtonSpec("−", GameButtons.Minus),
+        ExtraButtonSpec("+", GameButtons.Plus, "plus"),
+        ExtraButtonSpec("−", GameButtons.Minus, "minus"),
     )
     ExtraButtonClusterType.HOME_CAPTURE -> listOf(
-        ExtraButtonSpec("HOME", GameButtons.Home),
-        ExtraButtonSpec("CAP", GameButtons.Capture),
+        ExtraButtonSpec("HOME", GameButtons.Home, "home"),
+        ExtraButtonSpec("CAP", GameButtons.Capture, "capture"),
     )
     ExtraButtonClusterType.SIDE_BUTTONS -> listOf(
-        ExtraButtonSpec("SL", GameButtons.LeftSide),
-        ExtraButtonSpec("SR", GameButtons.RightSide),
+        ExtraButtonSpec("SL", GameButtons.LeftSide, "left_side"),
+        ExtraButtonSpec("SR", GameButtons.RightSide, "right_side"),
     )
     ExtraButtonClusterType.REAR_PADDLES -> listOf(
-        ExtraButtonSpec("P1", GameButtons.Paddle1),
-        ExtraButtonSpec("P2", GameButtons.Paddle2),
-        ExtraButtonSpec("P3", GameButtons.Paddle3),
-        ExtraButtonSpec("P4", GameButtons.Paddle4),
+        ExtraButtonSpec("P1", GameButtons.Paddle1, "paddle_1"),
+        ExtraButtonSpec("P2", GameButtons.Paddle2, "paddle_2"),
+        ExtraButtonSpec("P3", GameButtons.Paddle3, "paddle_3"),
+        ExtraButtonSpec("P4", GameButtons.Paddle4, "paddle_4"),
     )
 }
 
@@ -58,19 +60,20 @@ private fun ExtraButton(
     gameButton: GameButtons,
     gamepadState: GamepadReading,
     minSize: Dp,
+    actionMask: Int,
 ) {
     val view = LocalView.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
     if (isPressed) {
-        DisposableEffect(gameButton) {
+        DisposableEffect(actionMask) {
             Log.d("ExtraButton", "${gameButton.name} pressed")
-            gamepadState.ButtonsDown = gamepadState.ButtonsDown or gameButton.value
+            gamepadState.ButtonsDown = gamepadState.ButtonsDown or actionMask
             HapticUtils.performButtonPressFeedback(view)
             onDispose {
-                gamepadState.ButtonsDown = gamepadState.ButtonsDown and gameButton.value.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or gameButton.value
+                gamepadState.ButtonsDown = gamepadState.ButtonsDown and actionMask.inv()
+                gamepadState.ButtonsUp = gamepadState.ButtonsUp or actionMask
                 HapticUtils.performButtonReleaseFeedback(view)
             }
         }
@@ -93,6 +96,7 @@ fun ExtraButtonCluster(
     gamepadState: GamepadReading,
     minButtonSize: Dp,
     modifier: Modifier = Modifier,
+    bindings: Map<String, ControllerAction> = defaultControllerBindings,
 ) {
     Row(
         modifier = modifier,
@@ -104,6 +108,7 @@ fun ExtraButtonCluster(
                 gameButton = spec.button,
                 gamepadState = gamepadState,
                 minSize = minButtonSize,
+                actionMask = bindings[spec.bindingKey]?.mask ?: spec.button.value,
             )
         }
     }
