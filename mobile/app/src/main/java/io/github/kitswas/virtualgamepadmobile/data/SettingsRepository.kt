@@ -64,6 +64,19 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    val controllerBindings: Flow<Map<String, ControllerAction>> = dataStore.data.map { preferences ->
+        val jsonString = preferences[CONTROLLER_BINDINGS]
+        if (jsonString != null) {
+            try {
+                defaultControllerBindings + Json.decodeFromString<Map<String, ControllerAction>>(jsonString)
+            } catch (e: Exception) {
+                defaultControllerBindings
+            }
+        } else {
+            defaultControllerBindings
+        }
+    }
+
     val lastConnectionIpAddress: Flow<String> = dataStore.data.map { preferences ->
         preferences[LAST_CONNECTION_IP_ADDRESS] ?: ""
     }
@@ -140,6 +153,12 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setControllerBindings(bindings: Map<String, ControllerAction>) {
+        dataStore.edit { preferences ->
+            preferences[CONTROLLER_BINDINGS] = Json.encodeToString(bindings)
+        }
+    }
+
     suspend fun setLastConnectionCredentials(ipAddress: String, port: String) {
         dataStore.edit { preferences ->
             preferences[LAST_CONNECTION_IP_ADDRESS] = ipAddress
@@ -173,6 +192,7 @@ class SettingsRepository(context: Context) {
         private val BUTTON_CONFIGS = stringPreferencesKey("button_configs")
         private val CONTROLLER_LAYOUT = stringPreferencesKey("controller_layout")
         private val MACROS = stringPreferencesKey("controller_macros")
+        private val CONTROLLER_BINDINGS = stringPreferencesKey("controller_bindings")
         private val LAST_CONNECTION_IP_ADDRESS = stringPreferencesKey("last_connection_ip_address")
         private val LAST_CONNECTION_PORT = stringPreferencesKey("last_connection_port")
         private val SAVE_CONNECTION_CREDENTIALS =
