@@ -23,6 +23,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,10 +40,14 @@ import io.github.kitswas.virtualgamepadmobile.R
 import io.github.kitswas.virtualgamepadmobile.data.ButtonComponent
 import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
 import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
+import io.github.kitswas.virtualgamepadmobile.data.MacroAction
+import io.github.kitswas.virtualgamepadmobile.data.MacroDefinition
+import io.github.kitswas.virtualgamepadmobile.data.MacroStep
 import io.github.kitswas.virtualgamepadmobile.data.buttonConfigsForLayout
 import io.github.kitswas.virtualgamepadmobile.data.PreviewBase
 import io.github.kitswas.virtualgamepadmobile.data.SettingsRepository
 import io.github.kitswas.virtualgamepadmobile.data.defaultButtonConfigs
+import io.github.kitswas.virtualgamepadmobile.ui.composables.BoundedNumericInput
 import io.github.kitswas.virtualgamepadmobile.ui.composables.ButtonConfigEditor
 import io.github.kitswas.virtualgamepadmobile.ui.composables.ListItemPicker
 import io.github.kitswas.virtualgamepadmobile.ui.composables.DrawGamepad
@@ -69,6 +74,7 @@ private fun sanitizeButtonConfigs(configs: Map<ButtonComponent, ButtonConfig>): 
 fun GamepadPreview(
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout,
+    macros: List<MacroDefinition>,
 ) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp
@@ -82,7 +88,8 @@ fun GamepadPreview(
         heightDp = screenHeight,
         gamepadState = gamepadState,
         buttonConfigs = buttonConfigs,
-        controllerLayout = controllerLayout
+        controllerLayout = controllerLayout,
+        macros = macros
     )
 }
 
@@ -93,6 +100,8 @@ fun GamepadCustomizationScreen(
 ) {
     val buttonConfigs by settingsRepository.buttonConfigs.collectAsState(initial = defaultButtonConfigs)
     val controllerLayout by settingsRepository.controllerLayout.collectAsState(initial = ControllerLayout.SWITCH_2)
+    val macros by settingsRepository.macros.collectAsState(initial = emptyList())
+    var showMacroEditor by rememberSaveable { mutableStateOf(false) }
     var modifiedLayout by rememberSaveable { mutableStateOf<ControllerLayout?>(null) }
     var modifiedConfigs by rememberSaveable {
         mutableStateOf<Map<ButtonComponent, ButtonConfig>?>(
@@ -115,7 +124,7 @@ fun GamepadCustomizationScreen(
 
     if (showPreview) {
         // Full-screen preview overlay
-        GamepadPreview(buttonConfigs = currentConfigs, controllerLayout = currentLayout)
+        GamepadPreview(buttonConfigs = currentConfigs, controllerLayout = currentLayout, macros = macros)
         return
     }
 
@@ -123,6 +132,17 @@ fun GamepadCustomizationScreen(
         ExportConfigDialog(
             buttonConfigs = currentConfigs,
             onDismiss = { showExportDialog = false }
+        )
+    }
+
+    if (showMacroEditor) {
+        MacroEditorDialog(
+            macros = macros,
+            onSave = { updated ->
+                runBlocking { settingsRepository.setMacros(updated) }
+                showMacroEditor = false
+            },
+            onDismiss = { showMacroEditor = false }
         )
     }
 
@@ -226,7 +246,7 @@ fun GamepadCustomizationScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Import/Export and Preview buttons
+                // Import/Export, macro editing and Preview buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -234,13 +254,14 @@ fun GamepadCustomizationScreen(
                     Button(onClick = { showExportDialog = true }) {
                         Text(stringResource(R.string.customization_export))
                     }
-                    Button(
-                        onClick = { showPreview = true },
-                    ) {
+                    Button(onClick = { showPreview = true }) {
                         Text(stringResource(R.string.customization_preview))
                     }
                     Button(onClick = { showImportDialog = true }) {
                         Text(stringResource(R.string.customization_import))
+                    }
+                    Button(onClick = { showMacroEditor = true }) {
+                        Text("Macros")
                     }
                 }
 
