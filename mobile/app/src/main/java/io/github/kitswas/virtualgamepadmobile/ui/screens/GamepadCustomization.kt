@@ -630,3 +630,65 @@ fun MacroEditorDialog(
         }
     )
 }
+
+
+@Composable
+fun ControllerBindingsDialog(
+    bindings: Map<String, ControllerAction>,
+    onSave: (Map<String, ControllerAction>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var edited by remember(bindings) {
+        mutableStateOf(defaultControllerBindings + bindings)
+    }
+    val bindingKeys = defaultControllerBindings.keys.sorted()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Remap controller buttons") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Choose which gamepad action each visible digital control sends. Analog sticks and triggers keep their axis/pressure behavior.")
+                bindingKeys.forEach { key ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            key.replace('_', ' ').uppercase(),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        ListItemPicker(
+                            modifier = Modifier.fillMaxWidth(),
+                            list = ControllerAction.entries.asIterable(),
+                            selectedItem = edited[key] ?: defaultControllerBindings.getValue(key),
+                            label = "Output action",
+                            formattedDisplay = { Text(it.name.replace('_', ' ')) },
+                            onItemSelected = { action ->
+                                edited = edited + (key to action)
+                            }
+                        )
+                    }
+                }
+                Button(
+                    onClick = { edited = defaultControllerBindings },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Reset mappings")
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(edited) }) {
+                Text("Save mappings")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
