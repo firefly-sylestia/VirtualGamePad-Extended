@@ -51,6 +51,7 @@ fun GamePad(
         settingsRepository.buttonConfigs.collectAsState(defaultButtonConfigs).value
     val controllerLayout =
         settingsRepository.controllerLayout.collectAsState(ControllerLayout.SWITCH_2).value
+    val macros = settingsRepository.macros.collectAsState(emptyList()).value
 
     val configuration = LocalConfiguration.current
 
@@ -59,7 +60,7 @@ fun GamePad(
 
     val isStopping = remember { mutableStateOf(false) }
 
-    DrawGamepad(screenWidth, screenHeight, gamepadState, buttonConfigs, controllerLayout)
+    DrawGamepad(screenWidth, screenHeight, gamepadState, buttonConfigs, controllerLayout, macros)
 
     val activity = LocalContext.current.findActivity()
     // disconnect on back press
