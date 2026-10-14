@@ -110,6 +110,7 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
             update(ButtonComponent.HOME_CAPTURE, visible = true)
             update(ButtonComponent.SIDE_BUTTONS, visible = false)
             update(ButtonComponent.REAR_PADDLES, visible = false)
+            update(ButtonComponent.TOUCH_SURFACE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.18f, scale = 0.75f)
         }
         ControllerLayout.STEAM_DECK -> {
             update(ButtonComponent.SELECT_BUTTON, visible = true)
@@ -118,6 +119,7 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
             update(ButtonComponent.HOME_CAPTURE, visible = false)
             update(ButtonComponent.SIDE_BUTTONS, visible = false)
             update(ButtonComponent.REAR_PADDLES, visible = true, anchor = ButtonAnchor.BOTTOM_CENTER, x = 0f, y = -0.08f)
+            update(ButtonComponent.TOUCH_SURFACE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.18f, scale = 0.75f)
         }
         ControllerLayout.CUSTOM -> Unit
     }
