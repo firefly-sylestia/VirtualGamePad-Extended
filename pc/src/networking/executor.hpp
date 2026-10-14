@@ -6,6 +6,7 @@
 #include "../simulation/keyboardSim.hpp"
 #include "../simulation/mouseSim.hpp"
 
+#include <cstdint>
 #include <memory>
 #include <unordered_map>
 
@@ -54,9 +55,11 @@ class GamepadExecutor : public ExecutorInterface
   private:
 	GamepadInjector m_injector;
 	std::unordered_map<int, int> m_nativeButtonPressCounts;
+	std::unordered_map<uint32_t, bool> m_semanticButtonStates;
 
 	void pressNativeButton(int buttonCode);
 	void releaseNativeButton(int buttonCode);
+	void setNativeButtonState(uint32_t semanticButton, int nativeButton, bool pressed);
 };
 
 /**
