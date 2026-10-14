@@ -21,6 +21,7 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.data.MacroAction
 import io.github.kitswas.virtualgamepadmobile.data.MacroDefinition
 import io.github.kitswas.virtualgamepadmobile.data.MacroStep
+import io.github.kitswas.virtualgamepadmobile.ui.utils.GamepadButtonDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -38,8 +39,8 @@ private fun MacroButton(
     LaunchedEffect(isPressed) {
         if (isPressed && macro != null && macro.steps.isNotEmpty()) {
             scope.launch {
-                macro.steps.take(32).forEach { step ->
-                    runMacroStep(gamepadState, step)
+                macro.steps.take(32).forEachIndexed { index, step ->
+                    runMacroStep(gamepadState, step, "macro_${slot}_${index}")
                 }
             }
         }
@@ -56,21 +57,17 @@ private fun MacroButton(
     }
 }
 
-private suspend fun runMacroStep(state: GamepadReading, step: MacroStep) {
+private suspend fun runMacroStep(state: GamepadReading, step: MacroStep, source: String) {
     val hold = step.holdMillis.coerceIn(10, 5000).toLong()
     val gap = step.gapMillis.coerceIn(0, 5000).toLong()
     val action = step.action
     if (action.buttonMask != 0) {
         val mask = action.buttonMask
-        val wasDown = (state.ButtonsDown and mask) != 0
-        state.ButtonsDown = state.ButtonsDown or mask
+        GamepadButtonDispatcher.press(state, source, mask)
         try {
             delay(hold)
         } finally {
-            if (!wasDown) {
-                state.ButtonsDown = state.ButtonsDown and mask.inv()
-                state.ButtonsUp = state.ButtonsUp or mask
-            }
+            GamepadButtonDispatcher.release(state, source)
         }
     } else {
         val previous = readAxisOrTrigger(state, action)
