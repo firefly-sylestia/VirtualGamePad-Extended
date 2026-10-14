@@ -138,5 +138,13 @@ val defaultButtonConfigs = mapOf(
         offsetX = 0f,
         offsetY = -0.12f,
         anchor = ButtonAnchor.BOTTOM_CENTER
+    ),
+    ButtonComponent.MACRO_BUTTONS to ButtonConfig(
+        component = ButtonComponent.MACRO_BUTTONS,
+        visible = false,
+        scale = 0.75f,
+        offsetX = 0f,
+        offsetY = -0.24f,
+        anchor = ButtonAnchor.BOTTOM_CENTER
     )
 )
