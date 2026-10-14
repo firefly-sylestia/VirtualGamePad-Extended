@@ -130,5 +130,13 @@ val defaultButtonConfigs = mapOf(
         offsetX = 0f,
         offsetY = 0f,
         anchor = ButtonAnchor.TOP_CENTER
+    ),
+    ButtonComponent.GYRO_TOGGLE to ButtonConfig(
+        component = ButtonComponent.GYRO_TOGGLE,
+        visible = true,
+        scale = 0.75f,
+        offsetX = 0f,
+        offsetY = -0.12f,
+        anchor = ButtonAnchor.BOTTOM_CENTER
     )
 )
