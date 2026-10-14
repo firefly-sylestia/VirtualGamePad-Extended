@@ -1,9 +1,8 @@
 name: Extended Project CI
 
 on:
-  push:
-    branches: ["main", "feature/**"]
   pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
