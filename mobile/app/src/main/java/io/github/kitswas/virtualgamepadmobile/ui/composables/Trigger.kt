@@ -38,6 +38,7 @@ fun Trigger(
     modifier: Modifier = Modifier,
     size: Dp = 64.dp,
     gamepadState: GamepadReading,
+    labelOverride: String? = null,
 ) {
     val view = LocalView.current
 
@@ -63,7 +64,7 @@ fun Trigger(
         }
     }
 
-    val label = when (type) {
+    val label = labelOverride ?: when (type) {
         TriggerType.LEFT -> stringResource(R.string.button_lt)
         TriggerType.RIGHT -> stringResource(R.string.button_rt)
     }
