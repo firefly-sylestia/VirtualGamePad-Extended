@@ -47,6 +47,10 @@ class SettingsRepository(context: Context) {
             }
         }
 
+    val controllerLayout: Flow<ControllerLayout> = dataStore.data.map { preferences ->
+        ControllerLayout.fromStored(preferences[CONTROLLER_LAYOUT])
+    }
+
     val lastConnectionIpAddress: Flow<String> = dataStore.data.map { preferences ->
         preferences[LAST_CONNECTION_IP_ADDRESS] ?: ""
     }
@@ -111,6 +115,12 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setControllerLayout(layout: ControllerLayout) {
+        dataStore.edit { preferences ->
+            preferences[CONTROLLER_LAYOUT] = layout.name
+        }
+    }
+
     suspend fun setLastConnectionCredentials(ipAddress: String, port: String) {
         dataStore.edit { preferences ->
             preferences[LAST_CONNECTION_IP_ADDRESS] = ipAddress
@@ -142,6 +152,7 @@ class SettingsRepository(context: Context) {
         private val POLLING_DELAY = intPreferencesKey("polling_delay")
         private val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
         private val BUTTON_CONFIGS = stringPreferencesKey("button_configs")
+        private val CONTROLLER_LAYOUT = stringPreferencesKey("controller_layout")
         private val LAST_CONNECTION_IP_ADDRESS = stringPreferencesKey("last_connection_ip_address")
         private val LAST_CONNECTION_PORT = stringPreferencesKey("last_connection_port")
         private val SAVE_CONNECTION_CREDENTIALS =
