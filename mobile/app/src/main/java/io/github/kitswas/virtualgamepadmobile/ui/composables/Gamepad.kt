@@ -131,6 +131,7 @@ fun DrawGamepad(
                     type = TriggerType.LEFT,
                     size = (baseDp / 6 * config.scale).dp,
                     gamepadState = gamepadState,
+                    labelOverride = "ZL",
                 )
             }
 
@@ -144,6 +145,7 @@ fun DrawGamepad(
                     type = TriggerType.RIGHT,
                     size = (baseDp / 6 * config.scale).dp,
                     gamepadState = gamepadState,
+                    labelOverride = "ZR",
                 )
             }
 
