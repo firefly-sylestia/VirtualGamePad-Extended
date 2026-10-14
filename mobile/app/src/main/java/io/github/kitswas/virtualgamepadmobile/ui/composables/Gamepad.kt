@@ -13,8 +13,7 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.data.ButtonAnchor
 import io.github.kitswas.virtualgamepadmobile.data.ButtonComponent
 import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
-import io.github.kitswas.virtualgamepadmobile.ui.composables.ExtraButtonCluster
-import io.github.kitswas.virtualgamepadmobile.ui.composables.ExtraButtonClusterType
+import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
 
 /**
  * Convert ButtonAnchor to Compose Alignment
@@ -37,6 +36,7 @@ fun DrawGamepad(
     heightDp: Int,
     gamepadState: GamepadReading,
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
+    controllerLayout: ControllerLayout = ControllerLayout.SWITCH_2,
 ) {
     // Assuming Landscape orientation
     val baseDp = heightDp
@@ -118,6 +118,11 @@ fun DrawGamepad(
                     ),
                     size = (0.45 * baseDp * config.scale).dp,
                     gamepadState = gamepadState,
+                    layout = when (controllerLayout.faceButtonStyle) {
+                        io.github.kitswas.virtualgamepadmobile.data.FaceButtonStyle.NINTENDO -> FaceButtonLayout.NINTENDO_SWITCH
+                        io.github.kitswas.virtualgamepadmobile.data.FaceButtonStyle.PLAYSTATION -> FaceButtonLayout.PLAYSTATION
+                        io.github.kitswas.virtualgamepadmobile.data.FaceButtonStyle.XBOX -> FaceButtonLayout.XBOX
+                    },
                 )
             }
 
@@ -131,7 +136,7 @@ fun DrawGamepad(
                     type = TriggerType.LEFT,
                     size = (baseDp / 6 * config.scale).dp,
                     gamepadState = gamepadState,
-                    labelOverride = "ZL",
+                    labelOverride = controllerLayout.leftTriggerLabel,
                 )
             }
 
@@ -145,7 +150,7 @@ fun DrawGamepad(
                     type = TriggerType.RIGHT,
                     size = (baseDp / 6 * config.scale).dp,
                     gamepadState = gamepadState,
-                    labelOverride = "ZR",
+                    labelOverride = controllerLayout.rightTriggerLabel,
                 )
             }
 
@@ -154,6 +159,7 @@ fun DrawGamepad(
                 baseDp = baseDp,
                 gamepadState = gamepadState,
                 buttonConfigs = buttonConfigs,
+                controllerLayout = controllerLayout,
             )
 
             // Auxiliary controls used by Switch 2, Joy-Con-inspired, and Steam Deck layouts.
