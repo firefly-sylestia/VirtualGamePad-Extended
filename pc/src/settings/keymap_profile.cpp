@@ -28,7 +28,17 @@ void KeymapProfile::initializeDefaultMappings()
 						  {GamepadButtons::GamepadButtons_LeftShoulder, "Left Click"},
 						  {GamepadButtons::GamepadButtons_RightShoulder, "Right Click"},
 						  {GamepadButtons::GamepadButtons_LeftThumbstick, "Shift"},
-						  {GamepadButtons::GamepadButtons_RightThumbstick, "Ctrl"}};
+						  {GamepadButtons::GamepadButtons_RightThumbstick, "Ctrl"},
+						  {GamepadButtons::GamepadButtons_Plus, "+"},
+						  {GamepadButtons::GamepadButtons_Minus, "-"},
+						  {GamepadButtons::GamepadButtons_Home, "Home"},
+						  {GamepadButtons::GamepadButtons_Capture, "Print Screen"},
+						  {GamepadButtons::GamepadButtons_LeftSide, "Q"},
+						  {GamepadButtons::GamepadButtons_RightSide, "E"},
+						  {GamepadButtons::GamepadButtons_Paddle1, "1"},
+						  {GamepadButtons::GamepadButtons_Paddle2, "2"},
+						  {GamepadButtons::GamepadButtons_Paddle3, "3"},
+						  {GamepadButtons::GamepadButtons_Paddle4, "4"}};
 
 #ifdef WIN32
 	buttonMappings = {{GamepadButtons::GamepadButtons_Menu, VK_MENU},
@@ -44,7 +54,17 @@ void KeymapProfile::initializeDefaultMappings()
 					  {GamepadButtons::GamepadButtons_LeftShoulder, VK_LBUTTON},
 					  {GamepadButtons::GamepadButtons_RightShoulder, VK_RBUTTON},
 					  {GamepadButtons::GamepadButtons_LeftThumbstick, VK_SHIFT},
-					  {GamepadButtons::GamepadButtons_RightThumbstick, VK_CONTROL}};
+					  {GamepadButtons::GamepadButtons_RightThumbstick, VK_CONTROL},
+					  {GamepadButtons::GamepadButtons_Plus, VK_ADD},
+					  {GamepadButtons::GamepadButtons_Minus, VK_SUBTRACT},
+					  {GamepadButtons::GamepadButtons_Home, VK_HOME},
+					  {GamepadButtons::GamepadButtons_Capture, VK_SNAPSHOT},
+					  {GamepadButtons::GamepadButtons_LeftSide, 'Q'},
+					  {GamepadButtons::GamepadButtons_RightSide, 'E'},
+					  {GamepadButtons::GamepadButtons_Paddle1, '1'},
+					  {GamepadButtons::GamepadButtons_Paddle2, '2'},
+					  {GamepadButtons::GamepadButtons_Paddle3, '3'},
+					  {GamepadButtons::GamepadButtons_Paddle4, '4'}};
 
 	thumbstickMappings = {
 		{Thumbstick_Left,
@@ -72,7 +92,17 @@ void KeymapProfile::initializeDefaultMappings()
 					  {GamepadButtons::GamepadButtons_LeftShoulder, BTN_LEFT},
 					  {GamepadButtons::GamepadButtons_RightShoulder, BTN_RIGHT},
 					  {GamepadButtons::GamepadButtons_LeftThumbstick, KEY_LEFTSHIFT},
-					  {GamepadButtons::GamepadButtons_RightThumbstick, KEY_LEFTCTRL}};
+					  {GamepadButtons::GamepadButtons_RightThumbstick, KEY_LEFTCTRL},
+					  {GamepadButtons::GamepadButtons_Plus, KEY_KPPLUS},
+					  {GamepadButtons::GamepadButtons_Minus, KEY_KPMINUS},
+					  {GamepadButtons::GamepadButtons_Home, KEY_HOME},
+					  {GamepadButtons::GamepadButtons_Capture, KEY_SYSRQ},
+					  {GamepadButtons::GamepadButtons_LeftSide, KEY_Q},
+					  {GamepadButtons::GamepadButtons_RightSide, KEY_E},
+					  {GamepadButtons::GamepadButtons_Paddle1, KEY_1},
+					  {GamepadButtons::GamepadButtons_Paddle2, KEY_2},
+					  {GamepadButtons::GamepadButtons_Paddle3, KEY_3},
+					  {GamepadButtons::GamepadButtons_Paddle4, KEY_4}};
 
 	thumbstickMappings = {
 		{Thumbstick_Left,
@@ -219,6 +249,16 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	buttonMappings[GamepadButtons_Menu] = settings.value("buttons/MENU", VK_APPS).toUInt();
 	buttonMappings[GamepadButtons_LeftThumbstick] = settings.value("buttons/LTHUMB", 0).toUInt();
 	buttonMappings[GamepadButtons_RightThumbstick] = settings.value("buttons/RTHUMB", 0).toUInt();
+	buttonMappings[GamepadButtons_Plus] = settings.value("buttons/PLUS", VK_ADD).toUInt();
+	buttonMappings[GamepadButtons_Minus] = settings.value("buttons/MINUS", VK_SUBTRACT).toUInt();
+	buttonMappings[GamepadButtons_Home] = settings.value("buttons/HOME", VK_HOME).toUInt();
+	buttonMappings[GamepadButtons_Capture] = settings.value("buttons/CAPTURE", VK_SNAPSHOT).toUInt();
+	buttonMappings[GamepadButtons_LeftSide] = settings.value("buttons/SL", 'Q').toUInt();
+	buttonMappings[GamepadButtons_RightSide] = settings.value("buttons/SR", 'E').toUInt();
+	buttonMappings[GamepadButtons_Paddle1] = settings.value("buttons/P1", '1').toUInt();
+	buttonMappings[GamepadButtons_Paddle2] = settings.value("buttons/P2", '2').toUInt();
+	buttonMappings[GamepadButtons_Paddle3] = settings.value("buttons/P3", '3').toUInt();
+	buttonMappings[GamepadButtons_Paddle4] = settings.value("buttons/P4", '4').toUInt();
 #elif defined(__linux__)
 	buttonMappings[GamepadButtons_A] = settings.value("buttons/A", KEY_ENTER).toUInt();
 	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", KEY_ESC).toUInt();
@@ -234,6 +274,16 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	buttonMappings[GamepadButtons_Menu] = settings.value("buttons/MENU", KEY_MENU).toUInt();
 	buttonMappings[GamepadButtons_LeftThumbstick] = settings.value("buttons/LTHUMB", 0).toUInt();
 	buttonMappings[GamepadButtons_RightThumbstick] = settings.value("buttons/RTHUMB", 0).toUInt();
+	buttonMappings[GamepadButtons_Plus] = settings.value("buttons/PLUS", KEY_KPPLUS).toUInt();
+	buttonMappings[GamepadButtons_Minus] = settings.value("buttons/MINUS", KEY_KPMINUS).toUInt();
+	buttonMappings[GamepadButtons_Home] = settings.value("buttons/HOME", KEY_HOME).toUInt();
+	buttonMappings[GamepadButtons_Capture] = settings.value("buttons/CAPTURE", KEY_SYSRQ).toUInt();
+	buttonMappings[GamepadButtons_LeftSide] = settings.value("buttons/SL", KEY_Q).toUInt();
+	buttonMappings[GamepadButtons_RightSide] = settings.value("buttons/SR", KEY_E).toUInt();
+	buttonMappings[GamepadButtons_Paddle1] = settings.value("buttons/P1", KEY_1).toUInt();
+	buttonMappings[GamepadButtons_Paddle2] = settings.value("buttons/P2", KEY_2).toUInt();
+	buttonMappings[GamepadButtons_Paddle3] = settings.value("buttons/P3", KEY_3).toUInt();
+	buttonMappings[GamepadButtons_Paddle4] = settings.value("buttons/P4", KEY_4).toUInt();
 #endif
 
 	// Load display names
