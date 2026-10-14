@@ -380,162 +380,120 @@ bool KeyboardMouseExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_readi
 	return true;
 }
 
+void GamepadExecutor::pressNativeButton(int buttonCode)
+{
+#ifdef _WIN32
+	m_injector.pressButton(static_cast<WinRTGamepadButtons>(buttonCode));
+#elif defined(__linux__)
+	m_injector.pressButton(buttonCode);
+#endif
+}
+
+void GamepadExecutor::releaseNativeButton(int buttonCode)
+{
+#ifdef _WIN32
+	m_injector.releaseButton(static_cast<WinRTGamepadButtons>(buttonCode));
+#elif defined(__linux__)
+	m_injector.releaseButton(buttonCode);
+#endif
+}
+
+void GamepadExecutor::setNativeButtonState(uint32_t semanticButton, int nativeButton, bool pressed)
+{
+	const bool wasPressed = m_semanticButtonStates[semanticButton];
+	if (wasPressed == pressed)
+		return;
+
+	m_semanticButtonStates[semanticButton] = pressed;
+	if (pressed)
+	{
+		int &count = m_nativeButtonPressCounts[nativeButton];
+		if (count++ == 0)
+			pressNativeButton(nativeButton);
+		return;
+	}
+
+	auto it = m_nativeButtonPressCounts.find(nativeButton);
+	if (it == m_nativeButtonPressCounts.end())
+		return;
+	if (--it->second <= 0)
+	{
+		releaseNativeButton(nativeButton);
+		m_nativeButtonPressCounts.erase(it);
+	}
+}
+
 bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading)
 {
 #ifdef _WIN32
 	using enum winrt::Windows::Gaming::Input::GamepadButtons;
-	// Create a new state to update thumbsticks and triggers
 	InjectedInputGamepadInfo newState;
 	newState.Buttons(None);
-
-	// Set thumbstick values, invert Y-axis
 	newState.LeftThumbstickX(reading.left_thumbstick_x);
 	newState.LeftThumbstickY(-reading.left_thumbstick_y);
 	newState.RightThumbstickX(reading.right_thumbstick_x);
 	newState.RightThumbstickY(-reading.right_thumbstick_y);
-
-	// Set trigger values
 	newState.LeftTrigger(reading.left_trigger);
 	newState.RightTrigger(reading.right_trigger);
-
-	// Update the gamepad state
 	m_injector.update(newState);
 
-	// Then call the button handling logic, because it affects the state
-
-	// Handle button presses (mapping from our buttons to WinRT buttons)
-	if (reading.buttons_down & GamepadButtons_Menu)
-		m_injector.pressButton(Menu);
-	if (reading.buttons_down & GamepadButtons_View)
-		m_injector.pressButton(View);
-	if (reading.buttons_down & GamepadButtons_A)
-		m_injector.pressButton(A);
-	if (reading.buttons_down & GamepadButtons_B)
-		m_injector.pressButton(B);
-	if (reading.buttons_down & GamepadButtons_X)
-		m_injector.pressButton(X);
-	if (reading.buttons_down & GamepadButtons_Y)
-		m_injector.pressButton(Y);
-	if (reading.buttons_down & GamepadButtons_DPadUp)
-		m_injector.pressButton(DPadUp);
-	if (reading.buttons_down & GamepadButtons_DPadDown)
-		m_injector.pressButton(DPadDown);
-	if (reading.buttons_down & GamepadButtons_DPadLeft)
-		m_injector.pressButton(DPadLeft);
-	if (reading.buttons_down & GamepadButtons_DPadRight)
-		m_injector.pressButton(DPadRight);
-	if (reading.buttons_down & GamepadButtons_LeftShoulder)
-		m_injector.pressButton(LeftShoulder);
-	if (reading.buttons_down & GamepadButtons_RightShoulder)
-		m_injector.pressButton(RightShoulder);
-	if (reading.buttons_down & GamepadButtons_LeftThumbstick)
-		m_injector.pressButton(LeftThumbstick);
-	if (reading.buttons_down & GamepadButtons_RightThumbstick)
-		m_injector.pressButton(RightThumbstick);
-
-	// Handle button releases
-	if (reading.buttons_up & GamepadButtons_Menu)
-		m_injector.releaseButton(Menu);
-	if (reading.buttons_up & GamepadButtons_View)
-		m_injector.releaseButton(View);
-	if (reading.buttons_up & GamepadButtons_A)
-		m_injector.releaseButton(A);
-	if (reading.buttons_up & GamepadButtons_B)
-		m_injector.releaseButton(B);
-	if (reading.buttons_up & GamepadButtons_X)
-		m_injector.releaseButton(X);
-	if (reading.buttons_up & GamepadButtons_Y)
-		m_injector.releaseButton(Y);
-	if (reading.buttons_up & GamepadButtons_DPadUp)
-		m_injector.releaseButton(DPadUp);
-	if (reading.buttons_up & GamepadButtons_DPadDown)
-		m_injector.releaseButton(DPadDown);
-	if (reading.buttons_up & GamepadButtons_DPadLeft)
-		m_injector.releaseButton(DPadLeft);
-	if (reading.buttons_up & GamepadButtons_DPadRight)
-		m_injector.releaseButton(DPadRight);
-	if (reading.buttons_up & GamepadButtons_LeftShoulder)
-		m_injector.releaseButton(LeftShoulder);
-	if (reading.buttons_up & GamepadButtons_RightShoulder)
-		m_injector.releaseButton(RightShoulder);
-	if (reading.buttons_up & GamepadButtons_LeftThumbstick)
-		m_injector.releaseButton(LeftThumbstick);
-	if (reading.buttons_up & GamepadButtons_RightThumbstick)
-		m_injector.releaseButton(RightThumbstick);
-
+	// Switch/system controls fall back to standard Xbox-compatible buttons.
+	// Reference counting prevents one alias releasing a button still held by another.
+	setNativeButtonState(GamepadButtons_Menu, static_cast<int>(Menu), reading.buttons_down & GamepadButtons_Menu);
+	setNativeButtonState(GamepadButtons_View, static_cast<int>(View), reading.buttons_down & GamepadButtons_View);
+	setNativeButtonState(GamepadButtons_A, static_cast<int>(A), reading.buttons_down & GamepadButtons_A);
+	setNativeButtonState(GamepadButtons_B, static_cast<int>(B), reading.buttons_down & GamepadButtons_B);
+	setNativeButtonState(GamepadButtons_X, static_cast<int>(X), reading.buttons_down & GamepadButtons_X);
+	setNativeButtonState(GamepadButtons_Y, static_cast<int>(Y), reading.buttons_down & GamepadButtons_Y);
+	setNativeButtonState(GamepadButtons_DPadUp, static_cast<int>(DPadUp), reading.buttons_down & GamepadButtons_DPadUp);
+	setNativeButtonState(GamepadButtons_DPadDown, static_cast<int>(DPadDown), reading.buttons_down & GamepadButtons_DPadDown);
+	setNativeButtonState(GamepadButtons_DPadLeft, static_cast<int>(DPadLeft), reading.buttons_down & GamepadButtons_DPadLeft);
+	setNativeButtonState(GamepadButtons_DPadRight, static_cast<int>(DPadRight), reading.buttons_down & GamepadButtons_DPadRight);
+	setNativeButtonState(GamepadButtons_LeftShoulder, static_cast<int>(LeftShoulder), reading.buttons_down & GamepadButtons_LeftShoulder);
+	setNativeButtonState(GamepadButtons_RightShoulder, static_cast<int>(RightShoulder), reading.buttons_down & GamepadButtons_RightShoulder);
+	setNativeButtonState(GamepadButtons_LeftThumbstick, static_cast<int>(LeftThumbstick), reading.buttons_down & GamepadButtons_LeftThumbstick);
+	setNativeButtonState(GamepadButtons_RightThumbstick, static_cast<int>(RightThumbstick), reading.buttons_down & GamepadButtons_RightThumbstick);
+	setNativeButtonState(GamepadButtons_Plus, static_cast<int>(Menu), reading.buttons_down & GamepadButtons_Plus);
+	setNativeButtonState(GamepadButtons_Minus, static_cast<int>(View), reading.buttons_down & GamepadButtons_Minus);
+	setNativeButtonState(GamepadButtons_Home, static_cast<int>(Menu), reading.buttons_down & GamepadButtons_Home);
+	setNativeButtonState(GamepadButtons_Capture, static_cast<int>(View), reading.buttons_down & GamepadButtons_Capture);
+	setNativeButtonState(GamepadButtons_LeftSide, static_cast<int>(LeftShoulder), reading.buttons_down & GamepadButtons_LeftSide);
+	setNativeButtonState(GamepadButtons_RightSide, static_cast<int>(RightShoulder), reading.buttons_down & GamepadButtons_RightSide);
+	setNativeButtonState(GamepadButtons_Paddle1, static_cast<int>(A), reading.buttons_down & GamepadButtons_Paddle1);
+	setNativeButtonState(GamepadButtons_Paddle2, static_cast<int>(B), reading.buttons_down & GamepadButtons_Paddle2);
+	setNativeButtonState(GamepadButtons_Paddle3, static_cast<int>(X), reading.buttons_down & GamepadButtons_Paddle3);
+	setNativeButtonState(GamepadButtons_Paddle4, static_cast<int>(Y), reading.buttons_down & GamepadButtons_Paddle4);
 #elif defined(__linux__)
-	// Linux implementation using libevdev
-
-	// Set thumbstick and trigger values
-	m_injector.setThumbsticks(reading.left_thumbstick_x,
-							  -reading.left_thumbstick_y,
-							  reading.right_thumbstick_x,
-							  -reading.right_thumbstick_y);
+	m_injector.setThumbsticks(reading.left_thumbstick_x, -reading.left_thumbstick_y,
+							  reading.right_thumbstick_x, -reading.right_thumbstick_y);
 	m_injector.setTriggers(reading.left_trigger, reading.right_trigger);
 
-	// Handle button presses (mapping from our buttons to Linux input codes)
-	if (reading.buttons_down & GamepadButtons_Menu)
-		m_injector.pressButton(BTN_START);
-	if (reading.buttons_down & GamepadButtons_View)
-		m_injector.pressButton(BTN_SELECT);
-	if (reading.buttons_down & GamepadButtons_A)
-		m_injector.pressButton(BTN_A);
-	if (reading.buttons_down & GamepadButtons_B)
-		m_injector.pressButton(BTN_B);
-	if (reading.buttons_down & GamepadButtons_X)
-		m_injector.pressButton(BTN_X);
-	if (reading.buttons_down & GamepadButtons_Y)
-		m_injector.pressButton(BTN_Y);
-	if (reading.buttons_down & GamepadButtons_DPadUp)
-		m_injector.pressButton(BTN_DPAD_UP);
-	if (reading.buttons_down & GamepadButtons_DPadDown)
-		m_injector.pressButton(BTN_DPAD_DOWN);
-	if (reading.buttons_down & GamepadButtons_DPadLeft)
-		m_injector.pressButton(BTN_DPAD_LEFT);
-	if (reading.buttons_down & GamepadButtons_DPadRight)
-		m_injector.pressButton(BTN_DPAD_RIGHT);
-	if (reading.buttons_down & GamepadButtons_LeftShoulder)
-		m_injector.pressButton(BTN_TL);
-	if (reading.buttons_down & GamepadButtons_RightShoulder)
-		m_injector.pressButton(BTN_TR);
-	if (reading.buttons_down & GamepadButtons_LeftThumbstick)
-		m_injector.pressButton(BTN_THUMBL);
-	if (reading.buttons_down & GamepadButtons_RightThumbstick)
-		m_injector.pressButton(BTN_THUMBR);
-
-	// Handle button releases
-	if (reading.buttons_up & GamepadButtons_Menu)
-		m_injector.releaseButton(BTN_START);
-	if (reading.buttons_up & GamepadButtons_View)
-		m_injector.releaseButton(BTN_SELECT);
-	if (reading.buttons_up & GamepadButtons_A)
-		m_injector.releaseButton(BTN_A);
-	if (reading.buttons_up & GamepadButtons_B)
-		m_injector.releaseButton(BTN_B);
-	if (reading.buttons_up & GamepadButtons_X)
-		m_injector.releaseButton(BTN_X);
-	if (reading.buttons_up & GamepadButtons_Y)
-		m_injector.releaseButton(BTN_Y);
-	if (reading.buttons_up & GamepadButtons_DPadUp)
-		m_injector.releaseButton(BTN_DPAD_UP);
-	if (reading.buttons_up & GamepadButtons_DPadDown)
-		m_injector.releaseButton(BTN_DPAD_DOWN);
-	if (reading.buttons_up & GamepadButtons_DPadLeft)
-		m_injector.releaseButton(BTN_DPAD_LEFT);
-	if (reading.buttons_up & GamepadButtons_DPadRight)
-		m_injector.releaseButton(BTN_DPAD_RIGHT);
-	if (reading.buttons_up & GamepadButtons_LeftShoulder)
-		m_injector.releaseButton(BTN_TL);
-	if (reading.buttons_up & GamepadButtons_RightShoulder)
-		m_injector.releaseButton(BTN_TR);
-	if (reading.buttons_up & GamepadButtons_LeftThumbstick)
-		m_injector.releaseButton(BTN_THUMBL);
-	if (reading.buttons_up & GamepadButtons_RightThumbstick)
-		m_injector.releaseButton(BTN_THUMBR);
+	setNativeButtonState(GamepadButtons_Menu, BTN_START, reading.buttons_down & GamepadButtons_Menu);
+	setNativeButtonState(GamepadButtons_View, BTN_SELECT, reading.buttons_down & GamepadButtons_View);
+	setNativeButtonState(GamepadButtons_A, BTN_A, reading.buttons_down & GamepadButtons_A);
+	setNativeButtonState(GamepadButtons_B, BTN_B, reading.buttons_down & GamepadButtons_B);
+	setNativeButtonState(GamepadButtons_X, BTN_X, reading.buttons_down & GamepadButtons_X);
+	setNativeButtonState(GamepadButtons_Y, BTN_Y, reading.buttons_down & GamepadButtons_Y);
+	setNativeButtonState(GamepadButtons_DPadUp, BTN_DPAD_UP, reading.buttons_down & GamepadButtons_DPadUp);
+	setNativeButtonState(GamepadButtons_DPadDown, BTN_DPAD_DOWN, reading.buttons_down & GamepadButtons_DPadDown);
+	setNativeButtonState(GamepadButtons_DPadLeft, BTN_DPAD_LEFT, reading.buttons_down & GamepadButtons_DPadLeft);
+	setNativeButtonState(GamepadButtons_DPadRight, BTN_DPAD_RIGHT, reading.buttons_down & GamepadButtons_DPadRight);
+	setNativeButtonState(GamepadButtons_LeftShoulder, BTN_TL, reading.buttons_down & GamepadButtons_LeftShoulder);
+	setNativeButtonState(GamepadButtons_RightShoulder, BTN_TR, reading.buttons_down & GamepadButtons_RightShoulder);
+	setNativeButtonState(GamepadButtons_LeftThumbstick, BTN_THUMBL, reading.buttons_down & GamepadButtons_LeftThumbstick);
+	setNativeButtonState(GamepadButtons_RightThumbstick, BTN_THUMBR, reading.buttons_down & GamepadButtons_RightThumbstick);
+	setNativeButtonState(GamepadButtons_Plus, BTN_START, reading.buttons_down & GamepadButtons_Plus);
+	setNativeButtonState(GamepadButtons_Minus, BTN_SELECT, reading.buttons_down & GamepadButtons_Minus);
+	setNativeButtonState(GamepadButtons_Home, BTN_START, reading.buttons_down & GamepadButtons_Home);
+	setNativeButtonState(GamepadButtons_Capture, BTN_SELECT, reading.buttons_down & GamepadButtons_Capture);
+	setNativeButtonState(GamepadButtons_LeftSide, BTN_TL, reading.buttons_down & GamepadButtons_LeftSide);
+	setNativeButtonState(GamepadButtons_RightSide, BTN_TR, reading.buttons_down & GamepadButtons_RightSide);
+	setNativeButtonState(GamepadButtons_Paddle1, BTN_A, reading.buttons_down & GamepadButtons_Paddle1);
+	setNativeButtonState(GamepadButtons_Paddle2, BTN_B, reading.buttons_down & GamepadButtons_Paddle2);
+	setNativeButtonState(GamepadButtons_Paddle3, BTN_X, reading.buttons_down & GamepadButtons_Paddle3);
+	setNativeButtonState(GamepadButtons_Paddle4, BTN_Y, reading.buttons_down & GamepadButtons_Paddle4);
 #endif
 
-	// Inject the current state
 	m_injector.inject();
-
 	return true;
 }
