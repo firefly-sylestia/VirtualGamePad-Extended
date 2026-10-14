@@ -27,6 +27,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Upstream .gitmodules use SSH URLs; rewrite them to public HTTPS URLs.
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
           git clone --depth 1 --recurse-submodules https://github.com/kitswas/VirtualGamePad-Mobile.git /tmp/vgp-mobile
           git clone --depth 1 --recurse-submodules https://github.com/kitswas/VirtualGamePad-PC.git /tmp/vgp-pc
 
