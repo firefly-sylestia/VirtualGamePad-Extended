@@ -137,6 +137,10 @@
     <string name="component_right_shoulder">Right Shoulder (RB)</string>
     <string name="component_select">Select (View)</string>
     <string name="component_start">Start (Menu)</string>
+    <string name="component_plus_minus">Plus / Minus (+ / −)</string>
+    <string name="component_home_capture">Home / Capture</string>
+    <string name="component_side_buttons">Joy-Con SL / SR</string>
+    <string name="component_rear_paddles">Rear Paddles (P1–P4)</string>
 
     <!-- Color Schemes -->
     <string name="scheme_light">Light Mode</string>
