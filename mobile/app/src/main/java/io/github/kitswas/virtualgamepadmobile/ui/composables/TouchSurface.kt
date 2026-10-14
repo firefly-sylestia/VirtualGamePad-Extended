@@ -33,8 +33,8 @@ fun TouchSurface(
             .border(2.dp, MaterialTheme.colorScheme.outline, shape)
             .size(size)
             .pointerInput(Unit) {
-                val surfaceWidth = size.width.coerceAtLeast(1)
-                val surfaceHeight = size.height.coerceAtLeast(1)
+                val surfaceWidth = this.size.width.coerceAtLeast(1)
+                val surfaceHeight = this.size.height.coerceAtLeast(1)
                 fun update(x: Float, y: Float) {
                     gamepadState.RightThumbstickX =
                         ((x / surfaceWidth) * 2f - 1f).coerceIn(-1f, 1f)
