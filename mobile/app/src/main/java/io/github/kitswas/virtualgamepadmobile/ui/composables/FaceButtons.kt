@@ -89,7 +89,7 @@ fun FaceButton(
         HapticUtils.performButtonPressFeedback(view)
         gamepadState.ButtonsDown = gamepadState.ButtonsDown or buttonMask
         //Use if + DisposableEffect to wait for the press action is completed
-        DisposableEffect(Unit) {
+        DisposableEffect(buttonMask) {
             onDispose {
                 Log.d("FaceButton ${type.name}", "Released")
                 HapticUtils.performButtonReleaseFeedback(view)
