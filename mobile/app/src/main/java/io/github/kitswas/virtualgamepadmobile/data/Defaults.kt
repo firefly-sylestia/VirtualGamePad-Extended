@@ -77,7 +77,7 @@ val defaultButtonConfigs = mapOf(
     ),
     ButtonComponent.SELECT_BUTTON to ButtonConfig(
         component = ButtonComponent.SELECT_BUTTON,
-        visible = true,
+        visible = false,
         scale = 1.0f,
         offsetX = -0.25f, // -baseDp/4
         offsetY = 0.25f, // baseDp/4
@@ -85,7 +85,7 @@ val defaultButtonConfigs = mapOf(
     ),
     ButtonComponent.START_BUTTON to ButtonConfig(
         component = ButtonComponent.START_BUTTON,
-        visible = true,
+        visible = false,
         scale = 1.0f,
         offsetX = 0.25f, // baseDp/4
         offsetY = 0.25f, // baseDp/4
