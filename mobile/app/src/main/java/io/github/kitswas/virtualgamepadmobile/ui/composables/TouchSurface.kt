@@ -33,11 +33,13 @@ fun TouchSurface(
             .border(2.dp, MaterialTheme.colorScheme.outline, shape)
             .size(size)
             .pointerInput(Unit) {
+                val surfaceWidth = size.width.coerceAtLeast(1)
+                val surfaceHeight = size.height.coerceAtLeast(1)
                 fun update(x: Float, y: Float) {
                     gamepadState.RightThumbstickX =
-                        ((x / this.size.width.coerceAtLeast(1)) * 2f - 1f).coerceIn(-1f, 1f)
+                        ((x / surfaceWidth) * 2f - 1f).coerceIn(-1f, 1f)
                     gamepadState.RightThumbstickY =
-                        ((y / this.size.height.coerceAtLeast(1)) * 2f - 1f).coerceIn(-1f, 1f)
+                        ((y / surfaceHeight) * 2f - 1f).coerceIn(-1f, 1f)
                 }
                 detectDragGestures(
                     onDragStart = { offset -> update(offset.x, offset.y) },
