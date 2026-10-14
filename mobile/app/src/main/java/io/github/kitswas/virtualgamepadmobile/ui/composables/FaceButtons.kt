@@ -29,6 +29,8 @@ import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.R
 import io.github.kitswas.virtualgamepadmobile.data.PreviewBase
+import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
+import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
 import io.github.kitswas.virtualgamepadmobile.ui.theme.darken
 import io.github.kitswas.virtualgamepadmobile.ui.theme.faceButtonTextStyle
 import io.github.kitswas.virtualgamepadmobile.ui.theme.lighten
@@ -62,6 +64,7 @@ fun FaceButton(
     size: Dp,
     gamepadState: GamepadReading,
     labelOverride: String? = null,
+    actionMask: Int? = null,
 ) {
     val view = LocalView.current
     val gameButton = when (type) {
@@ -70,6 +73,7 @@ fun FaceButton(
         FaceButtonType.X -> GameButtons.X
         FaceButtonType.Y -> GameButtons.Y
     }
+    val buttonMask = actionMask ?: gameButton.value
     val label = labelOverride ?: when (type) {
         FaceButtonType.A -> stringResource(R.string.button_a)
         FaceButtonType.B -> stringResource(R.string.button_b)
@@ -83,14 +87,14 @@ fun FaceButton(
     if (isPressed) {
         Log.d("FaceButton ${type.name}", "Pressed")
         HapticUtils.performButtonPressFeedback(view)
-        gamepadState.ButtonsDown = gamepadState.ButtonsDown or gameButton.value
+        gamepadState.ButtonsDown = gamepadState.ButtonsDown or buttonMask
         //Use if + DisposableEffect to wait for the press action is completed
         DisposableEffect(Unit) {
             onDispose {
                 Log.d("FaceButton ${type.name}", "Released")
                 HapticUtils.performButtonReleaseFeedback(view)
-                gamepadState.ButtonsDown = gamepadState.ButtonsDown and gameButton.value.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or gameButton.value
+                gamepadState.ButtonsDown = gamepadState.ButtonsDown and buttonMask.inv()
+                gamepadState.ButtonsUp = gamepadState.ButtonsUp or buttonMask
             }
         }
     }
@@ -123,6 +127,7 @@ fun FaceButtons(
     size: Dp = 360.dp,
     gamepadState: GamepadReading,
     layout: FaceButtonLayout = FaceButtonLayout.NINTENDO_SWITCH,
+    bindings: Map<String, ControllerAction> = defaultControllerBindings,
 ) {
     Box(
         modifier = modifier.size(size),
@@ -139,6 +144,7 @@ fun FaceButtons(
             size = 2 * size / 5,
             gamepadState = gamepadState,
             labelOverride = if (layout == FaceButtonLayout.PLAYSTATION) "×" else null,
+            actionMask = bindings["face_a"]?.mask,
         )
         FaceButton(
             type = FaceButtonType.B,
@@ -151,6 +157,7 @@ fun FaceButtons(
             size = 2 * size / 5,
             gamepadState = gamepadState,
             labelOverride = if (layout == FaceButtonLayout.PLAYSTATION) "○" else null,
+            actionMask = bindings["face_b"]?.mask,
         )
         FaceButton(
             type = FaceButtonType.X,
@@ -163,6 +170,7 @@ fun FaceButtons(
             size = 2 * size / 5,
             gamepadState = gamepadState,
             labelOverride = if (layout == FaceButtonLayout.PLAYSTATION) "□" else null,
+            actionMask = bindings["face_x"]?.mask,
         )
         FaceButton(
             type = FaceButtonType.Y,
@@ -175,6 +183,7 @@ fun FaceButtons(
             size = 2 * size / 5,
             gamepadState = gamepadState,
             labelOverride = if (layout == FaceButtonLayout.PLAYSTATION) "△" else null,
+            actionMask = bindings["face_y"]?.mask,
         )
     }
 }
