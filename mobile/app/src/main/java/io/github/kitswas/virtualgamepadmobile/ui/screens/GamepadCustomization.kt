@@ -303,17 +303,15 @@ fun GamepadCustomizationScreen(
                     }
 
                     Button(onClick = {
-                        modifiedConfigs?.let { configs ->
-                            runBlocking {
-                                try {
+                        runBlocking {
+                            try {
+                                modifiedConfigs?.let { configs ->
                                     settingsRepository.setAllButtonConfigs(configs)
-                                    settingsRepository.setControllerLayout(currentLayout)
-                                    Log.i(logTag, "Button configs and controller preset saved")
-                                } catch (e: Exception) {
-                                    Log.e(
-                                        logTag, "Error saving button configs", e
-                                    )
                                 }
+                                settingsRepository.setControllerLayout(currentLayout)
+                                Log.i(logTag, "Button configs and controller preset saved")
+                            } catch (e: Exception) {
+                                Log.e(logTag, "Error saving button configs", e)
                             }
                         }
                         onNavigateBack()
