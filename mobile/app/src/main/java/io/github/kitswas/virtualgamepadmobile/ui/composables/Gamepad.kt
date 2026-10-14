@@ -14,6 +14,7 @@ import io.github.kitswas.virtualgamepadmobile.data.ButtonAnchor
 import io.github.kitswas.virtualgamepadmobile.data.ButtonComponent
 import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
 import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
+import io.github.kitswas.virtualgamepadmobile.data.MacroDefinition
 
 /**
  * Convert ButtonAnchor to Compose Alignment
@@ -37,6 +38,7 @@ fun DrawGamepad(
     gamepadState: GamepadReading,
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout = ControllerLayout.SWITCH_2,
+    macros: List<MacroDefinition> = emptyList(),
 ) {
     // Assuming Landscape orientation
     val baseDp = heightDp
@@ -227,6 +229,18 @@ fun DrawGamepad(
                 GyroControl(
                     gamepadState = gamepadState,
                     minSize = (baseDp / 14 * config.scale).dp,
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    )
+                )
+            }
+
+            RenderComponent(ButtonComponent.MACRO_BUTTONS) { config ->
+                MacroButtonCluster(
+                    macros = macros,
+                    gamepadState = gamepadState,
+                    minButtonSize = (baseDp / 14 * config.scale).dp,
                     modifier = Modifier.offset(
                         x = (config.offsetX * baseDp).dp,
                         y = (config.offsetY * baseDp).dp
