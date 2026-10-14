@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -17,6 +18,7 @@ import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
 import io.github.kitswas.virtualgamepadmobile.data.MacroDefinition
 import io.github.kitswas.virtualgamepadmobile.data.ControllerAction
 import io.github.kitswas.virtualgamepadmobile.data.defaultControllerBindings
+import io.github.kitswas.virtualgamepadmobile.ui.utils.GamepadButtonDispatcher
 
 /**
  * Convert ButtonAnchor to Compose Alignment
@@ -43,6 +45,18 @@ fun DrawGamepad(
     macros: List<MacroDefinition> = emptyList(),
     bindings: Map<String, ControllerAction> = defaultControllerBindings,
 ) {
+    DisposableEffect(gamepadState) {
+        onDispose {
+            GamepadButtonDispatcher.releaseAll(gamepadState)
+            gamepadState.LeftTrigger = 0f
+            gamepadState.RightTrigger = 0f
+            gamepadState.LeftThumbstickX = 0f
+            gamepadState.LeftThumbstickY = 0f
+            gamepadState.RightThumbstickX = 0f
+            gamepadState.RightThumbstickY = 0f
+        }
+    }
+
     // Assuming Landscape orientation
     val baseDp = heightDp
 
