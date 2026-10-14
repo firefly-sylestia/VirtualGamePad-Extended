@@ -38,10 +38,13 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import io.github.kitswas.virtualgamepadmobile.R
 import io.github.kitswas.virtualgamepadmobile.data.ButtonComponent
 import io.github.kitswas.virtualgamepadmobile.data.ButtonConfig
+import io.github.kitswas.virtualgamepadmobile.data.ControllerLayout
+import io.github.kitswas.virtualgamepadmobile.data.buttonConfigsForLayout
 import io.github.kitswas.virtualgamepadmobile.data.PreviewBase
 import io.github.kitswas.virtualgamepadmobile.data.SettingsRepository
 import io.github.kitswas.virtualgamepadmobile.data.defaultButtonConfigs
 import io.github.kitswas.virtualgamepadmobile.ui.composables.ButtonConfigEditor
+import io.github.kitswas.virtualgamepadmobile.ui.composables.ListItemPicker
 import io.github.kitswas.virtualgamepadmobile.ui.composables.DrawGamepad
 import io.github.kitswas.virtualgamepadmobile.ui.composables.ResponsiveGrid
 import kotlinx.coroutines.runBlocking
@@ -65,6 +68,7 @@ private fun sanitizeButtonConfigs(configs: Map<ButtonComponent, ButtonConfig>): 
 @Composable
 fun GamepadPreview(
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
+    controllerLayout: ControllerLayout,
 ) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp
@@ -77,7 +81,8 @@ fun GamepadPreview(
         widthDp = screenWidth,
         heightDp = screenHeight,
         gamepadState = gamepadState,
-        buttonConfigs = buttonConfigs
+        buttonConfigs = buttonConfigs,
+        controllerLayout = controllerLayout
     )
 }
 
@@ -87,6 +92,8 @@ fun GamepadCustomizationScreen(
     settingsRepository: SettingsRepository
 ) {
     val buttonConfigs by settingsRepository.buttonConfigs.collectAsState(initial = defaultButtonConfigs)
+    val controllerLayout by settingsRepository.controllerLayout.collectAsState(initial = ControllerLayout.SWITCH_2)
+    var modifiedLayout by rememberSaveable { mutableStateOf<ControllerLayout?>(null) }
     var modifiedConfigs by rememberSaveable {
         mutableStateOf<Map<ButtonComponent, ButtonConfig>?>(
             null
@@ -99,6 +106,7 @@ fun GamepadCustomizationScreen(
 
     // Get the current configs to preview (modified or saved)
     val currentConfigs = modifiedConfigs ?: buttonConfigs
+    val currentLayout = modifiedLayout ?: controllerLayout
 
     // Handle back button to close preview
     BackHandler(enabled = showPreview) {
@@ -107,7 +115,7 @@ fun GamepadCustomizationScreen(
 
     if (showPreview) {
         // Full-screen preview overlay
-        GamepadPreview(buttonConfigs = currentConfigs)
+        GamepadPreview(buttonConfigs = currentConfigs, controllerLayout = currentLayout)
         return
     }
 
@@ -163,6 +171,21 @@ fun GamepadCustomizationScreen(
                     stringResource(R.string.customization_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(vertical = 4.dp)
+                )
+
+                ListItemPicker(
+                    modifier = Modifier.fillMaxWidth(),
+                    list = ControllerLayout.entries.asIterable(),
+                    selectedItem = currentLayout,
+                    label = "Controller preset",
+                    isHorizontal = false,
+                    formattedDisplay = { layout -> Text(layout.displayName) },
+                    onItemSelected = { layout ->
+                        modifiedLayout = layout
+                        if (layout != ControllerLayout.CUSTOM) {
+                            modifiedConfigs = buttonConfigsForLayout(layout)
+                        }
+                    }
                 )
 
                 val minCardWidth = 420.dp
@@ -227,11 +250,13 @@ fun GamepadCustomizationScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Button(onClick = {
-                        modifiedConfigs = null
+                        modifiedLayout = ControllerLayout.SWITCH_2
+                        modifiedConfigs = buttonConfigsForLayout(ControllerLayout.SWITCH_2)
                         runBlocking {
-                            settingsRepository.setAllButtonConfigs(defaultButtonConfigs)
+                            settingsRepository.setAllButtonConfigs(buttonConfigsForLayout(ControllerLayout.SWITCH_2))
+                            settingsRepository.setControllerLayout(ControllerLayout.SWITCH_2)
                         }
-                        Log.i(logTag, "Button configs reset to defaults")
+                        Log.i(logTag, "Button configs reset to Switch 2 defaults")
                     }) {
                         Text(stringResource(R.string.reset))
                     }
@@ -241,7 +266,8 @@ fun GamepadCustomizationScreen(
                             runBlocking {
                                 try {
                                     settingsRepository.setAllButtonConfigs(configs)
-                                    Log.i(logTag, "Button configs saved")
+                                    settingsRepository.setControllerLayout(currentLayout)
+                                    Log.i(logTag, "Button configs and controller preset saved")
                                 } catch (e: Exception) {
                                     Log.e(
                                         logTag, "Error saving button configs", e
