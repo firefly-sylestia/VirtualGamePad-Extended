@@ -353,9 +353,10 @@ class MinecraftPanel final : public QWidget
 			  down(GamepadButtons_Menu), QColor("#9c7a4a"));
 
 		// Hotbar.
+		// Note: 'slots' is a Qt keyword macro, so the count needs another name.
 		const int slotSize = 34;
-		const int slots = 9;
-		const int hotbarWidth = slots * slotSize;
+		const int slotCount = 9;
+		const int hotbarWidth = slotCount * slotSize;
 		const int hotbarX = (rect().width() - hotbarWidth) / 2;
 		const int hotbarY = rect().height() - slotSize - 26;
 
@@ -367,7 +368,7 @@ class MinecraftPanel final : public QWidget
 		p.drawText(QRect(hotbarX, hotbarY - 22, hotbarWidth, 18), Qt::AlignCenter,
 				   tr("Hotbar slot %1 - scroll with the left stick or D-pad").arg(m_activeSlot + 1));
 
-		for (int i = 0; i < slots; ++i)
+		for (int i = 0; i < slotCount; ++i)
 		{
 			const QRect slot(hotbarX + i * slotSize, hotbarY, slotSize, slotSize);
 			p.setPen(Qt::NoPen);
