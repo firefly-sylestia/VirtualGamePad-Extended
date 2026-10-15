@@ -11,6 +11,7 @@ class HomePage;
 class ControllerTest;
 class LayoutsPage;
 class KeymapPage;
+class UsbPage;
 
 /**
  * @brief The application shell: a sidebar plus a stack of pages.
@@ -35,6 +36,7 @@ class Shell final : public QWidget
 		PageLayouts,
 		PageKeymap,
 		PageServer,
+		PageUsb,
 		PagePreferences,
 		PageAbout
 	};

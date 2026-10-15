@@ -61,6 +61,8 @@
     <string name="connect_port_label">Port</string>
     <string name="connect_button">Connect</string>
     <string name="connect_download_server">Download Server</string>
+    <string name="connect_usb_button">Connect over USB</string>
+    <string name="connect_usb_hint">For a USB cable: enable USB debugging on this phone and set the link up on the PC USB page. The PC app forwards its port to this phone, so the address is always 127.0.0.1 and the port shown there.</string>
 
     <!-- Connecting Screen -->
     <string name="connecting_success">Connected! Redirecting...</string>

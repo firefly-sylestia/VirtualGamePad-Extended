@@ -8,6 +8,7 @@
 #include "layoutspage.hpp"
 #include "preferences.hpp"
 #include "theme.hpp"
+#include "usbpage.hpp"
 
 #include <QApplication>
 #include <QFrame>
@@ -22,7 +23,7 @@ namespace
 /** Sidebar entry labels, in the same order as Shell::Page. */
 const char *const kNavLabels[] = {
 	"\u2302   Home",	 "\u25CE   Control test", "\u25A6   Layouts",		"\u2328   Key mapping",
-	"\u25B6   Server",	 "\u2699   Preferences",  "\u24D8   About",
+	"\u25B6   Server",	 "\u25AA   USB",		  "\u2699   Preferences", "\u24D8   About",
 };
 } // namespace
 
@@ -109,6 +110,9 @@ void Shell::buildPages()
 	auto *keymap = new KeymapPage(m_pages);
 	m_created.insert(PageKeymap, keymap);
 
+	auto *usb = new UsbPage(m_pages);
+	m_created.insert(PageUsb, usb);
+
 	for (auto *page : m_created)
 		m_pages->addWidget(page);
 
@@ -118,6 +122,7 @@ void Shell::buildPages()
 			[this] { navigateTo(PageControlTest); });
 	connect(m_home, &HomePage::openLayoutsRequested, this, [this] { navigateTo(PageLayouts); });
 	connect(m_home, &HomePage::openKeymapRequested, this, [this] { navigateTo(PageKeymap); });
+	connect(m_home, &HomePage::openUsbRequested, this, [this] { navigateTo(PageUsb); });
 	connect(m_home, &HomePage::openPreferencesRequested, this,
 			[this] { navigateTo(PagePreferences); });
 	connect(m_home, &HomePage::openAboutRequested, this, [this] { navigateTo(PageAbout); });
@@ -127,6 +132,8 @@ void Shell::buildPages()
 	connect(layouts, &LayoutsPage::layoutApplied, this, [this] { m_home->refreshStatus(); });
 	connect(keymap, &KeymapPage::navigateBack, this, [this] { navigateTo(PageHome); });
 	connect(keymap, &KeymapPage::profileChanged, this, [this] { m_home->refreshStatus(); });
+	connect(usb, &UsbPage::navigateBack, this, [this] { navigateTo(PageHome); });
+	connect(usb, &UsbPage::startServerRequested, this, [this] { navigateTo(PageServer); });
 }
 
 void Shell::navigateTo(int index)
@@ -144,6 +151,7 @@ void Shell::navigateTo(int index)
 	case PageControlTest:
 	case PageLayouts:
 	case PageKeymap:
+	case PageUsb:
 		if (QWidget *page = m_created.value(index, nullptr))
 			m_pages->setCurrentWidget(page);
 		break;

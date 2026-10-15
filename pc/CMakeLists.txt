@@ -93,6 +93,8 @@ set(PROJECT_SOURCES
     src/networking/server.cpp
     src/networking/server.hpp
     src/networking/server.ui
+    src/networking/usb_bridge.cpp
+    src/networking/usb_bridge.hpp
     src/settings/settings.hpp
     src/settings/settings_singleton.cpp
     src/settings/settings_singleton.hpp
@@ -132,6 +134,8 @@ set(PROJECT_SOURCES
     src/ui/shell.hpp
     src/ui/theme.cpp
     src/ui/theme.hpp
+    src/ui/usbpage.cpp
+    src/ui/usbpage.hpp
 )
 
 # Platform-specific simulation sources

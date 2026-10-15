@@ -26,6 +26,7 @@ class HomePage final : public QWidget
 	void openControlTestRequested();
 	void openLayoutsRequested();
 	void openKeymapRequested();
+	void openUsbRequested();
 	void openPreferencesRequested();
 	void openAboutRequested();
 

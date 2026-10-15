@@ -77,6 +77,7 @@ HomePage::HomePage(QWidget *parent) : QWidget(parent)
 	auto *keymap = Theme::ghostButton(tr("Key mapping"), actionsCard);
 	auto *prefs = Theme::ghostButton(tr("Preferences"), actionsCard);
 	auto *about = Theme::ghostButton(tr("About"), actionsCard);
+	auto *usb = Theme::ghostButton(tr("Connect over USB"), actionsCard);
 
 	grid->addWidget(start, 0, 0);
 	grid->addWidget(test, 0, 1);
@@ -84,6 +85,7 @@ HomePage::HomePage(QWidget *parent) : QWidget(parent)
 	grid->addWidget(keymap, 1, 0);
 	grid->addWidget(prefs, 1, 1);
 	grid->addWidget(about, 1, 2);
+	grid->addWidget(usb, 2, 0);
 	actionsLayout->addLayout(grid);
 
 	connect(start, &QPushButton::clicked, this, &HomePage::startServerRequested);
@@ -91,6 +93,7 @@ HomePage::HomePage(QWidget *parent) : QWidget(parent)
 	connect(layouts, &QPushButton::clicked, this, &HomePage::openLayoutsRequested);
 	connect(keymap, &QPushButton::clicked, this, &HomePage::openKeymapRequested);
 	connect(prefs, &QPushButton::clicked, this, &HomePage::openPreferencesRequested);
+	connect(usb, &QPushButton::clicked, this, &HomePage::openUsbRequested);
 	connect(about, &QPushButton::clicked, this, &HomePage::openAboutRequested);
 
 	root->addWidget(actionsCard);

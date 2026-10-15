@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -51,6 +52,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 const val LOG_TAG = "ConnectMenu"
+
+/** Over a USB (adb) link the PC mirrors its port onto this phone's localhost. */
+private const val USB_LOCALHOST = "127.0.0.1"
+
+/** The port the PC USB page forwards by default. */
+private const val USB_DEFAULT_PORT = "30000"
 
 private fun getIP(qrCode: String): String {
     val splitTill = qrCode.lastIndexOf(":")
@@ -266,6 +273,29 @@ fun ConnectMenu(
             ) {
                 Text(text = stringResource(R.string.connect_button))
             }
+
+            // Over a USB cable the PC forwards its port onto this phone, so the
+            // address is always localhost and the port matches the PC's USB page.
+            OutlinedButton(
+                modifier = Modifier.padding(top = 8.dp),
+                shape = MaterialTheme.shapes.small,
+                onClick = {
+                    ipAddress = USB_LOCALHOST
+                    if (!isPortValid) port = USB_DEFAULT_PORT
+                    isIPValid = validateIP(ipAddress)
+                    isPortValid = validatePort(port)
+                    onNavigateToConnectingScreen(ipAddress, port)
+                }
+            ) {
+                Text(text = stringResource(R.string.connect_usb_button))
+            }
+
+            Text(
+                text = stringResource(R.string.connect_usb_hint),
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+            )
 
             OutlinedButton(
                 modifier = Modifier.offset(y = 16.dp),

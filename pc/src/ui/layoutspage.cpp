@@ -16,6 +16,7 @@
 #include <QPainterPath>
 #include <QPushButton>
 #include <QStackedWidget>
+#include <QStringList>
 #include <QVBoxLayout>
 #include <algorithm>
 

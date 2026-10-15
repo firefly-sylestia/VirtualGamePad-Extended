@@ -9,7 +9,7 @@
  */
 #pragma once
 
-#include "../VGP_Data_Exchange/C/GameButtons.h"
+#include "../../VGP_Data_Exchange/C/GameButtons.h"
 #include "input_types.hpp"
 
 #include <QString>
