@@ -21,6 +21,18 @@ use them later.
 > every choice, and prints a summary of the key it created. Pass `--no-input`
 > for scripts, or set an individual flag to skip just that prompt. Use `inspect`
 > (section 6) to view the details of a key again at any time.
+>
+> **The password question is always asked.** Type your own password, or press
+> Enter with nothing typed and the wizard generates a strong one and shows it on
+> screen. If your terminal cannot hide typing (a piped script, an IDE run window,
+> some git-bash consoles) the wizard says so and still asks instead of quietly
+> generating a password you never see.
+>
+> **It also offers to set up GitHub for you.** As soon as a key exists the wizard
+> lists every GitHub Actions secret with a description of what it holds, prints a
+> ready-to-paste `gh secret set` command for each, and asks whether to upload them
+> now. Replacements keep a timestamped `.bak` copy of any file they overwrite, so
+> a regenerate never destroys the previous key or `signing.properties`.
 
 ## What you need
 
@@ -189,6 +201,23 @@ python3 tools/signing/vgp_signing.py gh-secret ANDROID_KEYSTORE_BASE64 \
 
 Environment-scoped secrets work the same way under **Environments -> <env> ->
 Environment secrets**; pass `--env <name>` to the CLI helper.
+
+## 4b. Rebuild a lost signing.properties (do not regenerate the key!)
+
+`mobile/signing.properties` is gitignored, so a fresh clone or a lost file leaves
+Gradle building unsigned release APKs. Do **not** regenerate the keystore for
+this: a new key cannot update an already installed app. Point the wizard at the
+keystore you still have instead:
+
+```bash
+python3 tools/signing/vgp_signing.py properties \
+  --keystore mobile/release.keystore --alias vgp-release
+```
+
+It asks for the password, **verifies it with `keytool` before writing anything**,
+and then writes the four lines Gradle reads. Use `--store-password`/
+`--password` for scripting. In the wizard the same thing is the menu entry
+`R` (Rebuild signing.properties).
 
 ## 5. View the details of a generated key
 

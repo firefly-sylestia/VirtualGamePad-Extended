@@ -25,6 +25,8 @@ class UsbPage final : public QWidget
 
   signals:
 	void navigateBack();
+	/** Ask the shell to open the server page, e.g. when the phone link is ready. */
+	void startServerRequested();
 
   private slots:
 	void refresh();
@@ -32,7 +34,6 @@ class UsbPage final : public QWidget
 	void applyPort(int port);
 	void setUpLink();
 	void removeLink();
-	void startServerRequested();
 
   private:
 	UsbBridge *m_bridge = nullptr;

@@ -10,17 +10,28 @@ The wizard starts on the **Android** release key, then walks you through the
 an explanation of what it is and what to type, and after each key is created the
 wizard prints exactly what to paste where.
 
+The password question is always asked: type your own, or press Enter and the
+wizard generates a strong one and shows it. When the terminal cannot hide what
+you type, the wizard says so and still asks, instead of silently generating a
+password and moving on.
+
+Right after a key exists the wizard prints every GitHub Actions secret with a
+description of what it holds and a ready-to-paste ``gh secret set`` command, and
+offers to upload them for you.
+
 It can also, from the same menu:
 
 * show the current state of your signing setup,
+* rebuild signing.properties for a keystore you already have,
 * print the secrets and paste instructions again at any time,
 * decrypt a secret blob back into a key file,
 * inspect an existing keystore or PFX,
 * encrypt a key for a GitHub Actions secret,
 * upload a secret with the GitHub CLI.
 
-Existing keys are replaced automatically (after a confirmation), so regenerating
-never fails just because a file is already there.
+Existing keys are replaced automatically (after a confirmation), and the file
+being replaced is kept next to the new one with a timestamped ``.bak`` suffix,
+so regenerating never fails and never silently loses the previous file.
 
 No third-party Python packages are needed. The wizard shells out to tools that
 must already be on ``PATH``:
@@ -30,9 +41,9 @@ must already be on ``PATH``:
 * ``gpg``      - optional, passphrase-encrypted secrets
 * ``gh``       - optional, push a secret straight to GitHub
 
-The scripted subcommands (``android``, ``windows``, ``inspect``, ``encrypt``,
-``decrypt``, ``gh-secret``) are still available for automation; run with
-``--help`` to see them.
+The scripted subcommands (``android``, ``windows``, ``properties``, ``status``,
+``inspect``, ``encrypt``, ``decrypt``, ``gh-secret``) are still available for
+automation; run with ``--help`` to see them.
 """
 
 from __future__ import annotations
@@ -47,6 +58,7 @@ import string
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -64,6 +76,17 @@ ANDROID_SECRET_NAMES = (
     "ANDROID_KEY_PASSWORD",
 )
 WINDOWS_SECRET_NAMES = ("WINDOWS_PFX_BASE64", "WINDOWS_PFX_PASSWORD")
+
+# One line per secret saying what it holds, so the copy-paste summary is
+# self-explanatory in the GitHub UI.
+SECRET_NOTES = {
+    "ANDROID_KEYSTORE_BASE64": "base64 of mobile/release.keystore - the APK signing key",
+    "ANDROID_KEYSTORE_PASSWORD": "password protecting that keystore",
+    "ANDROID_KEY_ALIAS": "alias of the signing key inside the keystore",
+    "ANDROID_KEY_PASSWORD": "password of the signing key itself",
+    "WINDOWS_PFX_BASE64": "base64 of the code-signing PFX bundle",
+    "WINDOWS_PFX_PASSWORD": "password protecting that PFX",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -211,21 +234,58 @@ def ask(
         return value
 
 
-def ask_secret(label: str, help_text: str | None = None, generator=None) -> str:
-    """Ask for a password; blank input generates a strong one and shows it once."""
+def read_hidden(prompt: str) -> tuple[str, bool]:
+    """Read a line without echoing it, and still ask when echo cannot be disabled.
+
+    Returns the typed text and whether it was actually hidden.
+
+    ``getpass`` refuses to hide input when stdin is not a terminal (a piped
+    script, an IDE run window, some git-bash setups) and used to make the wizard
+    skip the password question entirely. Here that case falls back to a visible
+    prompt, so the question is always asked.
+    """
+    if sys.stdin.isatty():
+        try:
+            return getpass.getpass(prompt), True
+        except (EOFError, KeyboardInterrupt):
+            raise
+        except Exception as exc:  # noqa: BLE001 - any getpass failure falls back
+            warn(f"Cannot hide your typing here ({exc}).")
+    else:
+        warn("Input is not a terminal, so what you type will be visible.")
+    try:
+        return input(prompt), False
+    except EOFError:
+        return "", False
+
+
+def ask_secret(
+    label: str,
+    help_text: str | None = None,
+    generator=None,
+    allow_blank: bool = False,
+) -> str:
+    """Ask for a password; pressing Enter with no input generates a strong one."""
     if help_text:
         hint(help_text)
-    try:
-        value = getpass.getpass(Style.paint(f"  {label} (blank = generate): ", Style.BOLD))
-    except EOFError:
-        value = ""
+    hint("Type your own password, or just press Enter and the wizard generates one.")
+
+    value, hidden = read_hidden(Style.paint(f"  {label}: ", Style.BOLD))
     if value:
-        print(Style.paint("    → (hidden)", Style.GREY))
+        print(Style.paint("    → (hidden)" if hidden else "    → (as typed)", Style.GREY))
         return value
+    if allow_blank:
+        return ""
 
     value = generator() if generator else random_password()
-    warn(f"{label} was generated. Save it now, it is only shown here:")
+    print()
+    warn(f"{label} was generated. It is shown here once - copy it now:")
     print(Style.paint(f"    → {value}", Style.YELLOW, Style.BOLD))
+    print(
+        Style.paint(
+            "    It is also repeated in the summary at the end of this step.", Style.GREY
+        )
+    )
     return value
 
 
@@ -275,27 +335,151 @@ def run(cmd: list, env: dict | None = None, stdin: bytes | None = None, capture:
     )
 
 
+def backup_path(path: Path) -> Path:
+    """A timestamped neighbour so a replaced file is never simply lost."""
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    return path.with_name(f"{path.name}.{stamp}.bak")
+
+
 def remove_existing(paths: list[Path], assume_yes: bool = False) -> None:
-    """Delete previous key files so regenerating never fails."""
+    """Move previous key files aside so regenerating never fails or loses data."""
     existing = [path for path in paths if path.exists()]
     if not existing:
         return
 
     print()
-    warn("These existing files will be deleted and replaced:")
+    warn("These existing files will be replaced (a .bak copy is kept):")
     for path in existing:
         bullet(str(path))
-    if not assume_yes and not confirm("Delete them now?", default=True):
+    if not assume_yes and not confirm("Replace them now?", default=True):
         error("Aborted: nothing was changed.")
         raise SystemExit(1)
 
     for path in existing:
         try:
-            path.unlink()
-            ok(f"removed {path.name}")
+            path.rename(backup_path(path))
+            ok(f"replaced {path.name} (kept a backup next to it)")
         except OSError as exc:
-            error(f"could not remove {path}: {exc}")
+            error(f"could not replace {path}: {exc}")
             raise SystemExit(1)
+
+
+def write_properties(
+    keystore: Path,
+    alias: str,
+    store_password: str,
+    key_password: str,
+    properties: Path | None = None,
+) -> Path:
+    """Write the signing.properties file Gradle reads, backing up any old one."""
+    target = properties or DEFAULT_SIGNING_PROPERTIES
+    if target.exists():
+        backup = backup_path(target)
+        target.rename(backup)
+        info(f"previous {target.name} kept as {backup.name}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        "# Generated by tools/signing/vgp_signing.py - DO NOT COMMIT\n"
+        f"STORE_FILE={keystore}\n"
+        f"STORE_PASSWORD={store_password}\n"
+        f"KEY_ALIAS={alias}\n"
+        f"KEY_PASSWORD={key_password}\n"
+    )
+    return target
+
+
+# --------------------------------------------------------------------------- #
+# GitHub Actions secrets                                                      #
+# --------------------------------------------------------------------------- #
+def secret_entry(name: str, value: str | None = None, blob: Path | None = None) -> dict:
+    """One secret to show, and optionally upload: a value or a file to pipe in."""
+    return {
+        "name": name,
+        "description": SECRET_NOTES.get(name, ""),
+        "value": value,
+        "blob": blob,
+    }
+
+
+def android_secret_entries(result: dict) -> list[dict]:
+    """The Android secrets, with a fresh base64 blob on disk."""
+    keystore = Path(result["keystore"])
+    blob = DEFAULT_SECRETS_OUT / "android-keystore.b64"
+    blob.parent.mkdir(parents=True, exist_ok=True)
+    blob.write_bytes(base64.b64encode(keystore.read_bytes()))
+    return [
+        secret_entry(ANDROID_SECRET_NAMES[0], blob=blob),
+        secret_entry(ANDROID_SECRET_NAMES[1], value=result.get("store_password")),
+        secret_entry(ANDROID_SECRET_NAMES[2], value=result.get("alias")),
+        secret_entry(ANDROID_SECRET_NAMES[3], value=result.get("key_password")),
+    ]
+
+
+def windows_secret_entries(result: dict) -> list[dict]:
+    """The Windows secrets, with a fresh base64 blob on disk."""
+    pfx = Path(result["pfx_path"])
+    blob = DEFAULT_SECRETS_OUT / "windows-codesign.pfx.b64"
+    blob.parent.mkdir(parents=True, exist_ok=True)
+    blob.write_bytes(base64.b64encode(pfx.read_bytes()))
+    return [
+        secret_entry(WINDOWS_SECRET_NAMES[0], blob=blob),
+        secret_entry(WINDOWS_SECRET_NAMES[1], value=result.get("password")),
+    ]
+
+
+def github_secrets_flow(entries: list[dict], assume_yes: bool = False) -> None:
+    """Describe every secret, print the commands, then offer to upload them."""
+    entries = [entry for entry in entries if entry.get("value") or entry.get("blob")]
+    if not entries:
+        return
+
+    title_block(
+        "GitHub Actions secrets",
+        "Everything to paste, and a one-key way to upload it",
+    )
+
+    rows = [f"{entry['name']:<28}{entry['description']}" for entry in entries]
+    panel("What goes where", rows)
+
+    commands: list[str] = []
+    values: list[str] = []
+    for entry in entries:
+        if entry["blob"] is not None:
+            commands.append(f"gh secret set {entry['name']} < {entry['blob']}")
+            values.append(f"{entry['name']:<28} (the whole file {entry['blob'].name})")
+        else:
+            commands.append(f"gh secret set {entry['name']} --body '{entry['value']}'")
+            values.append(f"{entry['name']:<28} {entry['value']}")
+
+    block("1) Paste these values into the GitHub web UI", "\n".join(values))
+    block("2) Or run these commands with the GitHub CLI", "\n".join(commands))
+    hint(
+        "In the web UI: Settings > Secrets and variables > Actions > New repository "
+        "secret, then paste one name and one value per secret."
+    )
+
+    if assume_yes:
+        return
+    if not confirm("Upload these as GitHub Actions secrets now?", default=False):
+        info("Not uploaded. Reproduce them any time with option 4 (Show what to paste).")
+        return
+
+    require("gh", "Install the GitHub CLI (https://cli.github.com) and run 'gh auth login'.")
+    repo = ask("Repository (blank for the current one)", "")
+    for entry in entries:
+        cmd = ["gh", "secret", "set", entry["name"]]
+        if repo:
+            cmd += ["--repo", repo]
+        try:
+            if entry["blob"] is not None:
+                run(cmd, stdin=Path(entry["blob"]).read_bytes())
+            else:
+                run(cmd + ["--body", entry["value"]])
+        except subprocess.CalledProcessError as exc:
+            error(f"Could not upload {entry['name']} (exit code {exc.returncode}).")
+            hint("Run `gh auth login` and check that you have admin access to the repository.")
+            return
+        ok(f"uploaded {entry['name']}")
 
 
 # --------------------------------------------------------------------------- #
@@ -419,14 +603,7 @@ def android_flow(assume_yes: bool = False, scripted: dict | None = None) -> dict
     properties = Path(
         scripted.get("properties") or str(DEFAULT_SIGNING_PROPERTIES)
     ).expanduser().resolve()
-    properties.parent.mkdir(parents=True, exist_ok=True)
-    properties.write_text(
-        "# Generated by tools/signing/vgp_signing.py - DO NOT COMMIT\n"
-        f"STORE_FILE={keystore}\n"
-        f"STORE_PASSWORD={store_password}\n"
-        f"KEY_ALIAS={alias}\n"
-        f"KEY_PASSWORD={key_password}\n"
-    )
+    write_properties(keystore, alias, store_password, key_password, properties)
     ok(f"signing.properties written to {properties}")
 
     result = {
@@ -439,6 +616,7 @@ def android_flow(assume_yes: bool = False, scripted: dict | None = None) -> dict
         "properties": properties,
     }
     show_android_secrets(result, assume_yes=assume_yes)
+    github_secrets_flow(android_secret_entries(result), assume_yes=assume_yes)
     return result
 
 
@@ -483,20 +661,8 @@ def show_android_secrets(result: dict, assume_yes: bool = False) -> None:
     )
 
     block(
-        "3) Optional - store as GitHub Actions secrets",
-        "\n".join(
-            [
-                f"gh secret set {ANDROID_SECRET_NAMES[0]} < {blob_path}",
-                f"gh secret set {ANDROID_SECRET_NAMES[1]} "
-                f"--body '{result['store_password']}'",
-                f"gh secret set {ANDROID_SECRET_NAMES[2]} --body '{result['alias']}'",
-                f"gh secret set {ANDROID_SECRET_NAMES[3]} "
-                f"--body '{result['key_password']}'",
-                "",
-                "In the GitHub web UI: Settings > Secrets and variables > Actions >",
-                "New repository secret, then paste the name and value.",
-            ]
-        ),
+        "3) Next: store them as GitHub Actions secrets",
+        "The wizard asks about that now, and option 4 reprints it later.",
     )
 
     warn("Decrypt the base64 blob later from this wizard's menu: option 5 (Decrypt a secret).")
@@ -614,6 +780,7 @@ def windows_flow(assume_yes: bool = False, scripted: dict | None = None) -> dict
         "password": password,
     }
     show_windows_secrets(result)
+    github_secrets_flow(windows_secret_entries(result), assume_yes=assume_yes)
     return result
 
 
@@ -659,19 +826,82 @@ def show_windows_secrets(result: dict) -> None:
     )
 
     block(
-        "3) Optional - store as GitHub Actions secrets",
-        "\n".join(
-            [
-                f"gh secret set {WINDOWS_SECRET_NAMES[0]} < {blob_path}",
-                f"gh secret set {WINDOWS_SECRET_NAMES[1]} --body '{result['password']}'",
-                "",
-                "In the GitHub web UI: Settings > Secrets and variables > Actions >",
-                "New repository secret, then paste the name and value.",
-            ]
-        ),
+        "3) Next: store them as GitHub Actions secrets",
+        "The wizard asks about that now, and option 4 reprints it later.",
     )
 
     warn("Keep the PFX password written down: the wizard cannot recover it later.")
+
+
+def verify_keystore(keystore: Path, password: str) -> bool:
+    """Ask keytool whether this password actually opens the keystore."""
+    require("keytool", "Install a JDK (for example Temurin 21) so `keytool` exists.")
+    env = dict(os.environ)
+    env["VGP_STORE_PASSWORD"] = password
+    result = subprocess.run(
+        ["keytool", "-list", "-keystore", str(keystore), "-storepass:env", "VGP_STORE_PASSWORD"],
+        env=env,
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
+def restore_properties_flow() -> None:
+    """Rebuild signing.properties for a keystore that already exists.
+
+    Nothing is regenerated here: the password is checked with keytool first, so
+    an existing APK signing key keeps signing every future build.
+    """
+    title_block(
+        "Rebuild signing.properties",
+        "Reuse a keystore you already have, without making a new key",
+    )
+    panel(
+        "When to use this",
+        [
+            "You have mobile/release.keystore but lost mobile/signing.properties (it is",
+            "gitignored, so it is not in Git). Nothing is regenerated: this only writes the",
+            "four lines Gradle reads.",
+            "",
+            "Never regenerate the keystore to fix a missing properties file - a new key can",
+            "not update an already installed app.",
+        ],
+    )
+
+    keystore = Path(
+        ask("Keystore file", str(DEFAULT_ANDROID_KEYSTORE))
+    ).expanduser().resolve()
+    if not keystore.is_file():
+        error(f"{keystore} is not a file")
+        pause()
+        return
+
+    alias = ask("Key alias", "vgp-release")
+    store_password = ""
+    while True:
+        store_password = ask_secret(
+            "Keystore password", "The password that opens the keystore file."
+        )
+        info("Checking the password with keytool...")
+        if verify_keystore(keystore, store_password):
+            ok("keytool accepted that password.")
+            break
+        error("keytool could not open the keystore with that password.")
+        hint("Check your password manager or the scrollback of the run that made the key.")
+        if not confirm("Try another password?", default=True):
+            return
+
+    key_password = ask_secret(
+        "Key password",
+        "Usually the same as the keystore password; press Enter to reuse it.",
+        allow_blank=True,
+    )
+    properties = write_properties(
+        keystore, alias, store_password, key_password or store_password
+    )
+    ok(f"signing.properties written to {properties}")
+    info("Release builds pick it up automatically; no other step is needed.")
+    pause()
 
 
 # --------------------------------------------------------------------------- #
@@ -957,6 +1187,8 @@ def show_paste_again() -> None:
     """Option 4: reprint what to paste from the files on disk."""
     title_block("What to paste", "Rebuilt from the files already on this machine")
 
+    entries: list[dict] = []
+
     properties = DEFAULT_SIGNING_PROPERTIES
     if properties.exists():
         values: dict[str, str] = {}
@@ -972,41 +1204,31 @@ def show_paste_again() -> None:
         )
         keystore = Path(values.get("STORE_FILE", str(DEFAULT_ANDROID_KEYSTORE)))
         if keystore.is_file():
-            blob = DEFAULT_SECRETS_OUT / "android-keystore.b64"
-            blob.parent.mkdir(parents=True, exist_ok=True)
-            blob.write_bytes(base64.b64encode(keystore.read_bytes()))
-            block(
-                "Android - GitHub secrets",
-                "\n".join(
-                    [
-                        f"gh secret set {ANDROID_SECRET_NAMES[0]} < {blob}",
-                        f"gh secret set {ANDROID_SECRET_NAMES[1]} "
-                        f"--body '{values.get('STORE_PASSWORD', '')}'",
-                        f"gh secret set {ANDROID_SECRET_NAMES[2]} "
-                        f"--body '{values.get('KEY_ALIAS', '')}'",
-                        f"gh secret set {ANDROID_SECRET_NAMES[3]} "
-                        f"--body '{values.get('KEY_PASSWORD', '')}'",
-                    ]
-                ),
+            entries += android_secret_entries(
+                {
+                    "keystore": keystore,
+                    "alias": values.get("KEY_ALIAS", ""),
+                    "store_password": values.get("STORE_PASSWORD", ""),
+                    "key_password": values.get("KEY_PASSWORD", ""),
+                }
             )
+        else:
+            warn(f"{keystore} is missing, so its keystore secret cannot be rebuilt.")
     else:
         warn("No mobile/signing.properties yet, so there is no Android key to paste.")
         info("Create it with option 1.")
 
     pfx = DEFAULT_WINDOWS_OUT / "codesign.pfx"
     if pfx.is_file():
-        blob = DEFAULT_SECRETS_OUT / "windows-codesign.pfx.b64"
-        blob.parent.mkdir(parents=True, exist_ok=True)
-        blob.write_bytes(base64.b64encode(pfx.read_bytes()))
-        block(
-            "Windows - GitHub secrets",
-            f"gh secret set {WINDOWS_SECRET_NAMES[0]} < {blob}\n"
-            f"gh secret set {WINDOWS_SECRET_NAMES[1]} --body '<the PFX password>'",
+        entries += windows_secret_entries({"pfx_path": pfx, "password": None})
+        warn(
+            "The PFX password is not stored on disk, so only the base64 secret is "
+            "rebuilt here; take the password from your password manager."
         )
-        warn("The PFX password is not stored anywhere, so type it from your password manager.")
     else:
         info("Create the Windows certificate with option 2 to see its instructions here too.")
 
+    github_secrets_flow(entries)
     pause()
 
 
@@ -1023,6 +1245,7 @@ MENU: list[tuple[str, str, str]] = [
     ("7", "Encrypt a key for a secret", "wrap a file for GitHub Actions"),
     ("8", "Upload a GitHub secret", "needs the gh CLI"),
     ("9", "Help", "what each key is for, which to make first"),
+    ("R", "Rebuild signing.properties", "reuse a keystore, never regenerate it"),
     ("0", "Exit", ""),
 ]
 
@@ -1079,6 +1302,8 @@ def guided_menu() -> int:
                 gh_flow()
             elif choice == "9":
                 help_flow()
+            elif choice.upper() == "R":
+                restore_properties_flow()
             else:
                 warn("Choose one of the numbers shown, then press Enter.")
         except KeyboardInterrupt:
@@ -1223,6 +1448,31 @@ def cmd_status(args: argparse.Namespace) -> int:  # noqa: ARG001 - uniform handl
     return 0
 
 
+def cmd_properties(args: argparse.Namespace) -> int:
+    """Write signing.properties for an existing keystore (scripted)."""
+    keystore = Path(args.keystore or DEFAULT_ANDROID_KEYSTORE).expanduser().resolve()
+    if not keystore.is_file():
+        error(f"{keystore} is not a file")
+        return 1
+
+    password = args.store_password or args.password or os.environ.get("VGP_STORE_PASSWORD")
+    if not password:
+        password = getpass.getpass("  Keystore password: ")
+    if not args.no_verify and not verify_keystore(keystore, password):
+        error("keytool could not open the keystore with that password.")
+        return 1
+
+    targets = write_properties(
+        keystore,
+        args.alias,
+        password,
+        args.key_password or password,
+        Path(args.properties).expanduser().resolve() if args.properties else None,
+    )
+    info(f"signing.properties written: {targets}")
+    return 0
+
+
 # --------------------------------------------------------------------------- #
 # Entry point                                                                 #
 # --------------------------------------------------------------------------- #
@@ -1276,6 +1526,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = sub.add_parser("status", help="Print the signing setup dashboard")
     status.set_defaults(func=cmd_status)
+
+    properties = sub.add_parser(
+        "properties",
+        help="Write signing.properties for a keystore that already exists",
+    )
+    properties.add_argument("--keystore")
+    properties.add_argument("--properties")
+    properties.add_argument("--alias", default="vgp-release")
+    properties.add_argument("--password", help="Store password (and key password)")
+    properties.add_argument("--store-password")
+    properties.add_argument("--key-password")
+    properties.add_argument(
+        "--no-verify", action="store_true", help="Skip the keytool password check"
+    )
+    properties.set_defaults(func=cmd_properties)
 
     inspect = sub.add_parser("inspect", help="View an existing keystore or PFX")
     inspect.add_argument("file")
