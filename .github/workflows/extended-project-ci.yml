@@ -10,6 +10,18 @@ on:
   workflow_dispatch:
 
 jobs:
+  protocol-sync:
+    name: Protocol button flags in sync (mobile vs PC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Compare shared GameButtons flag values
+        run: |
+          set -euo pipefail
+          extract() { grep -oE 'GamepadButtons_[A-Za-z0-9]+ = 0x[0-9A-Fa-f]+' "$1" | sort; }
+          diff <(extract mobile/VGP_Data_Exchange/C/GameButtons.h) \
+               <(extract pc/VGP_Data_Exchange/C/GameButtons.h)
+
   mobile-build-test:
     name: Android build, lint and unit tests
     runs-on: ubuntu-latest
