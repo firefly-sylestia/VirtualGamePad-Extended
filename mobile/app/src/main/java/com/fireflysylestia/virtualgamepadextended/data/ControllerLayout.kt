@@ -61,97 +61,98 @@ enum class FaceButtonStyle {
 }
 
 /**
- * Presets are data over the existing component renderer. User changes are saved
- * separately from the built-in preset so choosing a preset never edits the preset itself.
+ * Presets are data over the existing component renderer, and they only turn
+ * controls on or off: every control keeps the position it has in
+ * [defaultButtonConfigs], so a preset can never stack two controls on top of
+ * each other. User changes are saved separately from the built-in preset, so
+ * choosing a preset never edits the preset itself.
+ *
+ * Handy rule of thumb when adding a family: show the controls the controller
+ * really has, and nothing else. `GamepadLayoutTest` checks that rule for every
+ * preset it knows about.
  */
 fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, ButtonConfig> {
     val base = defaultButtonConfigs.toMutableMap()
 
-    fun update(component: ButtonComponent, visible: Boolean? = null, anchor: ButtonAnchor? = null,
-               x: Float? = null, y: Float? = null, scale: Float? = null) {
+    fun show(component: ButtonComponent, visible: Boolean) {
         val old = base[component] ?: ButtonConfig.default(component)
-        base[component] = old.copy(
-            visible = visible ?: old.visible,
-            anchor = anchor ?: old.anchor,
-            offsetX = x ?: old.offsetX,
-            offsetY = y ?: old.offsetY,
-            scale = scale ?: old.scale,
-        )
+        base[component] = old.copy(visible = visible)
+    }
+
+    /** The controls every one of these controllers has in the same place. */
+    fun coreControls() {
+        show(ButtonComponent.LEFT_ANALOG_STICK, true)
+        show(ButtonComponent.RIGHT_ANALOG_STICK, true)
+        show(ButtonComponent.DPAD, true)
+        show(ButtonComponent.FACE_BUTTONS, true)
+        show(ButtonComponent.LEFT_TRIGGER, true)
+        show(ButtonComponent.RIGHT_TRIGGER, true)
+        show(ButtonComponent.LEFT_SHOULDER, true)
+        show(ButtonComponent.RIGHT_SHOULDER, true)
+    }
+
+    /** Turn everything the family does not have back off. */
+    fun onlySharedExtras() {
+        show(ButtonComponent.SELECT_BUTTON, false)
+        show(ButtonComponent.START_BUTTON, false)
+        show(ButtonComponent.PLUS_MINUS, false)
+        show(ButtonComponent.HOME_CAPTURE, false)
+        show(ButtonComponent.SIDE_BUTTONS, false)
+        show(ButtonComponent.REAR_PADDLES, false)
+        show(ButtonComponent.TOUCH_SURFACE, false)
+        show(ButtonComponent.GYRO_TOGGLE, false)
+        show(ButtonComponent.MACRO_BUTTONS, false)
     }
 
     when (layout) {
-        ControllerLayout.SWITCH_2 -> {
-            update(ButtonComponent.SELECT_BUTTON, visible = false)
-            update(ButtonComponent.START_BUTTON, visible = false)
-            update(ButtonComponent.PLUS_MINUS, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.38f)
-            update(ButtonComponent.HOME_CAPTURE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.52f)
-            update(ButtonComponent.SIDE_BUTTONS, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = -0.12f)
-            update(ButtonComponent.REAR_PADDLES, visible = false)
-            update(ButtonComponent.TOUCH_SURFACE, visible = false)
-            update(ButtonComponent.GYRO_TOGGLE, visible = true)
-            update(ButtonComponent.MACRO_BUTTONS, visible = true)
+        ControllerLayout.SWITCH_2, ControllerLayout.SWITCH -> {
+            // Same physical controls on both Switch generations. Joy-Con SL/SR
+            // and the M1-M4 macros stay off: they are not part of the standard
+            // layout, and they are one tap away in the customisation screen.
+            coreControls()
+            onlySharedExtras()
+            show(ButtonComponent.PLUS_MINUS, true)
+            show(ButtonComponent.HOME_CAPTURE, true)
+            show(ButtonComponent.GYRO_TOGGLE, true)
         }
+
         ControllerLayout.POKEMON_ZA -> {
-            // Every available control is enabled, positioned for one-hand-friendly play
-            // and larger touch targets for relaxed, turn-based sessions.
-            update(ButtonComponent.LEFT_ANALOG_STICK, visible = true, scale = 1.15f)
-            update(ButtonComponent.RIGHT_ANALOG_STICK, visible = true, scale = 1.15f)
-            update(ButtonComponent.DPAD, visible = true, scale = 1.1f)
-            update(ButtonComponent.FACE_BUTTONS, visible = true, scale = 1.2f, anchor = ButtonAnchor.TOP_RIGHT)
-            update(ButtonComponent.LEFT_TRIGGER, visible = true, scale = 1.1f)
-            update(ButtonComponent.RIGHT_TRIGGER, visible = true, scale = 1.1f)
-            update(ButtonComponent.LEFT_SHOULDER, visible = true)
-            update(ButtonComponent.RIGHT_SHOULDER, visible = true)
-            update(ButtonComponent.SELECT_BUTTON, visible = false)
-            update(ButtonComponent.START_BUTTON, visible = false)
-            update(ButtonComponent.PLUS_MINUS, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.34f)
-            update(ButtonComponent.HOME_CAPTURE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.48f)
-            update(ButtonComponent.SIDE_BUTTONS, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = -0.14f)
-            update(ButtonComponent.REAR_PADDLES, visible = true, anchor = ButtonAnchor.BOTTOM_CENTER, x = 0f, y = -0.1f, scale = 0.9f)
-            update(ButtonComponent.TOUCH_SURFACE, visible = true, anchor = ButtonAnchor.CENTER, x = 0f, y = 0f, scale = 0.8f)
-            update(ButtonComponent.GYRO_TOGGLE, visible = true)
-            update(ButtonComponent.MACRO_BUTTONS, visible = true, anchor = ButtonAnchor.BOTTOM_CENTER, x = 0f, y = 0.04f)
+            // Relaxed, turn-based preset: the same controls as a Switch, but
+            // without the extras the game never asks for. It uses no touch
+            // surface and no gyro aiming, so neither is shown.
+            coreControls()
+            onlySharedExtras()
+            show(ButtonComponent.PLUS_MINUS, true)
+            show(ButtonComponent.HOME_CAPTURE, true)
         }
-        ControllerLayout.SWITCH -> {
-            update(ButtonComponent.SELECT_BUTTON, visible = false)
-            update(ButtonComponent.START_BUTTON, visible = false)
-            update(ButtonComponent.PLUS_MINUS, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.38f)
-            update(ButtonComponent.HOME_CAPTURE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.52f)
-            update(ButtonComponent.SIDE_BUTTONS, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = -0.12f)
-            update(ButtonComponent.REAR_PADDLES, visible = false)
-            update(ButtonComponent.TOUCH_SURFACE, visible = false)
-            update(ButtonComponent.GYRO_TOGGLE, visible = true)
-        }
+
         ControllerLayout.XBOX -> {
-            update(ButtonComponent.SELECT_BUTTON, visible = true)
-            update(ButtonComponent.START_BUTTON, visible = true)
-            update(ButtonComponent.PLUS_MINUS, visible = false)
-            update(ButtonComponent.HOME_CAPTURE, visible = false)
-            update(ButtonComponent.SIDE_BUTTONS, visible = false)
-            update(ButtonComponent.REAR_PADDLES, visible = false)
-            update(ButtonComponent.TOUCH_SURFACE, visible = false)
-            update(ButtonComponent.GYRO_TOGGLE, visible = false)
+            coreControls()
+            onlySharedExtras()
+            show(ButtonComponent.SELECT_BUTTON, true)
+            show(ButtonComponent.START_BUTTON, true)
         }
+
         ControllerLayout.PLAYSTATION -> {
-            update(ButtonComponent.SELECT_BUTTON, visible = true)
-            update(ButtonComponent.START_BUTTON, visible = true)
-            update(ButtonComponent.PLUS_MINUS, visible = false)
-            update(ButtonComponent.HOME_CAPTURE, visible = true)
-            update(ButtonComponent.SIDE_BUTTONS, visible = false)
-            update(ButtonComponent.REAR_PADDLES, visible = false)
-            update(ButtonComponent.TOUCH_SURFACE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.18f, scale = 0.75f)
-            update(ButtonComponent.GYRO_TOGGLE, visible = true)
+            coreControls()
+            onlySharedExtras()
+            show(ButtonComponent.SELECT_BUTTON, true)
+            show(ButtonComponent.START_BUTTON, true)
+            show(ButtonComponent.HOME_CAPTURE, true)
+            show(ButtonComponent.GYRO_TOGGLE, true)
+            show(ButtonComponent.TOUCH_SURFACE, true)
         }
+
         ControllerLayout.STEAM_DECK -> {
-            update(ButtonComponent.SELECT_BUTTON, visible = true)
-            update(ButtonComponent.START_BUTTON, visible = true)
-            update(ButtonComponent.PLUS_MINUS, visible = false)
-            update(ButtonComponent.HOME_CAPTURE, visible = false)
-            update(ButtonComponent.SIDE_BUTTONS, visible = false)
-            update(ButtonComponent.REAR_PADDLES, visible = true, anchor = ButtonAnchor.BOTTOM_CENTER, x = 0f, y = -0.08f)
-            update(ButtonComponent.TOUCH_SURFACE, visible = true, anchor = ButtonAnchor.TOP_CENTER, x = 0f, y = 0.18f, scale = 0.75f)
-            update(ButtonComponent.GYRO_TOGGLE, visible = true)
+            coreControls()
+            onlySharedExtras()
+            show(ButtonComponent.SELECT_BUTTON, true)
+            show(ButtonComponent.START_BUTTON, true)
+            show(ButtonComponent.GYRO_TOGGLE, true)
+            show(ButtonComponent.TOUCH_SURFACE, true)
+            show(ButtonComponent.REAR_PADDLES, true)
         }
+
         ControllerLayout.CUSTOM -> Unit
     }
     return base.toMap()

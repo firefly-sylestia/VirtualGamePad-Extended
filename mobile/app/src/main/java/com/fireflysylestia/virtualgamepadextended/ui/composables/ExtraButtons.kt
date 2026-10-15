@@ -1,35 +1,56 @@
 package com.fireflysylestia.virtualgamepadextended.ui.composables
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
-import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
+import com.fireflysylestia.virtualgamepadextended.data.GamepadGeometry
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
-import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 
 enum class ExtraButtonClusterType {
     PLUS_MINUS,
     HOME_CAPTURE,
     SIDE_BUTTONS,
     REAR_PADDLES,
+}
+
+/**
+ * The fixed footprint of one auxiliary button.
+ *
+ * These buttons use a size of their own instead of wrapping their text, so the
+ * customisation screen can draw a tap target in exactly the same place. The
+ * numbers come from [GamepadGeometry], which is also what
+ * `GamepadLayoutTest` checks for overlaps.
+ */
+data class AuxiliaryButtonMetrics(
+    val width: Dp,
+    val height: Dp,
+    val gap: Dp,
+) {
+    companion object {
+        /** Metrics for a cluster of [count] buttons at the given layout unit. */
+        fun of(baseDp: Float, count: Int, scale: Float = 1f) = AuxiliaryButtonMetrics(
+            width = GamepadGeometry.extraButtonWidth(baseDp, scale).dp,
+            height = GamepadGeometry.extraButtonHeight(baseDp, scale).dp,
+            gap = (GamepadGeometry.EXTRA_GAP_FRACTION * baseDp * scale).dp,
+        )
+    }
 }
 
 private data class ExtraButtonSpec(val label: String, val button: GameButtons, val bindingKey: String)
@@ -60,32 +81,38 @@ private fun ExtraButton(
     label: String,
     gameButton: GameButtons,
     gamepadState: GamepadReading,
-    minSize: Dp,
+    metrics: AuxiliaryButtonMetrics,
     actionMask: Int,
 ) {
-    val view = LocalView.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    if (isPressed) {
-        DisposableEffect(actionMask) {
-            Log.d("ExtraButton", "${gameButton.name} pressed")
-            GamepadButtonDispatcher.press(gamepadState, "extra_${gameButton.name}", actionMask)
-            HapticUtils.performButtonPressFeedback(view)
-            onDispose {
-                GamepadButtonDispatcher.release(gamepadState, "extra_${gameButton.name}")
-                HapticUtils.performButtonReleaseFeedback(view)
-            }
-        }
-    }
+    // Held for as long as the finger is down; never latches on.
+    PressAndHold(
+        pressed = isPressed,
+        source = "extra_${gameButton.name}",
+        gamepadState = gamepadState,
+        mask = actionMask,
+    )
 
     OutlinedButton(
         onClick = {},
-        modifier = Modifier.sizeIn(minWidth = minSize, minHeight = minSize),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.size(width = metrics.width, height = metrics.height),
+        border = BorderStroke(
+            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        ),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (isPressed) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
         interactionSource = interactionSource,
+        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
     ) {
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
@@ -94,20 +121,20 @@ private fun ExtraButton(
 fun ExtraButtonCluster(
     type: ExtraButtonClusterType,
     gamepadState: GamepadReading,
-    minButtonSize: Dp,
+    metrics: AuxiliaryButtonMetrics,
     modifier: Modifier = Modifier,
     bindings: Map<String, ControllerAction> = defaultControllerBindings,
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(metrics.gap),
     ) {
         type.buttons().forEach { spec ->
             ExtraButton(
                 label = spec.label,
                 gameButton = spec.button,
                 gamepadState = gamepadState,
-                minSize = minButtonSize,
+                metrics = metrics,
                 actionMask = bindings[spec.bindingKey]?.mask ?: spec.button.value,
             )
         }

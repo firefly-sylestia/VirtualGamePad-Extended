@@ -1,6 +1,5 @@
 package com.fireflysylestia.virtualgamepadextended.ui.composables
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -31,9 +30,8 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
-import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.theme.darken
-import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
+import com.fireflysylestia.virtualgamepadextended.ui.theme.lighten
 
 enum class DpadButtonType {
     UP, DOWN, LEFT, RIGHT
@@ -65,29 +63,28 @@ fun DpadButton(
     val buttonMask = actionMask ?: gameButton.value
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    // See https://stackoverflow.com/a/69157877/8659747
-    if (isPressed) {
-        Log.d("DPadButton ${type.name}", "Pressed")
-        HapticUtils.performButtonPressFeedback(view)
-        GamepadButtonDispatcher.press(gamepadState, "dpad_${type.name}", buttonMask)
-        //Use if + DisposableEffect to wait for the press action is completed
-        DisposableEffect(buttonMask) {
-            onDispose {
-                Log.d("DPadButton ${type.name}", "Released")
-                HapticUtils.performButtonReleaseFeedback(view)
-                GamepadButtonDispatcher.release(gamepadState, "dpad_${type.name}")
-            }
-        }
-    }
+
+    // Held for as long as the finger is down; never latches on.
+    PressAndHold(
+        pressed = isPressed,
+        source = "dpad_${type.name}",
+        gamepadState = gamepadState,
+        mask = buttonMask,
+    )
+
     OutlinedIconButton(
         modifier = modifier
             .size(size)
             .padding(0.dp),
         onClick = {},
         colors = IconButtonDefaults.outlinedIconButtonColors(
-            containerColor = backgroundColour,
+            // Lit up while held, so the press is visible on screen too.
+            containerColor = if (isPressed) lighten(backgroundColour, 0.45f) else backgroundColour,
         ),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(
+            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) foregroundColour else MaterialTheme.colorScheme.outline,
+        ),
         interactionSource = interactionSource,
     ) {
         Icon(

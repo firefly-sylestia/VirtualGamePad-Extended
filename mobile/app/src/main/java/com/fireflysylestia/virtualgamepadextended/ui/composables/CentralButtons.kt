@@ -1,28 +1,28 @@
 package com.fireflysylestia.virtualgamepadextended.ui.composables
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -32,29 +32,11 @@ import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
-import com.fireflysylestia.virtualgamepadextended.data.ButtonAnchor
 import com.fireflysylestia.virtualgamepadextended.data.ButtonComponent
 import com.fireflysylestia.virtualgamepadextended.data.ButtonConfig
 import com.fireflysylestia.virtualgamepadextended.data.ControllerLayout
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
-import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
-import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
-
-/**
- * Convert ButtonAnchor to Compose Alignment
- */
-private fun ButtonAnchor.toAlignment(): Alignment = when (this) {
-    ButtonAnchor.TOP_LEFT -> Alignment.TopStart
-    ButtonAnchor.TOP_CENTER -> Alignment.TopCenter
-    ButtonAnchor.TOP_RIGHT -> Alignment.TopEnd
-    ButtonAnchor.CENTER_LEFT -> Alignment.CenterStart
-    ButtonAnchor.CENTER -> Alignment.Center
-    ButtonAnchor.CENTER_RIGHT -> Alignment.CenterEnd
-    ButtonAnchor.BOTTOM_LEFT -> Alignment.BottomStart
-    ButtonAnchor.BOTTOM_CENTER -> Alignment.BottomCenter
-    ButtonAnchor.BOTTOM_RIGHT -> Alignment.BottomEnd
-}
 
 enum class ShoulderButtonType {
     LEFT, RIGHT
@@ -73,7 +55,6 @@ fun ShoulderButton(
     labelOverride: String? = null,
     actionMask: Int? = null,
 ) {
-    val view = LocalView.current
     val gameButton = when (type) {
         ShoulderButtonType.LEFT -> GameButtons.LeftShoulder
         ShoulderButtonType.RIGHT -> GameButtons.RightShoulder
@@ -87,28 +68,34 @@ fun ShoulderButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    // See https://stackoverflow.com/a/69157877/8659747
-    if (isPressed) {
-        Log.d(gameButton.name, "Pressed")
-        HapticUtils.performButtonPressFeedback(view)
-        GamepadButtonDispatcher.press(gamepadState, "shoulder_${type.name}", buttonMask)
-        //Use if + DisposableEffect to wait for the press action is completed
-        DisposableEffect(buttonMask) {
-            onDispose {
-                Log.d(gameButton.name, "Released")
-                HapticUtils.performButtonReleaseFeedback(view)
-                gamepadState.ButtonsDown =
-                    gamepadState.ButtonsDown and gameButton.value.inv()
-                gamepadState.ButtonsUp = gamepadState.ButtonsUp or buttonMask
-            }
-        }
-    }
+    // Held for as long as the finger is down; never latches on. Going through the
+    // dispatcher keeps a remapped second source from releasing this one early.
+    PressAndHold(
+        pressed = isPressed,
+        source = "shoulder_${type.name}",
+        gamepadState = gamepadState,
+        mask = buttonMask,
+    )
 
     Button(
         modifier = modifier
             .heightIn(min = size)
+            // Wide and short: this is the bumper, and the trigger sits beside it.
+            // The padding is small so a two-letter label still fits at the sizes
+            // a phone ends up with.
             .widthIn(min = size * 1.5f),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+        border = BorderStroke(
+            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        ),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isPressed) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
         onClick = { },
         interactionSource = interactionSource,
     ) {
@@ -124,7 +111,6 @@ fun MenuButton(
     gamepadState: GamepadReading,
     actionMask: Int? = null,
 ) {
-    val view = LocalView.current
     val gameButton = when (type) {
         MenuButtonType.VIEW -> GameButtons.View
         MenuButtonType.MENU -> GameButtons.Menu
@@ -138,24 +124,26 @@ fun MenuButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    // See https://stackoverflow.com/a/69157877/8659747
-    if (isPressed) {
-        Log.d(gameButton.name, "Pressed")
-        HapticUtils.performButtonPressFeedback(view)
-        GamepadButtonDispatcher.press(gamepadState, "menu_${type.name}", buttonMask)
-        //Use if + DisposableEffect to wait for the press action is completed
-        DisposableEffect(buttonMask) {
-            onDispose {
-                Log.d(gameButton.name, "Released")
-                HapticUtils.performButtonReleaseFeedback(view)
-                GamepadButtonDispatcher.release(gamepadState, "menu_${type.name}")
-            }
-        }
-    }
+    PressAndHold(
+        pressed = isPressed,
+        source = "menu_${type.name}",
+        gamepadState = gamepadState,
+        mask = buttonMask,
+    )
 
     OutlinedIconButton(
         modifier = modifier.size(size),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        colors = IconButtonDefaults.outlinedIconButtonColors(
+            containerColor = if (isPressed) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
+        border = BorderStroke(
+            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        ),
         onClick = { },
         interactionSource = interactionSource,
     ) {
@@ -183,7 +171,7 @@ fun MenuButton(
 @Composable
 fun CentralButtons(
     modifier: Modifier = Modifier,
-    baseDp: Int,
+    baseDp: Float,
     gamepadState: GamepadReading,
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout = ControllerLayout.SWITCH_2,
@@ -270,7 +258,7 @@ fun CentralButtons(
 @Composable
 fun CentralButtonsPreview() {
     CentralButtons(
-        baseDp = 400,
+        baseDp = 400f,
         gamepadState = GamepadReading(),
         buttonConfigs = com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs,
     )

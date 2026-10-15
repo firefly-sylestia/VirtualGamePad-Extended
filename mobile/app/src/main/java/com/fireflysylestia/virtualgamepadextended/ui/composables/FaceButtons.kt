@@ -1,6 +1,5 @@
 package com.fireflysylestia.virtualgamepadextended.ui.composables
 
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -12,13 +11,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,11 +28,9 @@ import com.fireflysylestia.virtualgamepadextended.R
 import com.fireflysylestia.virtualgamepadextended.data.PreviewBase
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
-import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.theme.darken
 import com.fireflysylestia.virtualgamepadextended.ui.theme.faceButtonTextStyle
 import com.fireflysylestia.virtualgamepadextended.ui.theme.lighten
-import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
 
 
 enum class FaceButtonType {
@@ -67,7 +62,6 @@ fun FaceButton(
     labelOverride: String? = null,
     actionMask: Int? = null,
 ) {
-    val view = LocalView.current
     val gameButton = when (type) {
         FaceButtonType.A -> GameButtons.A
         FaceButtonType.B -> GameButtons.B
@@ -84,30 +78,30 @@ fun FaceButton(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    // See https://stackoverflow.com/a/69157877/8659747
-    if (isPressed) {
-        Log.d("FaceButton ${type.name}", "Pressed")
-        HapticUtils.performButtonPressFeedback(view)
-        GamepadButtonDispatcher.press(gamepadState, "face_${type.name}", buttonMask)
-        //Use if + DisposableEffect to wait for the press action is completed
-        DisposableEffect(buttonMask) {
-            onDispose {
-                Log.d("FaceButton ${type.name}", "Released")
-                HapticUtils.performButtonReleaseFeedback(view)
-                GamepadButtonDispatcher.release(gamepadState, "face_${type.name}")
-            }
-        }
-    }
+
+    // Held for as long as the finger is down; never latches on.
+    PressAndHold(
+        pressed = isPressed,
+        source = "face_${type.name}",
+        gamepadState = gamepadState,
+        mask = buttonMask,
+    )
+
     OutlinedButton(
         modifier = modifier
             .size(size)
             .padding(0.dp),
         onClick = {},
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = backgroundColour,
+            // Brighter while held, so the press is visible on screen too.
+            containerColor = if (isPressed) lighten(backgroundColour, 0.45f) else backgroundColour,
+            contentColor = foregroundColour,
         ),
         interactionSource = interactionSource,
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(
+            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) foregroundColour else MaterialTheme.colorScheme.outline,
+        ),
     ) {
         Text(
             text = label,

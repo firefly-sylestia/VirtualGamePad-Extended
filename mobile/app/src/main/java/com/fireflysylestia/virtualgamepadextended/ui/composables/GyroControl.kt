@@ -6,7 +6,8 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -18,7 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import kotlin.math.abs
@@ -30,7 +30,7 @@ import kotlin.math.abs
 @Composable
 fun GyroControl(
     gamepadState: GamepadReading,
-    minSize: Dp,
+    metrics: AuxiliaryButtonMetrics,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -69,16 +69,20 @@ fun GyroControl(
     Button(
         onClick = { if (gyro != null) enabled = !enabled },
         enabled = gyro != null,
-        modifier = modifier.sizeIn(minWidth = minSize, minHeight = minSize),
+        modifier = modifier.size(width = metrics.width, height = metrics.height),
         border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
     ) {
+        // Short labels: the button keeps a fixed, predictable footprint so the
+        // customisation screen can draw its tap target in the same place.
         Text(
             text = when {
-                gyro == null -> "GYRO N/A"
-                enabled -> "GYRO ON"
+                gyro == null -> "N/A"
+                enabled -> "ON"
                 else -> "GYRO"
             },
             style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
         )
     }
 }

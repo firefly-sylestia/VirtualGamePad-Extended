@@ -41,7 +41,6 @@ private class AnalogStickUiState {
     var offsetY by mutableFloatStateOf(0f)
     var visualX by mutableFloatStateOf(0f)
     var visualY by mutableFloatStateOf(0f)
-    var isPressed by mutableStateOf(false)
 }
 
 private fun updateThumbstickValues(
@@ -108,26 +107,6 @@ private fun handleAnalogDrag(
     updateThumbstickValues(type, gamepadState, state.visualX / maxOffset, state.visualY / maxOffset)
 }
 
-private fun toggleThumbstickButton(
-    state: AnalogStickUiState,
-    type: AnalogStickType,
-    gamepadState: GamepadReading,
-    view: android.view.View,
-    buttonMask: Int? = null,
-) {
-    val mask = buttonMask ?: thumbstickButtonMask(type)
-    if (!state.isPressed) {
-        state.isPressed = true
-        GamepadButtonDispatcher.press(gamepadState, "stick_${type.name}", mask)
-        HapticUtils.performButtonPressFeedback(view)
-        return
-    }
-
-    state.isPressed = false
-    GamepadButtonDispatcher.release(gamepadState, "stick_${type.name}")
-    HapticUtils.performGestureEndFeedback(view)
-}
-
 @Composable
 fun AnalogStick(
     modifier: Modifier = Modifier,
@@ -163,6 +142,9 @@ fun AnalogStick(
                 colour = outerCircleColor,
             ) {
                 val state = remember { AnalogStickUiState() }
+                // L3/R3 are held, like every other button, and light up while held.
+                var clickHeld by remember { mutableStateOf(false) }
+                val clickMask = clickButtonMask ?: thumbstickButtonMask(type)
 
                 // Calculate maximum offset once
                 val maxOffset = with(density) {
@@ -171,7 +153,7 @@ fun AnalogStick(
 
                 // Then draw the inner circle
                 Circle(
-                    colour = innerCircleColor,
+                    colour = if (clickHeld) lighten(innerCircleColor, 0.45f) else innerCircleColor,
                     modifier = Modifier
                         .testTag("AnalogStick_${type.name}_Handle")
                         .size(innerCircleRadius * 2)
@@ -204,10 +186,22 @@ fun AnalogStick(
                                 }
                             )
                         }
-                        .pointerInput(Unit) {
+                        .pointerInput(clickMask) {
                             detectTapGestures(
-                                onLongPress = { _ ->
-                                    toggleThumbstickButton(state, type, gamepadState, view, clickButtonMask)
+                                onPress = {
+                                    clickHeld = true
+                                    GamepadButtonDispatcher.press(
+                                        gamepadState, "stick_${type.name}", clickMask
+                                    )
+                                    HapticUtils.performButtonPressFeedback(view)
+                                    // Returns false when a drag takes over, and the
+                                    // click is released either way.
+                                    tryAwaitRelease()
+                                    GamepadButtonDispatcher.release(
+                                        gamepadState, "stick_${type.name}"
+                                    )
+                                    HapticUtils.performButtonReleaseFeedback(view)
+                                    clickHeld = false
                                 }
                             )
                         }

@@ -4,8 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -15,7 +17,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.data.MacroAction
@@ -30,7 +31,7 @@ private fun MacroButton(
     slot: Int,
     macro: MacroDefinition?,
     gamepadState: GamepadReading,
-    minSize: Dp,
+    metrics: AuxiliaryButtonMetrics,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -49,11 +50,22 @@ private fun MacroButton(
     OutlinedButton(
         onClick = {},
         enabled = macro != null && macro.steps.isNotEmpty(),
-        modifier = Modifier.sizeIn(minWidth = minSize, minHeight = minSize),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.size(width = metrics.width, height = metrics.height),
+        border = BorderStroke(
+            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        ),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (isPressed) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
         interactionSource = interactionSource,
+        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
     ) {
-        Text("M${slot + 1}", style = MaterialTheme.typography.labelSmall)
+        Text("M${slot + 1}", style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
@@ -107,16 +119,16 @@ private fun writeAxisOrTrigger(state: GamepadReading, action: MacroAction, value
 fun MacroButtonCluster(
     macros: List<MacroDefinition>,
     gamepadState: GamepadReading,
-    minButtonSize: Dp,
+    metrics: AuxiliaryButtonMetrics,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(metrics.gap)) {
         (0..3).forEach { slot ->
             MacroButton(
                 slot = slot,
                 macro = macros.getOrNull(slot),
                 gamepadState = gamepadState,
-                minSize = minButtonSize,
+                metrics = metrics,
             )
         }
     }
