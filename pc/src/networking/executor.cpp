@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QDebug>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <errno.h>
 #include <sstream>
@@ -191,6 +192,16 @@ KeyboardMouseExecutor::KeyboardMouseExecutor()
 
 void KeyboardMouseExecutor::handleButtonDown(const ButtonInput &buttonInput)
 {
+	// Mouse-wheel pseudo keys: one tick per press.
+	if (is_scroll_action(buttonInput.vk))
+	{
+		if (buttonInput.vk == INPUT_SCROLL_UP)
+			m_mouseInjector->scrollUp();
+		else
+			m_mouseInjector->scrollDown();
+		return;
+	}
+
 	if (buttonInput.is_mouse_button)
 	{
 #ifdef WIN32
@@ -219,6 +230,10 @@ void KeyboardMouseExecutor::handleButtonDown(const ButtonInput &buttonInput)
 
 void KeyboardMouseExecutor::handleButtonUp(const ButtonInput &buttonInput)
 {
+	// A wheel tick has no "up" state.
+	if (is_scroll_action(buttonInput.vk))
+		return;
+
 	if (buttonInput.is_mouse_button)
 	{
 #ifdef WIN32
@@ -245,11 +260,46 @@ void KeyboardMouseExecutor::handleButtonUp(const ButtonInput &buttonInput)
 	}
 }
 
+namespace
+{
+/** Milliseconds from a monotonic clock, used to rate-limit mouse-wheel ticks. */
+qint64 steadyNowMs()
+{
+	using namespace std::chrono;
+	return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+} // namespace
+
 void KeyboardMouseExecutor::handleThumbstickInput(const ThumbstickInput &thumbstick,
 												  float x_value,
 												  float y_value,
-												  double threshold)
+												  double threshold,
+												  int stickIndex)
 {
+	// Wheel mode: pushing the stick up or down cycles the mouse wheel. This is
+	// what swaps hotbar slots in Minecraft and pages through inventories.
+	if (thumbstick.is_mouse_scroll)
+	{
+		const bool scrolling = std::abs(y_value) > threshold;
+		if (!scrolling)
+		{
+			m_lastScrollAt[static_cast<size_t>(stickIndex)] = 0;
+			return;
+		}
+
+		const qint64 now = steadyNowMs();
+		qint64 &last = m_lastScrollAt[static_cast<size_t>(stickIndex)];
+		if (last != 0 && now - last < SCROLL_INTERVAL_MS)
+			return;
+		last = now;
+
+		if (y_value > threshold)
+			m_mouseInjector->scrollDown();
+		else
+			m_mouseInjector->scrollUp();
+		return;
+	}
+
 	// Convert circular area to square area
 	auto [squareX, squareY] = circleToSquare(x_value, y_value);
 
@@ -363,13 +413,17 @@ bool KeyboardMouseExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_readi
 		SettingsSingleton::instance().activeKeymapProfile().thumbstickInput(Thumbstick_Left),
 		reading.left_thumbstick_x,
 		reading.left_thumbstick_y,
-		THRESHOLD);
+		THRESHOLD,
+		0);
 
 	handleThumbstickInput(
 		SettingsSingleton::instance().activeKeymapProfile().thumbstickInput(Thumbstick_Right),
 		reading.right_thumbstick_x,
 		reading.right_thumbstick_y,
-		THRESHOLD);
+		THRESHOLD,
+		1);
+
+	handleCustomBindings(reading);
 
 	handleTriggerInput(SettingsSingleton::instance().activeKeymapProfile().triggerInput(Trigger::Left),
 					   reading.left_trigger);
@@ -378,6 +432,24 @@ bool KeyboardMouseExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_readi
 					   reading.right_trigger);
 
 	return true;
+}
+
+void KeyboardMouseExecutor::handleCustomBindings(vgp_data_exchange_gamepad_reading const &reading)
+{
+	const auto &custom = SettingsSingleton::instance().activeKeymapProfile().customBindings();
+	if (custom.empty())
+		return;
+
+	for (const auto &binding : custom)
+	{
+		if (binding.gamepadMask == 0 || binding.vk == 0)
+			continue;
+		ButtonInput input{binding.vk, is_mouse_button(binding.vk), binding.displayName};
+		if (reading.buttons_down & binding.gamepadMask)
+			handleButtonDown(input);
+		if (reading.buttons_up & binding.gamepadMask)
+			handleButtonUp(input);
+	}
 }
 
 void GamepadExecutor::pressNativeButton(int buttonCode)

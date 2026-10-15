@@ -16,6 +16,20 @@
  */
 using InputKeyCode = quint32;
 
+/**
+ * Pseudo key codes used to describe mouse-wheel actions. They never collide
+ * with a real native key code because the top byte is 0xFF, which the platform
+ * APIs do not use for keys or mouse buttons.
+ */
+constexpr InputKeyCode INPUT_SCROLL_UP = 0xFFFF0001u;
+constexpr InputKeyCode INPUT_SCROLL_DOWN = 0xFFFF0002u;
+
+/** True when @p code is one of the pseudo mouse-wheel action codes. */
+inline bool is_scroll_action(InputKeyCode code)
+{
+	return code == INPUT_SCROLL_UP || code == INPUT_SCROLL_DOWN;
+}
+
 struct ButtonInput
 {
 	InputKeyCode vk{};			  // Platform native virtual key code
@@ -32,6 +46,7 @@ struct ButtonInput
 struct ThumbstickInput
 {
 	bool is_mouse_move = false;				   // true if the thumbstick is mapped to mouse movement
+	bool is_mouse_scroll = false; // true if the thumbstick cycles the mouse wheel (inventory/hotbar)
 	ButtonInput up{}, down{}, left{}, right{}; // up, down, left, right directions of the thumbstick
 };
 

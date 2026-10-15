@@ -14,6 +14,8 @@
 
 void KeymapProfile::initializeDefaultMappings()
 {
+	m_customBindings.clear();
+
 	// Initialize default display names for buttons
 	buttonDisplayNames = {{GamepadButtons::GamepadButtons_Menu, "Menu"},
 						  {GamepadButtons::GamepadButtons_View, "Tab"},
@@ -146,6 +148,32 @@ bool KeymapProfile::save(const QString &profilePath) const
 	saveToSettings(settings);
 	settings.sync();
 	return true;
+}
+
+void KeymapProfile::addCustomBinding(const CustomBinding &binding)
+{
+	if (binding.gamepadMask == 0 || binding.vk == 0)
+		return;
+	m_customBindings.push_back(binding);
+}
+
+void KeymapProfile::setCustomBinding(size_t index, const CustomBinding &binding)
+{
+	if (index >= m_customBindings.size())
+		return;
+	m_customBindings[index] = binding;
+}
+
+void KeymapProfile::removeCustomBinding(size_t index)
+{
+	if (index >= m_customBindings.size())
+		return;
+	m_customBindings.erase(m_customBindings.begin() + static_cast<std::ptrdiff_t>(index));
+}
+
+void KeymapProfile::clearCustomBindings()
+{
+	m_customBindings.clear();
 }
 
 InputKeyCode KeymapProfile::buttonMap(GamepadButtons btn) const
@@ -416,6 +444,28 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 
 	triggerMappings[Trigger::Left] = leftTrigger;
 	triggerMappings[Trigger::Right] = rightTrigger;
+
+	// Thumbstick mouse-wheel scrolling (used for hotbar/inventory cycling)
+	thumbstickMappings[Thumbstick_Left].is_mouse_scroll =
+		settings.value("thumbsticks/LeftThumbstickScroll", false).toBool();
+	thumbstickMappings[Thumbstick_Right].is_mouse_scroll =
+		settings.value("thumbsticks/RightThumbstickScroll", false).toBool();
+
+	// Extra user-defined keys
+	m_customBindings.clear();
+	const int customCount = settings.value("custom/count", 0).toInt();
+	for (int i = 0; i < customCount; ++i)
+	{
+		CustomBinding binding;
+		binding.gamepadMask = settings.value(QStringLiteral("custom/%1/mask").arg(i), 0).toUInt();
+		binding.name = settings.value(QStringLiteral("custom/%1/name").arg(i), "").toString();
+		binding.vk = settings.value(QStringLiteral("custom/%1/vk").arg(i), 0).toUInt();
+		binding.displayName =
+			settings.value(QStringLiteral("custom/%1/display").arg(i), "").toString();
+		if (binding.gamepadMask != 0 && binding.vk != 0)
+			m_customBindings.push_back(binding);
+	}
+	qDebug() << "Loaded" << m_customBindings.size() << "custom key bindings";
 }
 
 void KeymapProfile::saveToSettings(QSettings &settings) const
@@ -429,6 +479,7 @@ void KeymapProfile::saveToSettings(QSettings &settings) const
 	settings.remove("thumbstick_display_names");
 	settings.remove("triggers");
 	settings.remove("trigger_display_names");
+	settings.remove("custom");
 
 	// Button mappings - Use explicit mapping to ensure correct values
 	// Map GamepadButtons directly to settings keys
@@ -545,4 +596,20 @@ void KeymapProfile::saveToSettings(QSettings &settings) const
 	// Trigger display names
 	settings.setValue("trigger_display_names/LeftTrigger", leftTrigger.button_input.displayName);
 	settings.setValue("trigger_display_names/RightTrigger", rightTrigger.button_input.displayName);
+
+	// Thumbstick mouse-wheel scrolling
+	settings.setValue("thumbsticks/LeftThumbstickScroll", left.is_mouse_scroll);
+	settings.setValue("thumbsticks/RightThumbstickScroll", right.is_mouse_scroll);
+
+	// Extra user-defined keys
+	settings.setValue("custom/count", static_cast<int>(m_customBindings.size()));
+	for (size_t i = 0; i < m_customBindings.size(); ++i)
+	{
+		const auto &binding = m_customBindings[i];
+		const QString prefix = QStringLiteral("custom/%1/").arg(i);
+		settings.setValue(prefix + "mask", binding.gamepadMask);
+		settings.setValue(prefix + "name", binding.name);
+		settings.setValue(prefix + "vk", binding.vk);
+		settings.setValue(prefix + "display", binding.displayName);
+	}
 }

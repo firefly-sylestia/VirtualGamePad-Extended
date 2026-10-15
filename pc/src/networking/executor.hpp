@@ -6,6 +6,7 @@
 #include "../simulation/keyboardSim.hpp"
 #include "../simulation/mouseSim.hpp"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -96,14 +97,24 @@ class KeyboardMouseExecutor : public ExecutorInterface
 	bool inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading) override;
 
   private:
+	/** One mouse-wheel tick at most this often while a stick is held over. */
+	static constexpr qint64 SCROLL_INTERVAL_MS = 70;
+
 	std::unique_ptr<KeyboardInjector> m_keyboardInjector;
 	std::unique_ptr<MouseInjector> m_mouseInjector;
+
+	/** Timestamps (ms since epoch of steady clock) of the last wheel tick per stick. */
+	std::array<qint64, 2> m_lastScrollAt{0, 0};
 
 	void handleButtonDown(const ButtonInput &buttonInput);
 	void handleButtonUp(const ButtonInput &buttonInput);
 	void handleThumbstickInput(const ThumbstickInput &thumbstick,
 							   float x_value,
 							   float y_value,
-							   double threshold);
+							   double threshold,
+							   int stickIndex);
 	void handleTriggerInput(const TriggerInput &trigger, float trigger_value);
+
+	/** Fire any extra keys the active profile layers on top of the standard map. */
+	void handleCustomBindings(const vgp_data_exchange_gamepad_reading &reading);
 };

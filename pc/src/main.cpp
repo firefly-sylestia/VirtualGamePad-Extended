@@ -1,6 +1,7 @@
 #include "appdir.hpp"
 #include "platform/windows/console.hpp"
 #include "ui/mainwindow.hpp"
+#include "ui/theme.hpp"
 
 #include <QApplication>
 #include <QDir>
@@ -101,7 +102,8 @@ int main(int argc, char *argv[])
 	qInfo() << "Launching app...";
 
 	QApplication a(argc, argv);
-	QApplication::setStyle(QStyleFactory::create("Fusion"));
+	// Fusion plus the dark palette and the stylesheet from the theme module.
+	Theme::apply(a);
 	QApplication::setOrganizationName("firefly-sylestia");
 	QApplication::setOrganizationDomain("com.fireflysylestia");
 	QApplication::setApplicationName("VirtualGamePad Extended");

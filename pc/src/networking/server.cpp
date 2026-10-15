@@ -11,6 +11,7 @@
 #include <QMessageBox>
 #include <QNetworkInterface>
 #include <QThread>
+#include <algorithm>
 
 /**
  * @brief Creates a QR code from a string
@@ -44,6 +45,83 @@ QImage createQR(const QString &data, const int border = 1, const uint scalingFac
 	}
 	return image.scaled(image.size() * scalingFactor);
 }
+
+namespace
+{
+/**
+ * @brief An address a phone might reach the PC on, best candidate first.
+ */
+struct AddressCandidate
+{
+	QHostAddress address;
+	QString interfaceName;
+	int rank = 99;
+};
+
+/**
+ * @brief Score an address so the most likely reachable one is shown first.
+ *
+ * The QR code that gets scanned is the one currently selected, so an address
+ * from a VPN or a container bridge must not sort above the plain Wi-Fi one.
+ */
+int rankForAddress(quint32 ip, const QString &interfaceName)
+{
+	const QString lower = interfaceName.toLower();
+	static const char *const virtualHints[] = {"docker", "veth",  "virbr", "vmnet",  "tun",
+													  "tap",	  "tailscale", "wg", "zte",
+													  "wsl",	  "br-",   "zt"};
+	for (const char *hint : virtualHints)
+	{
+		if (lower.contains(QString::fromUtf8(hint)))
+			return 40;
+	}
+
+	const quint32 first = (ip >> 24) & 0xFF;
+	const quint32 second = (ip >> 16) & 0xFF;
+
+	if (first == 192 && second == 168)
+		return 0;
+	if (first == 172 && second >= 16 && second <= 31)
+		return 1;
+	if (first == 10)
+		return 2;
+	if (first == 100 && second >= 64 && second <= 127)
+		return 30; // Carrier-grade NAT, rarely reachable from the phone.
+	return 10;
+}
+
+/** Addresses worth offering to a phone, best first. */
+QList<AddressCandidate> rankedAddresses()
+{
+	QList<AddressCandidate> candidates;
+	const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
+
+	for (const QNetworkInterface &iface : interfaces)
+	{
+		const QString name = iface.humanReadableName();
+		for (const QNetworkAddressEntry &entry : iface.addressEntries())
+		{
+			const QHostAddress address = entry.ip();
+			if (address.protocol() != QAbstractSocket::IPv4Protocol)
+				continue;
+			if (address.isLoopback() || address.isNull() || address.isMulticast() ||
+				address.isLinkLocal())
+				continue;
+
+			candidates.append(
+				{address, name, rankForAddress(address.toIPv4Address(), name)});
+		}
+	}
+
+	std::sort(candidates.begin(),
+			  candidates.end(),
+			  [](const AddressCandidate &a, const AddressCandidate &b)
+			  {
+				  return a.rank < b.rank;
+			  });
+	return candidates;
+}
+} // namespace
 
 Server::Server(QWidget *parent) : QWidget(parent), ui(new Ui::Server)
 {
@@ -96,7 +174,11 @@ void Server::initServer()
 {
 	qInfo() << "Starting TCP server initialization";
 
-	tcpServer->setListenBacklogSize(0);
+	// Keep a real backlog. A backlog of 0 lets the kernel drop a SYN that
+	// arrives while the server is between accept() calls (for example during
+	// the pause/resume window when a device reconnects), which showed up as
+	// "sometimes the phone just will not connect".
+	tcpServer->setListenBacklogSize(8);
 	auto port = SettingsSingleton::instance().port();
 
 	if (!tcpServer->listen(QHostAddress::AnyIPv4, port))
@@ -111,17 +193,19 @@ void Server::initServer()
 	QString message = tr("**Warning:** The server will stop if you close this window.\n\n");
 	message += tr("The server is running on\n\nPort: `%1`\n\nAt the following IP Address(es):\n\n")
 				   .arg(tcpServer->serverPort());
-	const QList<QHostAddress> ipAddressesList = QNetworkInterface::allAddresses();
-	for (const QHostAddress &entry : ipAddressesList)
+	const QList<AddressCandidate> candidates = rankedAddresses();
+	for (const AddressCandidate &candidate : candidates)
 	{
-		if (entry.isGlobal())
-		{
-			ui->IPList->addItem(tr("%1").arg(entry.toString()));
-			QLabel *QRWidget = new QLabel();
-			QRWidget->setPixmap(QPixmap::fromImage(
-				createQR(tr("%1:%2").arg(entry.toString()).arg(tcpServer->serverPort()))));
-			ui->QRViewer->addWidget(QRWidget);
-		}
+		const QString address = candidate.address.toString();
+		ui->IPList->addItem(candidate.rank == 0
+								? tr("%1   (recommended)").arg(address)
+								: tr("%1   (%2)").arg(address, candidate.interfaceName));
+
+		auto *QRWidget = new QLabel();
+		QRWidget->setAlignment(Qt::AlignCenter);
+		QRWidget->setPixmap(QPixmap::fromImage(
+			createQR(QStringLiteral("%1:%2").arg(address).arg(tcpServer->serverPort()))));
+		ui->QRViewer->addWidget(QRWidget);
 	}
 	if (ui->IPList->count() > 0)
 	{
@@ -129,6 +213,13 @@ void Server::initServer()
 		ui->IPList->setCurrentRow(0);
 		// And grab the focus
 		ui->IPList->setFocus(Qt::OtherFocusReason);
+	}
+	else
+	{
+		message += tr("No local IPv4 address was found, so there is no QR code to scan. "
+					  "Connect this PC to the same Wi-Fi network as your phone, or use the "
+					  "USB connection instead.");
+		qWarning() << "No usable IPv4 address found; server started without a QR code";
 	}
 	ui->statusLabel->setText(message);
 	connect(ui->IPList,
@@ -147,9 +238,24 @@ void Server::initServer()
 
 void Server::handleConnection()
 {
+	// A phone that reconnects can leave the previous socket half-open. Adopt the
+	// new connection and drop the old one instead of leaking it, otherwise the
+	// stale socket keeps the server paused and the app talks into a dead pipe.
+	if (clientConnection != nullptr)
+	{
+		qInfo() << "Replacing the previous client connection";
+		clientConnection->disconnect(this);
+		clientConnection->abort();
+		clientConnection->deleteLater();
+		clientConnection = nullptr;
+	}
+
 	clientConnection = tcpServer->nextPendingConnection();
 	// disable Nagle's algorithm to avoid delay and bunching of small packages
 	clientConnection->setSocketOption(QAbstractSocket::LowDelayOption, 1);
+	// Detect a phone that walked out of range or went to sleep much sooner than
+	// the default keep-alive timers would.
+	clientConnection->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
 	isGamepadConnected = true;
 	QString connectionMessage;
 	connectionMessage =
@@ -159,6 +265,8 @@ void Server::handleConnection()
 				 QString::number(clientConnection->peerPort()));
 	qInfo().noquote() << connectionMessage;
 	ui->clientLabel->setText(connectionMessage);
+	// Stop accepting extra devices while one is connected, but keep the backlog
+	// above so a retry is queued rather than refused.
 	tcpServer->pauseAccepting();
 	connect(clientConnection, &QAbstractSocket::disconnected, clientConnection, &QObject::deleteLater);
 	connect(clientConnection,

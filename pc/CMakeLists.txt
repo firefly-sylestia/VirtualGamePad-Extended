@@ -86,6 +86,8 @@ set(PROJECT_SOURCES
     res/icons.qrc
     src/appdir.hpp
     src/main.cpp
+    src/networking/controller_test_state.cpp
+    src/networking/controller_test_state.hpp
     src/networking/executor.cpp
     src/networking/executor.hpp
     src/networking/server.cpp
@@ -94,6 +96,10 @@ set(PROJECT_SOURCES
     src/settings/settings.hpp
     src/settings/settings_singleton.cpp
     src/settings/settings_singleton.hpp
+    src/settings/game_layout.cpp
+    src/settings/game_layout.hpp
+    src/settings/key_names.cpp
+    src/settings/key_names.hpp
     src/settings/keymap_profile.hpp
     src/settings/keymap_profile.cpp
     src/simulation/gamepadSim.hpp
@@ -106,15 +112,26 @@ set(PROJECT_SOURCES
     src/ui/badge.hpp
     src/ui/buttoninputbox.cpp
     src/ui/buttoninputbox.hpp
-    src/ui/mainmenu.cpp
-    src/ui/mainmenu.hpp
-    src/ui/mainmenu.ui
+    src/ui/controllertest.cpp
+    src/ui/controllertest.hpp
+    src/ui/gamepaddiagram.cpp
+    src/ui/gamepaddiagram.hpp
+    src/ui/homepage.cpp
+    src/ui/homepage.hpp
+    src/ui/keymappage.cpp
+    src/ui/keymappage.hpp
+    src/ui/layoutspage.cpp
+    src/ui/layoutspage.hpp
     src/ui/mainwindow.cpp
     src/ui/mainwindow.hpp
     src/ui/mainwindow.ui
     src/ui/preferences.cpp
     src/ui/preferences.hpp
     src/ui/preferences.ui
+    src/ui/shell.cpp
+    src/ui/shell.hpp
+    src/ui/theme.cpp
+    src/ui/theme.hpp
 )
 
 # Platform-specific simulation sources
