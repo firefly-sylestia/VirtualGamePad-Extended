@@ -56,10 +56,17 @@ private fun MacroButton(
             if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
         colors = ButtonDefaults.outlinedButtonColors(
+            // Same pairing as the other auxiliary buttons: a container that stands
+            // off the gamepad's surface, with its own on-colour for the label.
             containerColor = if (isPressed) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
-                MaterialTheme.colorScheme.surface
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+            contentColor = if (isPressed) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
             },
         ),
         interactionSource = interactionSource,

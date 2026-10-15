@@ -59,6 +59,12 @@ fun TouchSurface(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text("TOUCH", style = MaterialTheme.typography.labelMedium)
+        // Without an explicit colour this label is black, which is the same as a
+        // dark surfaceVariant: it has to take the surface's own on-colour.
+        Text(
+            text = "TOUCH",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

@@ -30,8 +30,6 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
-import com.fireflysylestia.virtualgamepadextended.ui.theme.darken
-import com.fireflysylestia.virtualgamepadextended.ui.theme.lighten
 
 enum class DpadButtonType {
     UP, DOWN, LEFT, RIGHT
@@ -41,12 +39,18 @@ enum class DpadButtonType {
 fun DpadButton(
     type: DpadButtonType,
     modifier: Modifier = Modifier,
-    foregroundColour: Color = MaterialTheme.colorScheme.primary,
-    backgroundColour: Color = darken(MaterialTheme.colorScheme.primary, 0.8f),
+    // The arrows take the on-colour of the container they are drawn on. They used
+    // to be `primary` on a darkened `primary`, which is the same colour twice: in
+    // the light palette the two came out close enough that the arrows vanished.
+    foregroundColour: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    backgroundColour: Color = MaterialTheme.colorScheme.primaryContainer,
     size: Dp,
     gamepadState: GamepadReading,
     actionMask: Int? = null,
 ) {
+    // Held down lights the control up, so the pressed pair is the strong one.
+    val pressedBackground = MaterialTheme.colorScheme.primary
+    val pressedForeground = MaterialTheme.colorScheme.onPrimary
     val view = LocalView.current
     val rotation = when (type) {
         DpadButtonType.UP -> -90f
@@ -79,11 +83,12 @@ fun DpadButton(
         onClick = {},
         colors = IconButtonDefaults.outlinedIconButtonColors(
             // Lit up while held, so the press is visible on screen too.
-            containerColor = if (isPressed) lighten(backgroundColour, 0.45f) else backgroundColour,
+            containerColor = if (isPressed) pressedBackground else backgroundColour,
+            contentColor = if (isPressed) pressedForeground else foregroundColour,
         ),
         border = BorderStroke(
             if (isPressed) 3.dp else 2.dp,
-            if (isPressed) foregroundColour else MaterialTheme.colorScheme.outline,
+            if (isPressed) pressedForeground else MaterialTheme.colorScheme.outline,
         ),
         interactionSource = interactionSource,
     ) {
@@ -93,7 +98,7 @@ fun DpadButton(
             modifier = Modifier
                 .rotate(rotation)
                 .size(size),
-            tint = foregroundColour
+            tint = if (isPressed) pressedForeground else foregroundColour
         )
     }
 }

@@ -90,10 +90,18 @@ fun ShoulderButton(
             if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
         colors = ButtonDefaults.buttonColors(
+            // `surface` on a `surface` gamepad is invisible, and a label that comes
+            // out the same shade as its own container is unreadable: take the
+            // matching on-colour of whichever container is being used.
             containerColor = if (isPressed) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
-                MaterialTheme.colorScheme.surface
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+            contentColor = if (isPressed) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
             },
         ),
         onClick = { },
@@ -137,7 +145,12 @@ fun MenuButton(
             containerColor = if (isPressed) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
-                MaterialTheme.colorScheme.surface
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+            contentColor = if (isPressed) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
             },
         ),
         border = BorderStroke(
@@ -147,19 +160,26 @@ fun MenuButton(
         onClick = { },
         interactionSource = interactionSource,
     ) {
+        // The icon follows the button's own content colour, so it stays legible on
+        // the pressed and unpressed containers alike.
+        val iconTint = if (isPressed) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
         if (iconPainter != null) {
             Icon(
                 painter = iconPainter,
                 contentDescription = stringResource(R.string.content_desc_button, gameButton.name),
                 modifier = Modifier.size(size / 2),
-                tint = MaterialTheme.colorScheme.primary
+                tint = iconTint
             )
         } else {
             Icon(
                 imageVector = ImageVector.vectorResource(R.drawable.screenicon),
                 contentDescription = stringResource(R.string.content_desc_button, gameButton.name),
                 modifier = Modifier.size(size / 2),
-                tint = MaterialTheme.colorScheme.primary
+                tint = iconTint
             )
         }
     }

@@ -103,10 +103,17 @@ private fun ExtraButton(
             if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
         colors = ButtonDefaults.outlinedButtonColors(
+            // A `surface` button on the `surface` gamepad has no visible shape, and
+            // the label has to take the on-colour of whichever container it lands on.
             containerColor = if (isPressed) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
-                MaterialTheme.colorScheme.surface
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+            contentColor = if (isPressed) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
             },
         ),
         interactionSource = interactionSource,
