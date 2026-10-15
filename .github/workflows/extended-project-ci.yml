@@ -72,3 +72,31 @@ jobs:
           path: pc/build-linux/Release/VGamepadPC
           if-no-files-found: warn
           retention-days: 24
+
+  pc-windows-build:
+    name: Windows PC application build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Qt 6.8 (MSVC 2022 x64)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.2"
+          arch: win64_msvc2022_64
+          cache: true
+      - name: Configure
+        working-directory: pc
+        run: cmake --preset windows
+      - name: Build
+        working-directory: pc
+        run: cmake --build build-windows --config Release --parallel 2
+      - name: Upload Windows binary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vgp-pc-windows
+          path: pc/build-windows/Release/
+          if-no-files-found: warn
+          retention-days: 24
