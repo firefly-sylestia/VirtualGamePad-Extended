@@ -106,13 +106,17 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
 
     when (layout) {
         ControllerLayout.SWITCH_2, ControllerLayout.SWITCH -> {
-            // Same physical controls on both Switch generations. Joy-Con SL/SR
-            // and the M1-M4 macros stay off: they are not part of the standard
-            // layout, and they are one tap away in the customisation screen.
+            // A Switch is played with a Joy-Con pair as often as with a Pro
+            // Controller, and the rail buttons are on both generations' Joy-Con,
+            // so SL/SR belong to the family's layout. The M1-M4 macros stay off:
+            // no Nintendo pad has them, and they are one tap away in the
+            // customisation screen. The Switch 2 Pro Controller's GL/GR back
+            // buttons are left off for the same reason (no Joy-Con has them).
             coreControls()
             onlySharedExtras()
             show(ButtonComponent.PLUS_MINUS, true)
             show(ButtonComponent.HOME_CAPTURE, true)
+            show(ButtonComponent.SIDE_BUTTONS, true)
             show(ButtonComponent.GYRO_TOGGLE, true)
         }
 

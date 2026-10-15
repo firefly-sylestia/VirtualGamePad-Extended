@@ -133,7 +133,6 @@ class GamepadLayoutTest {
         val switch2 = buttonConfigsForLayout(ControllerLayout.SWITCH_2)
         listOf(
             ButtonComponent.MACRO_BUTTONS,
-            ButtonComponent.SIDE_BUTTONS,
             ButtonComponent.REAR_PADDLES,
             ButtonComponent.TOUCH_SURFACE,
             ButtonComponent.SELECT_BUTTON,
@@ -142,6 +141,23 @@ class GamepadLayoutTest {
             assertTrue(
                 "$component should start hidden on Switch 2",
                 switch2.getValue(component).visible.not(),
+            )
+        }
+    }
+
+    @Test
+    fun `the Switch 2 preset shows the buttons the Joy-Con have`() {
+        val switch2 = buttonConfigsForLayout(ControllerLayout.SWITCH_2)
+        // A Joy-Con pair has +/−, HOME, Capture and the SL/SR rail buttons. Only
+        // showing the first two is what left a Switch 2 short of controls.
+        listOf(
+            ButtonComponent.PLUS_MINUS,
+            ButtonComponent.HOME_CAPTURE,
+            ButtonComponent.SIDE_BUTTONS,
+        ).forEach { component ->
+            assertTrue(
+                "$component should be visible on Switch 2",
+                switch2.getValue(component).visible,
             )
         }
     }

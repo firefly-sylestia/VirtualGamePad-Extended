@@ -33,27 +33,22 @@ class SettingsRepository(context: Context) {
         preferences[HAPTIC_FEEDBACK_ENABLED] ?: defaultHapticFeedbackEnabled
     }
 
+    /**
+     * Which controls the gamepad shows.
+     *
+     * With nothing saved this is the active layout's preset, not
+     * [defaultButtonConfigs]: those defaults only describe where each control
+     * sits, and most of the extras start hidden there. Handing them straight to
+     * the gamepad is what used to leave a Switch 2 without its +/− buttons,
+     * HOME/Capture or the rail buttons, even though the preset turns them on.
+     */
     val buttonConfigs: Flow<Map<ButtonComponent, ButtonConfig>> =
         dataStore.data.map { preferences ->
-            val jsonString = preferences[BUTTON_CONFIGS]
-            if (jsonString != null) {
-                try {
-                    Json.decodeFromString<Map<ButtonComponent, ButtonConfig>>(jsonString)
-                } catch (e: Exception) {
-                    defaultButtonConfigs
-                }
-            } else {
-                defaultButtonConfigs
-            }
+            storedButtonConfigs(preferences) ?: buttonConfigsForLayout(layoutFrom(preferences))
         }
 
     val controllerLayout: Flow<ControllerLayout> = dataStore.data.map { preferences ->
-        val storedLayout = preferences[CONTROLLER_LAYOUT]
-        when {
-            storedLayout != null -> ControllerLayout.fromStored(storedLayout)
-            preferences[BUTTON_CONFIGS] != null -> ControllerLayout.CUSTOM
-            else -> ControllerLayout.SWITCH_2
-        }
+        layoutFrom(preferences)
     }
 
     val macros: Flow<List<MacroDefinition>> = dataStore.data.map { preferences ->
@@ -124,17 +119,9 @@ class SettingsRepository(context: Context) {
 
     suspend fun setButtonConfig(component: ButtonComponent, config: ButtonConfig) {
         dataStore.edit { preferences ->
-            val currentJson = preferences[BUTTON_CONFIGS]
-            val currentConfigs = if (currentJson != null) {
-                try {
-                    Json.decodeFromString<Map<ButtonComponent, ButtonConfig>>(currentJson)
-                        .toMutableMap()
-                } catch (e: Exception) {
-                    defaultButtonConfigs.toMutableMap()
-                }
-            } else {
-                defaultButtonConfigs.toMutableMap()
-            }
+            val currentConfigs =
+                (storedButtonConfigs(preferences) ?: buttonConfigsForLayout(layoutFrom(preferences)))
+                    .toMutableMap()
             currentConfigs[component] = config
             preferences[BUTTON_CONFIGS] = Json.encodeToString(currentConfigs)
         }
@@ -186,6 +173,29 @@ class SettingsRepository(context: Context) {
     suspend fun resetAllSettings() {
         dataStore.edit { preferences ->
             preferences.clear()
+        }
+    }
+
+    /** The saved per-control configuration, or null when the user has none. */
+    private fun storedButtonConfigs(preferences: Preferences): Map<ButtonComponent, ButtonConfig>? =
+        preferences[BUTTON_CONFIGS]?.let { jsonString ->
+            try {
+                Json.decodeFromString<Map<ButtonComponent, ButtonConfig>>(jsonString)
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+    /**
+     * The layout in the store: the saved one, else a custom layout when only
+     * control configurations were saved, else the default family.
+     */
+    private fun layoutFrom(preferences: Preferences): ControllerLayout {
+        val storedLayout = preferences[CONTROLLER_LAYOUT]
+        return when {
+            storedLayout != null -> ControllerLayout.fromStored(storedLayout)
+            preferences[BUTTON_CONFIGS] != null -> ControllerLayout.CUSTOM
+            else -> ControllerLayout.SWITCH_2
         }
     }
 
