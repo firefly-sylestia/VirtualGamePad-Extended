@@ -152,6 +152,8 @@ if(WIN32)
         cppwinrt
         WindowsApp
     )
+    # Windows.h defines min/max macros that break std::min/std::max.
+    target_compile_definitions(VGamepadPC PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif(LINUX)
     target_link_libraries(VGamepadPC PRIVATE
         ${UINPUT_LIBRARIES}
