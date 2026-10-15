@@ -5,6 +5,7 @@
 #include "../simulation/gamepadSim.hpp"
 #include "../simulation/keyboardSim.hpp"
 #include "../simulation/mouseSim.hpp"
+#include "input_backend_status.hpp"
 
 #include <QApplication>
 #include <QDebug>
@@ -188,6 +189,29 @@ KeyboardMouseExecutor::KeyboardMouseExecutor()
 		qCritical() << "Failed to initialize input injectors:" << e.what();
 		throw;
 	}
+
+	InputBackendStatus::instance().set(QStringLiteral("Keyboard + mouse"),
+									   true,
+									   QStringLiteral("works in every game, following the active key map"));
+}
+
+GamepadExecutor::GamepadExecutor()
+{
+	const bool available = m_injector.isAvailable();
+
+	// The backend is named because the paths are not equivalent to a game: a
+	// ViGEmBus or uinput pad is detected as real hardware, the Windows
+	// input-injection fallback usually is not.
+	QString detail;
+	if (!available)
+		detail = m_injector.lastError();
+	else if (m_injector.detectsAsPhysicalController())
+		detail = QStringLiteral("games detect this as a physical controller");
+	else
+		detail = QStringLiteral("games that read XInput or DirectInput directly may not see this "
+								"pad. Install ViGEmBus, or switch to Keyboard + mouse mode");
+
+	InputBackendStatus::instance().set(m_injector.backendName(), available, detail);
 }
 
 void KeyboardMouseExecutor::handleButtonDown(const ButtonInput &buttonInput)
@@ -576,5 +600,6 @@ bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading con
 #endif
 
 	m_injector.inject();
-	return true;
+	// false tells the caller nothing reached the system; the UI reports why once.
+	return m_injector.isAvailable();
 }

@@ -113,6 +113,12 @@ void Shell::buildPages()
 	auto *usb = new UsbPage(m_pages);
 	m_created.insert(PageUsb, usb);
 
+	// The server page lives as long as the server does. Building a new one on
+	// every visit used to leave the previous server holding the port, so the next
+	// visit failed with "address already in use" and hid itself.
+	auto *server = new Server(m_pages);
+	m_created.insert(PageServer, server);
+
 	for (auto *page : m_created)
 		m_pages->addWidget(page);
 
@@ -134,6 +140,17 @@ void Shell::buildPages()
 	connect(keymap, &KeymapPage::profileChanged, this, [this] { m_home->refreshStatus(); });
 	connect(usb, &UsbPage::navigateBack, this, [this] { navigateTo(PageHome); });
 	connect(usb, &UsbPage::startServerRequested, this, [this] { navigateTo(PageServer); });
+
+	// Stop on the server page releases the port and tears the page down, so a
+	// later visit starts a fresh server rather than reusing a dead one.
+	connect(server, &Server::navigateBack, this,
+			[this, server]
+			{
+				m_pages->removeWidget(server);
+				m_created.remove(PageServer);
+				server->deleteLater();
+				navigateTo(PageHome);
+			});
 }
 
 void Shell::navigateTo(int index)
@@ -152,25 +169,10 @@ void Shell::navigateTo(int index)
 	case PageLayouts:
 	case PageKeymap:
 	case PageUsb:
+	case PageServer:
 		if (QWidget *page = m_created.value(index, nullptr))
 			m_pages->setCurrentWidget(page);
 		break;
-	case PageServer:
-	{
-		auto *server = new Server();
-		m_pages->addWidget(server);
-		m_pages->setCurrentWidget(server);
-		connect(server,
-				&Server::navigateBack,
-				this,
-				[this, server]
-				{
-					m_pages->removeWidget(server);
-					server->deleteLater();
-					navigateTo(PageHome);
-				});
-		break;
-	}
 	case PagePreferences:
 	{
 		auto *preferences = new Preferences();

@@ -90,6 +90,8 @@ set(PROJECT_SOURCES
     src/networking/controller_test_state.hpp
     src/networking/executor.cpp
     src/networking/executor.hpp
+    src/networking/input_backend_status.cpp
+    src/networking/input_backend_status.hpp
     src/networking/server.cpp
     src/networking/server.hpp
     src/networking/server.ui
@@ -146,6 +148,8 @@ if(WIN32)
         src/simulation/windows/gamepadSim.cpp
         src/simulation/windows/keyboardSim.cpp
         src/simulation/windows/mouseSim.cpp
+        src/simulation/windows/vigemClient.cpp
+        src/simulation/windows/vigemClient.hpp
     )
 elseif(LINUX)
     list(APPEND PROJECT_SOURCES

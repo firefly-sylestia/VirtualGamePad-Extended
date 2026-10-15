@@ -6,6 +6,7 @@
 #include "../simulation/keyboardSim.hpp"
 #include "../simulation/mouseSim.hpp"
 
+#include <QString>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -37,13 +38,25 @@ class ExecutorInterface
 	virtual ~ExecutorInterface() = default;
 
 	virtual bool inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading) = 0;
+
+	/**
+	 * @brief Whether this backend can actually deliver input to the system.
+	 *
+	 * Reported to the UI through InputBackendStatus when the executor is built,
+	 * so a backend that cannot work (no /dev/uinput access, a refused Windows
+	 * injection API) is explained instead of failing silently.
+	 */
+	virtual bool isAvailable() const { return true; }
 };
 
 class GamepadExecutor : public ExecutorInterface
 {
   public:
-	GamepadExecutor() = default;
+	/** Builds the virtual gamepad and publishes whether it worked. Never throws. */
+	GamepadExecutor();
 	~GamepadExecutor() override = default;
+
+	bool isAvailable() const override { return m_injector.isAvailable(); }
 
 	// Delete copy and move operations because GamepadInjector is non-movable
 	GamepadExecutor(const GamepadExecutor &) = delete;

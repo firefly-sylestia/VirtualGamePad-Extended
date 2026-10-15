@@ -2,6 +2,8 @@
 
 #include "../../third-party-libs/QR-Code-generator/cpp/qrcodegen.hpp"
 #include "../settings/settings_singleton.hpp"
+#include "controller_test_state.hpp"
+#include "input_backend_status.hpp"
 #include "ui_server.h"
 
 #include <QByteArray>
@@ -10,6 +12,7 @@
 #include <QList>
 #include <QMessageBox>
 #include <QNetworkInterface>
+#include <QShowEvent>
 #include <QThread>
 #include <algorithm>
 
@@ -128,6 +131,9 @@ Server::Server(QWidget *parent) : QWidget(parent), ui(new Ui::Server)
 	qInfo() << "Initializing TCP server";
 
 	ui->setupUi(this);
+
+	// The port is opened in showEvent(), so simply having this page in the shell
+	// does not hold a port the user never asked for.
 	ui->IPList->viewport()->setAutoFillBackground(false);
 	// delete this when stop button is clicked
 	connect(ui->stopButton, &QPushButton::clicked, this, &Server::destroyServer);
@@ -135,24 +141,96 @@ Server::Server(QWidget *parent) : QWidget(parent), ui(new Ui::Server)
 	tcpServer = new QTcpServer(this);
 	isGamepadConnected = false;
 
-	// Initialize the executor with try-catch for better error handling
-	switch (SettingsSingleton::instance().executorType())
-	{
-	case ExecutorType::GamepadExecutor:
-		executor = std::make_unique<GamepadExecutor>();
-		qInfo() << "GamepadExecutor initialized successfully";
-		break;
-	case ExecutorType::KeyboardMouseExecutor:
-		executor = std::make_unique<KeyboardMouseExecutor>();
-		qInfo() << "KeyboardMouseExecutor initialized successfully";
-		break;
-	default:
-		qCritical() << "Unknown executor type";
-	}
-
-	initServer();
+	// The executor is built the first time the page is shown, so the virtual
+	// gamepad device does not appear on a PC where the server is never used.
+	connect(&InputBackendStatus::instance(),
+			&InputBackendStatus::changed,
+			this,
+			&Server::refreshBackendStatus);
 
 	qDebug() << "Server widget initialized";
+}
+
+/**
+ * Build the configured executor, without ever letting it take the app down.
+ *
+ * A virtual gamepad that cannot be created (no /dev/uinput access on Linux, or
+ * a refused injection API on Windows) used to throw out of this constructor.
+ * Now it falls back to keyboard and mouse, and the reason is shown on the page.
+ */
+void Server::buildExecutor()
+{
+	executor.reset();
+	const ExecutorType type = SettingsSingleton::instance().executorType();
+	try
+	{
+		switch (type)
+		{
+		case ExecutorType::GamepadExecutor:
+			executor = std::make_unique<GamepadExecutor>();
+			qInfo() << "GamepadExecutor initialized successfully";
+			break;
+		case ExecutorType::KeyboardMouseExecutor:
+			executor = std::make_unique<KeyboardMouseExecutor>();
+			qInfo() << "KeyboardMouseExecutor initialized successfully";
+			break;
+		default:
+			qCritical() << "Unknown executor type";
+		}
+	}
+	catch (const std::exception &ex)
+	{
+		qCritical() << "Could not start the configured input backend:" << ex.what();
+		m_listenError = tr("The configured input backend could not start: %1")
+							.arg(QString::fromUtf8(ex.what()));
+	}
+
+	if (executor == nullptr)
+	{
+		// Never leave the app with no way to send input.
+		executor = std::make_unique<KeyboardMouseExecutor>();
+		qWarning() << "Falling back to keyboard and mouse input";
+	}
+
+	m_executorType = static_cast<int>(type);
+	refreshBackendStatus();
+}
+
+void Server::refreshBackendStatus()
+{
+	if (m_statusBase.isEmpty())
+		return;
+
+	const auto status = InputBackendStatus::instance().snapshot();
+	QString line = tr("\n\n**Input:** %1").arg(status.backendName);
+	if (status.available)
+		line += tr(" — ready (%1).").arg(status.detail);
+	else
+		line += tr(" — **not available**: %1").arg(status.detail);
+
+	ui->statusLabel->setText(m_statusBase + line);
+}
+
+void Server::showEvent(QShowEvent *event)
+{
+	QWidget::showEvent(event);
+
+	// Preferences may have changed while this page was hidden.
+	if (m_executorType != static_cast<int>(SettingsSingleton::instance().executorType()))
+		buildExecutor();
+
+	const int configuredPort = SettingsSingleton::instance().port();
+	if (m_listenPort != configuredPort && !isGamepadConnected)
+	{
+		// A different port was chosen: release the old one so listen() can move.
+		tcpServer->close();
+		m_listenPort = -1;
+	}
+
+	if (!isListening() && !isGamepadConnected)
+		initServer();
+
+	refreshBackendStatus();
 }
 
 Server::~Server()
@@ -165,6 +243,7 @@ Server::~Server()
 		isGamepadConnected = false;
 	}
 	tcpServer->close(); // And then close the server
+	ControllerTestState::instance().setConnected(false);
 	qInfo() << "Server stopped.";
 	tcpServer->deleteLater();
 	delete ui;
@@ -172,6 +251,9 @@ Server::~Server()
 
 void Server::initServer()
 {
+	if (isListening())
+		return;
+
 	qInfo() << "Starting TCP server initialization";
 
 	// Keep a real backlog. A backlog of 0 lets the kernel drop a SYN that
@@ -183,14 +265,35 @@ void Server::initServer()
 
 	if (!tcpServer->listen(QHostAddress::AnyIPv4, port))
 	{
-		QMessageBox::critical(this,
-							  tr("VGamepad Server"),
-							  tr("Unable to start the server: %1.").arg(tcpServer->errorString()));
-		close(); // Close the error dialog
-		tcpServer->close();
+		// Stay on the page and say what happened. Closing the page here left the
+		// user staring at an empty screen with no way to retry.
+		m_listenError = tcpServer->errorString();
+		m_statusBase = tr("**The server could not start.**\n\n"
+						  "Port `%1`: %2\n\n"
+						  "Another program may already be using that port. Choose a different "
+						  "port under Preferences, then press Start server again, or stop the "
+						  "other server first.")
+						   .arg(port)
+						   .arg(m_listenError);
+		ui->statusLabel->setText(m_statusBase);
+		refreshBackendStatus();
+		qWarning() << "Unable to start the server on port" << port << ":" << m_listenError;
 		return;
 	}
-	QString message = tr("**Warning:** The server will stop if you close this window.\n\n");
+
+	m_listenError.clear();
+	m_listenPort = tcpServer->serverPort();
+	// The address list and QR codes are rebuilt for this run, never appended to
+	// a previous one.
+	ui->IPList->clear();
+	while (ui->QRViewer->count() > 0)
+	{
+		auto *page = ui->QRViewer->widget(0);
+		ui->QRViewer->removeWidget(page);
+		page->deleteLater();
+	}
+
+	QString message = tr("**Warning:** The server stops when you stop it or close the app.\n\n");
 	message += tr("The server is running on\n\nPort: `%1`\n\nAt the following IP Address(es):\n\n")
 				   .arg(tcpServer->serverPort());
 	const QList<AddressCandidate> candidates = rankedAddresses();
@@ -221,7 +324,9 @@ void Server::initServer()
 					  "USB connection instead.");
 		qWarning() << "No usable IPv4 address found; server started without a QR code";
 	}
-	ui->statusLabel->setText(message);
+	m_statusBase = message;
+	ui->statusLabel->setText(m_statusBase);
+	refreshBackendStatus();
 	connect(ui->IPList,
 			&QListWidget::currentItemChanged,
 			this,
@@ -257,6 +362,9 @@ void Server::handleConnection()
 	// the default keep-alive timers would.
 	clientConnection->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
 	isGamepadConnected = true;
+	// Tell every page that watches the connection state, so the control test and
+	// the home page stop saying "Not connected" the moment a device arrives.
+	ControllerTestState::instance().setConnected(true);
 	QString connectionMessage;
 	connectionMessage =
 		tr("Connected to %1 at `%2 : %3`")
@@ -279,6 +387,7 @@ void Server::handleConnection()
 				qDebug() << "Average Request Interval" << averageRequestInterval
 						 << "ms, Request Count:" << requestCount;
 				isGamepadConnected = false;
+				ControllerTestState::instance().setConnected(false);
 				tcpServer->resumeAccepting();
 			});
 	connect(clientConnection, &QAbstractSocket::readyRead, this, &Server::serveClient);
@@ -341,7 +450,19 @@ void Server::serveClient()
 		}
 		lastRequestTime = currentTime;
 
-		executor->inject_gamepad_state(result.reading);
+		// Feed the live views (control test, layouts preview, home page status)
+		// before handing the packet to the input backend.
+		ControllerTestState::instance().updateFromReading(result.reading);
+
+		if (!executor->inject_gamepad_state(result.reading) && !m_injectionWarningShown)
+		{
+			m_injectionWarningShown = true;
+			const auto status = InputBackendStatus::instance().snapshot();
+			qWarning() << "Input backend cannot deliver input:" << status.detail;
+			ui->clientLabel->setText(
+				tr("Connected, but **%1** cannot send input: %2")
+					.arg(status.backendName, status.detail));
+		}
 
 		// Remove the processed data from the buffer
 		dataBuffer.remove(0, result.bytes_consumed);
@@ -355,6 +476,19 @@ void Server::serveClient()
 
 void Server::destroyServer()
 {
+	// Release the port and everything the backend holds, then go home. A later
+	// visit builds a fresh page, so stopping and starting again works.
+	ControllerTestState::instance().setConnected(false);
+	if (clientConnection != nullptr)
+	{
+		clientConnection->disconnect(this);
+		clientConnection->abort();
+		clientConnection->deleteLater();
+		clientConnection = nullptr;
+	}
+	isGamepadConnected = false;
+	tcpServer->close();
+	m_listenPort = -1;
 	emit navigateBack();
 	this->deleteLater();
 }

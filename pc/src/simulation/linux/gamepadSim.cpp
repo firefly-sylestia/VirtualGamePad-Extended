@@ -24,16 +24,25 @@ GamepadInjector::GamepadInjector()
 	// Initialize button states
 	memset(buttonStates, false, sizeof(buttonStates));
 
-	// Create a new libevdev device
+	// Create a new libevdev device. Construction never throws: an unavailable
+	// virtual device must not take the whole application down, it just has to be
+	// reported so the UI can explain it.
 	libevdev *rawDev = libevdev_new();
 	if (!rawDev)
 	{
-		qCritical() << "Failed to create libevdev device";
-		throw std::runtime_error("Failed to create libevdev device");
+		m_lastError = QStringLiteral("libevdev could not be initialised");
+		qCritical() << "Failed to create libevdev device:" << m_lastError;
+		return;
 	}
 	dev.reset(rawDev);
 
 	// Set device properties
+	//
+	// These are the ids of a wired Xbox 360 pad, and games pick the controller up
+	// as a physical one because of them: SDL (and therefore most games) identifies
+	// a device by bus/vendor/product/version, and 3:045e:028e:0110 is the GUID a
+	// real pad reports, so the built-in mapping is used and no per-game setup is
+	// needed. Changing the version or product id here breaks exactly that.
 	libevdev_set_name(dev.get(), "VirtualGamePad Extended");
 	libevdev_set_id_bustype(dev.get(), BUS_USB);
 	libevdev_set_id_vendor(dev.get(), 0x045e);	// Microsoft vendor ID
@@ -116,9 +125,13 @@ GamepadInjector::GamepadInjector()
 			qCritical() << "3. Set uinput permissions: sudo chmod 666 /dev/uinput";
 			qCritical() << "4. Or run the application as root (not recommended)";
 		}
-		throw std::runtime_error("Failed to create uinput device: " + std::string(strerror(-ret)));
+		m_lastError = QStringLiteral("could not create the /dev/uinput device (%1). Add your user "
+								     "to the 'input' group, load the uinput module, and log back in.")
+							.arg(QString::fromLocal8Bit(strerror(-ret)));
+		return;
 	}
 	uidev.reset(rawUidev);
+	m_available = true;
 
 	qInfo() << "Virtual gamepad created successfully on Linux";
 }
@@ -131,6 +144,9 @@ GamepadInjector::~GamepadInjector()
 
 void GamepadInjector::setThumbsticks(float leftX, float leftY, float rightX, float rightY)
 {
+	if (!m_available)
+		return;
+
 	// Convert from [-1.0, 1.0] to [-32768, 32767]
 	int leftXInt = static_cast<int>(leftX * 32767);
 	int leftYInt = static_cast<int>(-leftY * 32767); // Invert Y axis to match Windows behavior
@@ -146,6 +162,9 @@ void GamepadInjector::setThumbsticks(float leftX, float leftY, float rightX, flo
 
 void GamepadInjector::setTriggers(float leftTrigger, float rightTrigger)
 {
+	if (!m_available)
+		return;
+
 	// Convert from [0.0, 1.0] to [0, 255]
 	int leftInt = static_cast<int>(leftTrigger * 255);
 	int rightInt = static_cast<int>(rightTrigger * 255);
@@ -156,6 +175,9 @@ void GamepadInjector::setTriggers(float leftTrigger, float rightTrigger)
 
 void GamepadInjector::pressButton(int buttonCode)
 {
+	if (!m_available)
+		return;
+
 	libevdev_uinput_write_event(uidev.get(), EV_KEY, buttonCode, 1);
 	if (buttonCode == BTN_DPAD_LEFT)
 	{
@@ -177,6 +199,9 @@ void GamepadInjector::pressButton(int buttonCode)
 
 void GamepadInjector::releaseButton(int buttonCode)
 {
+	if (!m_available)
+		return;
+
 	libevdev_uinput_write_event(uidev.get(), EV_KEY, buttonCode, 0);
 	if (buttonCode == BTN_DPAD_LEFT || buttonCode == BTN_DPAD_RIGHT)
 	{
@@ -190,6 +215,20 @@ void GamepadInjector::releaseButton(int buttonCode)
 
 void GamepadInjector::inject()
 {
+	if (!m_available)
+		return;
+
 	// Send sync event to commit all changes
 	libevdev_uinput_write_event(uidev.get(), EV_SYN, SYN_REPORT, 0);
+}
+
+QString GamepadInjector::backendName() const
+{
+	return QStringLiteral("Virtual gamepad (uinput)");
+}
+
+bool GamepadInjector::detectsAsPhysicalController() const
+{
+	// The uinput device is a real evdev device, so games read it like a pad.
+	return true;
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDebug>
+#include <QString>
 #include <cmath>
 
 #ifdef _WIN32
@@ -8,6 +9,9 @@
 #include <winrt/Windows.Gaming.Input.h>
 #include <winrt/Windows.UI.Input.Preview.Injection.h>
 #include <winrt/base.h>
+
+#include "windows/vigemClient.hpp"
+#include <memory>
 
 using winrt::Windows::UI::Input::Preview::Injection::InjectedInputGamepadInfo;
 using winrt::Windows::UI::Input::Preview::Injection::InputInjector;
@@ -25,10 +29,14 @@ using WinRTGamepadButtons = winrt::Windows::Gaming::Input::GamepadButtons;
  *
  * @details
  * Platform-specific implementations:
- * - Windows: Uses the Windows UI Input Injection API (Preview) from WinRT
- *   - Requires Windows 10 or later
- *   - Requires Admin privileges (at least when running unpackaged)
+ * - Windows: ViGEmBus when it is installed, otherwise the Windows UI Input
+ *   Injection API (Preview) from WinRT
+ *   - ViGEmBus presents a real virtual USB device, so XInput/DirectInput games
+ *     detect it like a physical controller and no elevation is needed
+ *   - The injection API writes into the system input queue instead, which most
+ *     games ignore; it needs Windows 10 or later and usually Admin rights
  * - Linux: Uses libevdev and uinput for gamepad simulation
+ *   - Games read it as a physical pad through evdev/SDL
  *   - Requires access to /dev/uinput
  *   - User must be in 'input' group or run as root
  *
@@ -40,6 +48,8 @@ class GamepadInjector
 #ifdef _WIN32
 	InjectedInputGamepadInfo gamepadState;
 	InputInjector injector;
+	/** The ViGEmBus pad, when that driver is available. Null otherwise. */
+	std::unique_ptr<ViGEmGamepad> m_vigem;
 #elif defined(__linux__)
 	std::unique_ptr<libevdev, void (*)(libevdev *)> dev;
 	std::unique_ptr<libevdev_uinput, void (*)(libevdev_uinput *)> uidev;
@@ -47,6 +57,8 @@ class GamepadInjector
 	// Button states for tracking press/release
 	bool buttonStates[BTN_GAMEPAD - BTN_JOYSTICK + 16]; // Enough for all gamepad buttons
 #endif
+	bool m_available = false;
+	QString m_lastError;
 
   public:
 	GamepadInjector();
@@ -57,6 +69,36 @@ class GamepadInjector
 	GamepadInjector &operator=(const GamepadInjector &) = delete;
 	GamepadInjector(GamepadInjector &&) = delete;
 	GamepadInjector &operator=(GamepadInjector &&) = delete;
+
+	/**
+	 * @brief Whether the virtual gamepad device exists and can be injected into.
+	 *
+	 * Construction never throws: a machine without permission to create the
+	 * device still runs the app, with this reporting the reason so the UI can
+	 * explain why games see nothing.
+	 */
+	bool isAvailable() const { return m_available; }
+
+	/** Human-readable reason the device is unavailable, or an empty string. */
+	QString lastError() const { return m_lastError; }
+
+	/**
+	 * @brief Name of the mechanism actually in use, for the UI.
+	 *
+	 * The two backends are not equivalent as far as games are concerned, so the
+	 * user needs to be told which one is live rather than just "a controller".
+	 */
+	QString backendName() const;
+
+	/**
+	 * @brief Whether games see this device as a physical controller.
+	 *
+	 * True for both a uinput pad on Linux and a ViGEmBus pad on Windows: those
+	 * present a real device that XInput/DirectInput/evdev readers pick up. The
+	 * Windows input-injection API only writes into the system input queue, which
+	 * most games never read, so it reports false and the UI says so.
+	 */
+	bool detectsAsPhysicalController() const;
 
 #ifdef _WIN32
 	/**

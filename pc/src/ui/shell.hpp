@@ -16,9 +16,11 @@ class UsbPage;
 /**
  * @brief The application shell: a sidebar plus a stack of pages.
  *
- * The always-available pages (home, control test, layouts, key mapping) are
- * built once. The heavier screens (server, preferences, about) are created on
- * demand and torn down when they navigate back.
+ * The always-available pages (home, control test, layouts, key mapping, server)
+ * are built once and kept: the server in particular has to stay alive while you
+ * browse, otherwise revisiting it tries to open the same port twice. The
+ * remaining screens (preferences, about) are created on demand and torn down
+ * when they navigate back.
  */
 class Shell final : public QWidget
 {

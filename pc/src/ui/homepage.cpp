@@ -1,6 +1,7 @@
 #include "homepage.hpp"
 
 #include "../networking/controller_test_state.hpp"
+#include "../networking/input_backend_status.hpp"
 #include "../settings/settings_singleton.hpp"
 #include "theme.hpp"
 
@@ -97,9 +98,13 @@ HomePage::HomePage(QWidget *parent) : QWidget(parent)
 	connect(about, &QPushButton::clicked, this, &HomePage::openAboutRequested);
 
 	root->addWidget(actionsCard);
-	root->addStretch();
-
-	connect(&ControllerTestState::instance(), &ControllerTestState::updated, this, &HomePage::refreshStatus);
+	root->addStretch();    connect(&ControllerTestState::instance(), &ControllerTestState::updated, this, &HomePage::refreshStatus);
+	// The backend is announced when its executor is built, which can be after this
+	// page appears.
+	connect(&InputBackendStatus::instance(),
+			&InputBackendStatus::changed,
+			this,
+			&HomePage::refreshSummary);
 	refreshStatus();
 	refreshSummary();
 }
@@ -109,9 +114,25 @@ void HomePage::refreshSummary()
 	auto &settings = SettingsSingleton::instance();
 	m_profileValue->setText(settings.activeProfileName().isEmpty() ? tr("Default")
 																  : settings.activeProfileName());
-	m_executorValue->setText(settings.executorType() == ExecutorType::GamepadExecutor
-								 ? tr("Virtual gamepad")
-								 : tr("Keyboard + mouse"));
+	// The live backend label carries whether games will actually see it, which is
+	// the difference between "the controller does nothing" and "the backend
+	// could not start on this machine".
+	const auto backend = InputBackendStatus::instance().snapshot();
+	if (!backend.backendName.isEmpty())
+	{
+		m_executorValue->setText(backend.available
+									 ? tr("%1 (active)").arg(backend.backendName)
+									 : tr("%1 (unavailable)").arg(backend.backendName));
+		m_executorValue->setStyleSheet(
+			QStringLiteral("font-size: 17px; font-weight: 700; color: %1;")
+				.arg(backend.available ? "#ffffff" : "#ff8ba0"));
+	}
+	else
+	{
+		m_executorValue->setText(settings.executorType() == ExecutorType::GamepadExecutor
+									 ? tr("Virtual gamepad")
+									 : tr("Keyboard + mouse"));
+	}
 	m_portValue->setText(QString::number(settings.port()));
 }
 
@@ -136,5 +157,15 @@ void HomePage::refreshStatus()
 			QStringLiteral("font-size: 17px; font-weight: 700; color: #ff8ba0;"));
 		m_connectionHint->setText(
 			tr("Start the server, then scan the QR code with the mobile app to connect."));
+	}
+
+	// A backend that cannot deliver input is the reason a connected phone does
+	// nothing in a game, so it belongs next to the connection state.
+	const auto backend = InputBackendStatus::instance().snapshot();
+	if (!backend.available && !backend.detail.isEmpty())
+	{
+		m_connectionHint->setText(m_connectionHint->text() +
+								  QStringLiteral("\n") +
+								  tr("Input backend problem: %1").arg(backend.detail));
 	}
 }
