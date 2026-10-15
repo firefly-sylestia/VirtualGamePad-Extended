@@ -207,9 +207,22 @@ jobs:
       - name: Build
         working-directory: pc
         run: cmake --build build-windows --config Release --parallel 2
+      # A step condition cannot read `secrets` (GitHub rejects the file), so the
+      # presence of the certificate is decided in a step and published as an
+      # output for the signing step below to read.
+      - name: Check for a Windows code-signing certificate
+        id: pfx
+        shell: pwsh
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+        run: |
+          $configured = -not [string]::IsNullOrWhiteSpace($env:WINDOWS_PFX_BASE64)
+          "configured=$($configured.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          if (-not $configured) {
+            Write-Host "WINDOWS_PFX_BASE64 is not set, so the executable is left unsigned."
+          }
       - name: Sign the Windows binary
-        # Skipped until WINDOWS_PFX_BASE64 is added to the repository secrets.
-        if: ${{ secrets.WINDOWS_PFX_BASE64 != '' }}
+        if: steps.pfx.outputs.configured == 'true'
         working-directory: pc
         shell: pwsh
         env:
