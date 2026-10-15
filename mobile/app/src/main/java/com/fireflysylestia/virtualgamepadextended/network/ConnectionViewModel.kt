@@ -9,6 +9,7 @@ import com.fireflysylestia.virtualgamepadextended.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,22 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
 
     private val tag = this::class.java.simpleName
     private var clientSocket: Socket? = null // Internal storage for the socket
+
+    /** The endpoint of the last successful connect, used to reconnect after a drop. */
+    private var lastEndpoint: NetworkCommand.Connect? = null
+    private var reconnectAttempts = 0
+    private val maxReconnectAttempts = 3
+
+    private companion object {
+        /** How many times one connect request is tried before giving up. */
+        const val connectAttempts = 4
+
+        /** Per-attempt connect timeout, in milliseconds. */
+        const val connectTimeoutMillis = 3000
+
+        /** Backoff between attempts, in milliseconds. */
+        val backoffMillis = longArrayOf(300L, 800L, 1500L)
+    }
 
     // Replace gamepad state queue with a general command queue
     private val commandQueue = LinkedBlockingQueue<NetworkCommand>()
@@ -167,18 +184,30 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
     /**
      * Process a connect command.
      */
-    private fun processConnectCommand(command: NetworkCommand.Connect) {
-        try {
-            // Create and configure socket
-            val socket = Socket()
-            socket.tcpNoDelay = true
-            socket.setPerformancePreferences(1, 2, 0)
-            socket.trafficClass = 0x10 // IPTOS_LOWDELAY
-            // Set timeout to 5 seconds
-            val timeout = 5000 // in milliseconds
+    private suspend fun processConnectCommand(command: NetworkCommand.Connect) {
+        var lastError: String? = null
 
+        // A single attempt used to mean one dropped SYN (the PC accepting with a
+        // zero backlog, a firewall delay, or a phone radio waking up) failed the
+        // whole connection. Retry a few times with a short backoff instead.
+        for (attempt in 0 until connectAttempts) {
+            if (attempt > 0) {
+                val wait = backoffMillis[attempt % backoffMillis.size]
+                Log.d(tag, "Retrying connection to ${command.ipAddress}:${command.port} in ${wait}ms")
+                delay(wait)
+            }
+
+            var socket: Socket? = null
             try {
-                socket.connect(java.net.InetSocketAddress(command.ipAddress, command.port), timeout)
+                socket = Socket()
+                socket.tcpNoDelay = true
+                socket.setPerformancePreferences(1, 2, 0)
+                socket.trafficClass = 0x10 // IPTOS_LOWDELAY
+
+                socket.connect(
+                    java.net.InetSocketAddress(command.ipAddress, command.port),
+                    connectTimeoutMillis
+                )
                 clientSocket = socket // Store the connected socket
 
                 _uiState.update {
@@ -188,7 +217,10 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
                         error = null
                     )
                 }
-                Log.d(tag, "Connected: $clientSocket")
+                Log.d(tag, "Connected: $clientSocket (attempt ${attempt + 1})")
+
+                lastEndpoint = command
+                reconnectAttempts = 0
 
                 // Invoke callback on successful connection
                 viewModelScope.launch {
@@ -198,26 +230,32 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
                         Log.e(tag, "Error saving connection credentials: ${e.message}", e)
                     }
                 }
+                return
             } catch (e: IOException) {
-                Log.e(tag, "Connection failed: ${e.message}", e)
-                _uiState.update {
-                    it.copy(
-                        connected = false,
-                        isConnecting = false,
-                        error = e.message ?: "Unknown connection error"
-                    )
+                lastError = e.message ?: "Unknown connection error"
+                Log.w(tag, "Connect attempt ${attempt + 1}/$connectAttempts failed: $lastError")
+                try {
+                    socket?.close()
+                } catch (closeError: IOException) {
+                    Log.d(tag, "Error closing failed socket: ${closeError.message}")
                 }
-                socket.close() // Ensure socket is closed on error
+            } catch (e: Exception) {
+                lastError = e.message ?: "Unknown error"
+                Log.e(tag, "Connect error on attempt ${attempt + 1}: ${e.message}", e)
+                try {
+                    socket?.close()
+                } catch (closeError: IOException) {
+                    Log.d(tag, "Error closing failed socket: ${closeError.message}")
+                }
             }
-        } catch (e: Exception) {
-            Log.e(tag, "Connect error: ${e.message}", e)
-            _uiState.update {
-                it.copy(
-                    connected = false,
-                    isConnecting = false,
-                    error = "Connect error: ${e.message ?: "Unknown error"}"
-                )
-            }
+        }
+
+        _uiState.update {
+            it.copy(
+                connected = false,
+                isConnecting = false,
+                error = lastError ?: "Unknown connection error"
+            )
         }
     }
 
@@ -243,15 +281,35 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
                 )
             }
 
-            // Handle disconnection immediately instead of queuing
+            // A dropped socket is usually the phone radio sleeping or moving
+            // out of range. Try to re-establish the last endpoint before
+            // giving up, so a brief drop does not end the session.
             if (e is SocketException) {
-                Log.d(tag, "Socket exception detected, forcing disconnect")
+                Log.d(tag, "Socket exception detected, attempting to reconnect")
                 clientSocket?.close()
                 clientSocket = null
                 commandQueue.clear()
 
-                // Throw exception to break out of the command processor loop
-                throw e
+                val endpoint = lastEndpoint
+                if (endpoint != null && reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++
+                    Log.d(
+                        tag,
+                        "Reconnecting to ${endpoint.ipAddress}:${endpoint.port} " +
+                            "(attempt $reconnectAttempts/$maxReconnectAttempts)"
+                    )
+                    _uiState.update {
+                        it.copy(
+                            error = "Connection lost, reconnecting " +
+                                "($reconnectAttempts/$maxReconnectAttempts)...",
+                            connected = false
+                        )
+                    }
+                    commandQueue.offer(endpoint)
+                } else {
+                    // Throw exception to break out of the command processor loop
+                    throw e
+                }
             } else {
                 // For other IO exceptions, try graceful disconnect
                 commandQueue.clear()  // Clear other pending commands
@@ -282,15 +340,35 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
                 )
             }
 
-            // Handle disconnection immediately instead of queuing
+            // A dropped socket is usually the phone radio sleeping or moving
+            // out of range. Try to re-establish the last endpoint before
+            // giving up, so a brief drop does not end the session.
             if (e is SocketException) {
-                Log.d(tag, "Socket exception detected, forcing disconnect")
+                Log.d(tag, "Socket exception detected, attempting to reconnect")
                 clientSocket?.close()
                 clientSocket = null
                 commandQueue.clear()
 
-                // Throw exception to break out of the command processor loop
-                throw e
+                val endpoint = lastEndpoint
+                if (endpoint != null && reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++
+                    Log.d(
+                        tag,
+                        "Reconnecting to ${endpoint.ipAddress}:${endpoint.port} " +
+                            "(attempt $reconnectAttempts/$maxReconnectAttempts)"
+                    )
+                    _uiState.update {
+                        it.copy(
+                            error = "Connection lost, reconnecting " +
+                                "($reconnectAttempts/$maxReconnectAttempts)...",
+                            connected = false
+                        )
+                    }
+                    commandQueue.offer(endpoint)
+                } else {
+                    // Throw exception to break out of the command processor loop
+                    throw e
+                }
             } else {
                 // For other IO exceptions, try graceful disconnect
                 commandQueue.clear()  // Clear other pending commands
