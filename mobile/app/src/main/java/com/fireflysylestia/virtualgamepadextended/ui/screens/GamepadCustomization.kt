@@ -5,17 +5,29 @@ import android.content.ClipboardManager
 import android.content.Context.CLIPBOARD_SERVICE
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,30 +42,35 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
+import com.fireflysylestia.virtualgamepadextended.data.ButtonAnchor
 import com.fireflysylestia.virtualgamepadextended.data.ButtonComponent
 import com.fireflysylestia.virtualgamepadextended.data.ButtonConfig
+import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.ControllerLayout
 import com.fireflysylestia.virtualgamepadextended.data.MacroAction
 import com.fireflysylestia.virtualgamepadextended.data.MacroDefinition
 import com.fireflysylestia.virtualgamepadextended.data.MacroStep
-import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
-import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
-import com.fireflysylestia.virtualgamepadextended.data.buttonConfigsForLayout
+import com.fireflysylestia.virtualgamepadextended.data.OFFSET_VALUE_RANGE
 import com.fireflysylestia.virtualgamepadextended.data.PreviewBase
 import com.fireflysylestia.virtualgamepadextended.data.SettingsRepository
+import com.fireflysylestia.virtualgamepadextended.data.buttonConfigsForLayout
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
+import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.ui.composables.BoundedNumericInput
 import com.fireflysylestia.virtualgamepadextended.ui.composables.ButtonConfigEditor
-import com.fireflysylestia.virtualgamepadextended.ui.composables.ListItemPicker
 import com.fireflysylestia.virtualgamepadextended.ui.composables.DrawGamepad
-import com.fireflysylestia.virtualgamepadextended.ui.composables.ResponsiveGrid
+import com.fireflysylestia.virtualgamepadextended.ui.composables.ListItemPicker
+import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 
@@ -69,7 +86,42 @@ private fun sanitizeButtonConfigs(configs: Map<ButtonComponent, ButtonConfig>): 
 }
 
 /**
- * Full-screen gamepad preview overlay
+ * Convert ButtonAnchor to Compose Alignment (shared by the editor overlay).
+ */
+private fun ButtonAnchor.toAlignment(): Alignment = when (this) {
+    ButtonAnchor.TOP_LEFT -> Alignment.TopStart
+    ButtonAnchor.TOP_CENTER -> Alignment.TopCenter
+    ButtonAnchor.TOP_RIGHT -> Alignment.TopEnd
+    ButtonAnchor.CENTER_LEFT -> Alignment.CenterStart
+    ButtonAnchor.CENTER -> Alignment.Center
+    ButtonAnchor.CENTER_RIGHT -> Alignment.CenterEnd
+    ButtonAnchor.BOTTOM_LEFT -> Alignment.BottomStart
+    ButtonAnchor.BOTTOM_CENTER -> Alignment.BottomCenter
+    ButtonAnchor.BOTTOM_RIGHT -> Alignment.BottomEnd
+}
+
+/**
+ * Representative on-screen footprint for a component, used to size its editor tile.
+ */
+private fun tileSizeDp(component: ButtonComponent, baseDp: Float, scale: Float): Float = when (component) {
+    ButtonComponent.LEFT_ANALOG_STICK,
+    ButtonComponent.RIGHT_ANALOG_STICK -> baseDp / 4f * scale
+
+    ButtonComponent.DPAD,
+    ButtonComponent.FACE_BUTTONS -> 0.45f * baseDp * scale
+
+    ButtonComponent.TOUCH_SURFACE -> baseDp / 3f * scale
+
+    ButtonComponent.LEFT_TRIGGER,
+    ButtonComponent.RIGHT_TRIGGER,
+    ButtonComponent.LEFT_SHOULDER,
+    ButtonComponent.RIGHT_SHOULDER -> baseDp / 6f * scale
+
+    else -> baseDp / 6f * scale
+}
+
+/**
+ * Full-screen live gamepad preview overlay (read-only, drives the shared state).
  */
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
@@ -85,7 +137,6 @@ fun GamepadPreview(
 
     val gamepadState = remember { GamepadReading() }
 
-    // Draw the gamepad with current configuration
     DrawGamepad(
         widthDp = screenWidth,
         heightDp = screenHeight,
@@ -97,6 +148,71 @@ fun GamepadPreview(
     )
 }
 
+/**
+ * Interactive layout editor: every control is a tile you can tap to open its menu
+ * and drag to move. Hidden controls are dimmed.
+ */
+@Composable
+private fun LayoutPreviewEditor(
+    buttonConfigs: Map<ButtonComponent, ButtonConfig>,
+    onSelect: (ButtonComponent) -> Unit,
+    onConfigChange: (ButtonComponent, ButtonConfig) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    BoxWithConstraints(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(4.dp)
+    ) {
+        val baseDp = maxHeight.value
+        Box(modifier = Modifier.fillMaxSize()) {
+            ButtonComponent.entries.forEach { component ->
+                val config = buttonConfigs[component] ?: ButtonConfig.default(component)
+                val tile = tileSizeDp(component, baseDp, config.scale)
+                val basePx = with(density) { baseDp.dp.toPx() }
+                Box(
+                    modifier = Modifier
+                        .align(config.anchor.toAlignment())
+                        .offset(
+                            x = (config.offsetX * baseDp).dp,
+                            y = (config.offsetY * baseDp).dp
+                        )
+                        .size(tile.dp, (tile * 1.15f).dp)
+                        .alpha(if (config.visible) 1f else 0.4f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (config.visible) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        )
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                        .clickable { onSelect(component) }
+                        .pointerInput(component, config) {
+                            detectDragGestures { change, drag ->
+                                change.consume()
+                                val nx = (config.offsetX + drag.x / basePx)
+                                    .coerceIn(OFFSET_VALUE_RANGE)
+                                val ny = (config.offsetY + drag.y / basePx)
+                                    .coerceIn(OFFSET_VALUE_RANGE)
+                                onConfigChange(component, config.copy(offsetX = nx, offsetY = ny))
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(component.nameRes).take(7),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun GamepadCustomizationScreen(
     onNavigateBack: () -> Unit,
@@ -106,39 +222,58 @@ fun GamepadCustomizationScreen(
     val controllerLayout by settingsRepository.controllerLayout.collectAsState(initial = ControllerLayout.SWITCH_2)
     val macros by settingsRepository.macros.collectAsState(initial = emptyList())
     val bindings by settingsRepository.controllerBindings.collectAsState(initial = defaultControllerBindings)
+
     var showBindingEditor by rememberSaveable { mutableStateOf(false) }
     var showMacroEditor by rememberSaveable { mutableStateOf(false) }
     var modifiedLayout by rememberSaveable { mutableStateOf<ControllerLayout?>(null) }
     var modifiedConfigs by rememberSaveable {
-        mutableStateOf<Map<ButtonComponent, ButtonConfig>?>(
-            null
-        )
+        mutableStateOf<Map<ButtonComponent, ButtonConfig>?>(null)
     }
-    var showPreview by rememberSaveable { mutableStateOf(false) }
+    var showPlayPreview by rememberSaveable { mutableStateOf(false) }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
     var showImportDialog by rememberSaveable { mutableStateOf(false) }
     var importJsonText by rememberSaveable { mutableStateOf("") }
+    var showMenu by rememberSaveable { mutableStateOf(false) }
+    var editingComponent by rememberSaveable { mutableStateOf<ButtonComponent?>(null) }
 
-    // Get the current configs to preview (modified or saved)
     val currentConfigs = modifiedConfigs ?: buttonConfigs
     val currentLayout = modifiedLayout ?: controllerLayout
 
-    // Handle back button to close preview
-    BackHandler(enabled = showPreview) {
-        showPreview = false
+    fun updateConfig(component: ButtonComponent, config: ButtonConfig) {
+        val base = modifiedConfigs ?: buttonConfigs
+        modifiedConfigs = base + (component to config)
     }
 
-    if (showPreview) {
-        // Full-screen preview overlay
-        GamepadPreview(buttonConfigs = currentConfigs, controllerLayout = currentLayout, macros = macros, bindings = bindings)
+    fun applyPreset(layout: ControllerLayout) {
+        modifiedLayout = layout
+        if (layout != ControllerLayout.CUSTOM) {
+            modifiedConfigs = buttonConfigsForLayout(layout)
+        }
+    }
+
+    fun enableAllControls() {
+        val base = currentConfigs.toMutableMap()
+        ButtonComponent.entries.forEach { component ->
+            val config = base[component] ?: ButtonConfig.default(component)
+            base[component] = config.copy(visible = true)
+        }
+        modifiedConfigs = base
+    }
+
+    BackHandler(enabled = showPlayPreview) { showPlayPreview = false }
+
+    if (showPlayPreview) {
+        GamepadPreview(
+            buttonConfigs = currentConfigs,
+            controllerLayout = currentLayout,
+            macros = macros,
+            bindings = bindings
+        )
         return
     }
 
     if (showExportDialog) {
-        ExportConfigDialog(
-            buttonConfigs = currentConfigs,
-            onDismiss = { showExportDialog = false }
-        )
+        ExportConfigDialog(buttonConfigs = currentConfigs, onDismiss = { showExportDialog = false })
     }
 
     if (showBindingEditor) {
@@ -180,152 +315,209 @@ fun GamepadCustomizationScreen(
         )
     }
 
+    editingComponent?.let { component ->
+        LayoutEditorDialog(
+            component = component,
+            config = currentConfigs[component] ?: ButtonConfig.default(component),
+            onConfigChange = { updateConfig(component, it) },
+            onDismiss = { editingComponent = null }
+        )
+    }
+
     Scaffold { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Fixed title at the top
             Text(
                 stringResource(R.string.customization_title),
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(vertical = 8.dp)
+                modifier = Modifier.padding(top = 6.dp)
             )
 
-            // Scrollable button configuration content with responsive grid
-            val scrollState = rememberScrollState()
-            Column(
+            ListItemPicker(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                list = ControllerLayout.entries.asIterable(),
+                selectedItem = currentLayout,
+                label = "Controller preset",
+                isHorizontal = true,
+                formattedDisplay = { layout -> Text(layout.displayName) },
+                onItemSelected = { layout -> applyPreset(layout) }
+            )
+
+            LayoutPreviewEditor(
+                buttonConfigs = currentConfigs,
+                onSelect = { editingComponent = it },
+                onConfigChange = { component, config -> updateConfig(component, config) },
                 modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(scrollState)
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+            )
+
+            Text(
+                stringResource(R.string.customization_desc),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            // Library of every control. Hidden controls are dimmed; tap to enable.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    stringResource(R.string.customization_desc),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-
-                ListItemPicker(
-                    modifier = Modifier.fillMaxWidth(),
-                    list = ControllerLayout.entries.asIterable(),
-                    selectedItem = currentLayout,
-                    label = "Controller preset",
-                    isHorizontal = false,
-                    formattedDisplay = { layout -> Text(layout.displayName) },
-                    onItemSelected = { layout ->
-                        modifiedLayout = layout
-                        if (layout != ControllerLayout.CUSTOM) {
-                            modifiedConfigs = buttonConfigsForLayout(layout)
-                        }
-                    }
-                )
-
-                val minCardWidth = 420.dp
-                // Responsive grid that dynamically calculates columns and batches items
-                ResponsiveGrid(
-                    items = ButtonComponent.entries.toList(),
-                    minItemWidth = minCardWidth,
-                    horizontalSpacing = 8.dp,
-                    verticalSpacing = 8.dp,
-                ) { component ->
-                    val config = if (modifiedConfigs != null) {
-                        modifiedConfigs!![component] ?: ButtonConfig.default(component)
-                    } else {
-                        buttonConfigs[component] ?: ButtonConfig.default(component)
-                    }
-
-                    val onConfigChange = remember(component) {
-                        { newConfig: ButtonConfig ->
-                            val currentConfigs = modifiedConfigs ?: buttonConfigs
-                            modifiedConfigs = currentConfigs + (component to newConfig)
-                        }
-                    }
-
-                    ButtonConfigEditor(
-                        component = component,
-                        config = config,
-                        onConfigChange = onConfigChange,
-                        modifier = Modifier.widthIn(min = minCardWidth)
+                ButtonComponent.entries.forEach { component ->
+                    val config = currentConfigs[component] ?: ButtonConfig.default(component)
+                    FilterChip(
+                        selected = config.visible,
+                        onClick = {
+                            updateConfig(component, config.copy(visible = !config.visible))
+                        },
+                        label = {
+                            Text(
+                                text = component.displayName,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        },
+                        modifier = Modifier.alpha(if (config.visible) 1f else 0.5f)
                     )
                 }
             }
 
-            // Fixed buttons at the bottom
-            Column(
+            // Tools
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(onClick = { showExportDialog = true }) {
+                    Text(stringResource(R.string.customization_export))
+                }
+                Button(onClick = { showImportDialog = true }) {
+                    Text(stringResource(R.string.customization_import))
+                }
+                Button(onClick = { showMacroEditor = true }) { Text("Macros") }
+                Button(onClick = { showBindingEditor = true }) { Text("Remap") }
+                Button(onClick = { showPlayPreview = true }) {
+                    Text(stringResource(R.string.customization_preview))
+                }
+            }
+
+            // Actions
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp, horizontal = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Import/Export, macro editing and Preview buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Button(onClick = { showExportDialog = true }) {
-                        Text(stringResource(R.string.customization_export))
+                Button(onClick = { applyPreset(ControllerLayout.SWITCH_2) }) {
+                    Text(stringResource(R.string.reset))
+                }
+                Button(onClick = {
+                    runBlocking {
+                        try {
+                            modifiedConfigs?.let { configs ->
+                                settingsRepository.setAllButtonConfigs(configs)
+                            }
+                            settingsRepository.setControllerLayout(currentLayout)
+                            Log.i(logTag, "Button configs and controller preset saved")
+                        } catch (e: Exception) {
+                            Log.e(logTag, "Error saving button configs", e)
+                        }
                     }
-                    Button(onClick = { showPreview = true }) {
-                        Text(stringResource(R.string.customization_preview))
-                    }
-                    Button(onClick = { showImportDialog = true }) {
-                        Text(stringResource(R.string.customization_import))
-                    }
-                    Button(onClick = { showMacroEditor = true }) {
-                        Text("Macros")
-                    }
-                    Button(onClick = { showBindingEditor = true }) {
-                        Text("Remap")
+                    onNavigateBack()
+                }) {
+                    Text(stringResource(R.string.save))
+                }
+
+                Box {
+                    Button(onClick = { showMenu = true }) { Text("Menu") }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Custom layout") },
+                            onClick = {
+                                modifiedLayout = ControllerLayout.CUSTOM
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Pokémon Legends Z-A layout") },
+                            onClick = {
+                                applyPreset(ControllerLayout.POKEMON_ZA)
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Enable all controls") },
+                            onClick = {
+                                enableAllControls()
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Save as custom layout") },
+                            onClick = {
+                                modifiedLayout = ControllerLayout.CUSTOM
+                                showMenu = false
+                                runBlocking {
+                                    modifiedConfigs?.let {
+                                        settingsRepository.setAllButtonConfigs(it)
+                                    }
+                                    settingsRepository.setControllerLayout(ControllerLayout.CUSTOM)
+                                }
+                                onNavigateBack()
+                            }
+                        )
                     }
                 }
 
-                // Action buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Button(onClick = {
-                        modifiedLayout = ControllerLayout.SWITCH_2
-                        modifiedConfigs = buttonConfigsForLayout(ControllerLayout.SWITCH_2)
-                        runBlocking {
-                            settingsRepository.setAllButtonConfigs(buttonConfigsForLayout(ControllerLayout.SWITCH_2))
-                            settingsRepository.setControllerLayout(ControllerLayout.SWITCH_2)
-                        }
-                        Log.i(logTag, "Button configs reset to Switch 2 defaults")
-                    }) {
-                        Text(stringResource(R.string.reset))
-                    }
-
-                    Button(onClick = {
-                        runBlocking {
-                            try {
-                                modifiedConfigs?.let { configs ->
-                                    settingsRepository.setAllButtonConfigs(configs)
-                                }
-                                settingsRepository.setControllerLayout(currentLayout)
-                                Log.i(logTag, "Button configs and controller preset saved")
-                            } catch (e: Exception) {
-                                Log.e(logTag, "Error saving button configs", e)
-                            }
-                        }
-                        onNavigateBack()
-                    }) {
-                        Text(stringResource(R.string.save))
-                    }
-
-                    Button(onClick = onNavigateBack) {
-                        Text(stringResource(R.string.cancel))
-                    }
+                Button(onClick = onNavigateBack) {
+                    Text(stringResource(R.string.cancel))
                 }
             }
         }
     }
+}
+
+/**
+ * Dialog for editing a single control, opened from the preview or the library.
+ */
+@Composable
+private fun LayoutEditorDialog(
+    component: ButtonComponent,
+    config: ButtonConfig,
+    onConfigChange: (ButtonConfig) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(component.nameRes)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                ButtonConfigEditor(
+                    component = component,
+                    config = config,
+                    onConfigChange = onConfigChange,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) { Text(stringResource(R.string.customization_done)) }
+        }
+    )
 }
 
 /**
@@ -369,7 +561,6 @@ fun ExportConfigDialog(
                     textStyle = MaterialTheme.typography.bodySmall,
                     trailingIcon = {
                         Button(onClick = {
-                            // Copy to clipboard
                             val clip = android.content.ClipData.newPlainText(
                                 exportLabel, jsonString
                             )
@@ -443,7 +634,6 @@ fun ImportConfigDialog(
                         val configs: Map<ButtonComponent, ButtonConfig> =
                             Json.decodeFromString(importedJsonText)
 
-                        // Sanitize the imported configs
                         val sanitizedConfigs = sanitizeButtonConfigs(configs)
 
                         hasError = false
