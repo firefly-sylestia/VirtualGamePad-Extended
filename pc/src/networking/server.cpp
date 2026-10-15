@@ -6,6 +6,10 @@
 #include "input_backend_status.hpp"
 #include "ui_server.h"
 
+#ifdef _WIN32
+#include "../platform/windows/vigemBusInstaller.hpp"
+#endif
+
 #include <QByteArray>
 #include <QDataStream>
 #include <QHostAddress>
@@ -137,6 +141,10 @@ Server::Server(QWidget *parent) : QWidget(parent), ui(new Ui::Server)
 	ui->IPList->viewport()->setAutoFillBackground(false);
 	// delete this when stop button is clicked
 	connect(ui->stopButton, &QPushButton::clicked, this, &Server::destroyServer);
+	connect(ui->installVigemBusButton,
+			&QPushButton::clicked,
+			this,
+			&Server::install_vigem_bus);
 	clientConnection = nullptr;
 	tcpServer = new QTcpServer(this);
 	isGamepadConnected = false;
@@ -193,6 +201,7 @@ void Server::buildExecutor()
 	}
 
 	m_executorType = static_cast<int>(type);
+	m_virtualGamepadType = static_cast<int>(SettingsSingleton::instance().virtualGamepadType());
 	refreshBackendStatus();
 }
 
@@ -209,14 +218,63 @@ void Server::refreshBackendStatus()
 		line += tr(" — **not available**: %1").arg(status.detail);
 
 	ui->statusLabel->setText(m_statusBase + line);
+
+	// When the virtual pad could not be created and this build carries the
+	// driver installer, offering to run it turns a dead end into one click.
+	// There is nothing to offer on the platforms whose backends need no driver.
+#ifdef _WIN32
+	ui->installVigemBusButton->setVisible(!status.available &&
+										  !ViGEmBusInstaller::bundledInstallerPath().isEmpty());
+#else
+	ui->installVigemBusButton->setVisible(false);
+#endif
+}
+
+void Server::install_vigem_bus()
+{
+#ifdef _WIN32
+	ui->installVigemBusButton->setEnabled(false);
+	const QString originalText = ui->installVigemBusButton->text();
+	ui->installVigemBusButton->setText(tr("Installing ViGEmBus..."));
+
+	QString error;
+	if (!ViGEmBusInstaller::run(&error))
+	{
+		QMessageBox::warning(this, tr("ViGEmBus"), error);
+	}
+	else if (!ViGEmBusInstaller::isInstalled())
+	{
+		// The installer can exit cleanly with the driver still not usable until
+		// Windows restarts, and its own updater only takes effect on a second
+		// run. Saying so is better than leaving the user to wonder.
+		QMessageBox::information(this,
+								 tr("ViGEmBus"),
+								 tr("The driver was installed. Windows may need to restart before it "
+									"can be used: run the installer once more, or restart this app or "
+									"the PC, if the virtual gamepad is still unavailable."));
+	}
+
+	// Rebuild either way: when the driver is live this creates the pad now, and
+	// when it is not the status line is refreshed with the current truth.
+	buildExecutor();
+
+	ui->installVigemBusButton->setText(originalText);
+	ui->installVigemBusButton->setEnabled(true);
+#else
+	// The button is never shown where the input backend needs no driver.
+#endif
 }
 
 void Server::showEvent(QShowEvent *event)
 {
 	QWidget::showEvent(event);
 
-	// Preferences may have changed while this page was hidden.
-	if (m_executorType != static_cast<int>(SettingsSingleton::instance().executorType()))
+	// Preferences may have changed while this page was hidden. The virtual device
+	// counts as well: it is baked into the pad when the executor creates it, so a
+	// new choice only takes effect once the executor is rebuilt.
+	if (m_executorType != static_cast<int>(SettingsSingleton::instance().executorType()) ||
+		m_virtualGamepadType !=
+			static_cast<int>(SettingsSingleton::instance().virtualGamepadType()))
 		buildExecutor();
 
 	const int configuredPort = SettingsSingleton::instance().port();

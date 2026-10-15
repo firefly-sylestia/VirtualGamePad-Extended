@@ -60,6 +60,79 @@ elseif(LINUX)
     include(LinuxInput)
 endif()
 
+# --- ViGEmBus: the driver the virtual gamepad is built on -------------------
+#
+# The Windows backend creates its controller through the ViGEmBus kernel driver.
+# Without that driver there is no virtual pad at all: the app falls back to the
+# Windows input-injection API, which writes into the system input queue, while
+# games read XInput, DirectInput or RawInput and therefore see no controller.
+# Carrying the installer next to the application is what lets the app offer to
+# install the driver in one click instead of sending the user off to find it.
+#
+# The download is checksum-pinned and deliberately non-fatal: an offline build
+# still succeeds and simply does not ship an installer.
+if(WIN32)
+    option(VGP_BUNDLE_VIGEMBUS "Download and ship the ViGEmBus driver installer" ON)
+
+    set(VGP_VIGEMBUS_VERSION "1.22.0" CACHE STRING "ViGEmBus release to ship")
+    set(VGP_VIGEMBUS_ASSET "ViGEmBus_${VGP_VIGEMBUS_VERSION}_x64_x86_arm64.exe")
+    set(VGP_VIGEMBUS_URL
+        "https://github.com/nefarius/ViGEmBus/releases/download/v${VGP_VIGEMBUS_VERSION}/${VGP_VIGEMBUS_ASSET}"
+    )
+    # SHA-512 of the official release asset, so a mirror, a proxy or a bad
+    # connection cannot put something else in the distribution. Bump this
+    # together with VGP_VIGEMBUS_VERSION.
+    set(VGP_VIGEMBUS_SHA512
+        "960b2cf7d3e301fc8a260ed49a136ffe8c1e30406a4eb64b7ceeaf7f56f33bbb5153825670258a2e254d3dbdb09c0f0f4abffcbb70395416f213a0e2b8061366"
+    )
+
+    # A cache entry so an offline build can point this at a local copy and still
+    # ship the driver.
+    set(VGP_VIGEMBUS_INSTALLER "${CMAKE_BINARY_DIR}/vigembus/${VGP_VIGEMBUS_ASSET}"
+        CACHE FILEPATH "ViGEmBus installer to bundle next to the application"
+    )
+
+    if(VGP_BUNDLE_VIGEMBUS AND NOT EXISTS "${VGP_VIGEMBUS_INSTALLER}")
+        # EXPECTED_HASH is deliberately not used here: a hash mismatch makes
+        # file(DOWNLOAD) raise a fatal error, which would abort the whole
+        # configure step and leave the unverified file behind for the packaging
+        # steps to pick up. The download is verified explicitly below instead, so
+        # every failure mode stays a warning and nothing bad is ever shipped.
+        file(DOWNLOAD "${VGP_VIGEMBUS_URL}" "${VGP_VIGEMBUS_INSTALLER}"
+            TLS_VERIFY ON
+            STATUS vgp_vigembus_download
+        )
+        list(GET vgp_vigembus_download 0 vgp_vigembus_code)
+        if(NOT vgp_vigembus_code EQUAL 0)
+            list(GET vgp_vigembus_download 1 vgp_vigembus_message)
+            file(REMOVE "${VGP_VIGEMBUS_INSTALLER}")
+            message(WARNING
+                "Could not download the ViGEmBus installer: ${vgp_vigembus_message}. "
+                "This build will not ship a driver installer; set VGP_VIGEMBUS_INSTALLER "
+                "to a local copy, or build with network access, to bundle one."
+            )
+        else()
+            string(TOLOWER "${VGP_VIGEMBUS_SHA512}" vgp_vigembus_expected)
+            file(SHA512 "${VGP_VIGEMBUS_INSTALLER}" vgp_vigembus_actual)
+            if(NOT vgp_vigembus_actual STREQUAL vgp_vigembus_expected)
+                file(REMOVE "${VGP_VIGEMBUS_INSTALLER}")
+                message(WARNING
+                    "The downloaded ViGEmBus installer did not match its expected "
+                    "SHA-512 and was discarded (expected ${vgp_vigembus_expected}, "
+                    "got ${vgp_vigembus_actual}). This build will not ship a driver "
+                    "installer."
+                )
+            endif()
+        endif()
+    endif()
+
+    if(EXISTS "${VGP_VIGEMBUS_INSTALLER}")
+        message(STATUS "Bundling the ViGEmBus ${VGP_VIGEMBUS_VERSION} installer")
+    else()
+        message(STATUS "No ViGEmBus installer will be bundled")
+    endif()
+endif()
+
 add_subdirectory(VGP_Data_Exchange/C)
 
 set(QR_CODE_GEN_SOURCES
@@ -150,6 +223,8 @@ if(WIN32)
         src/simulation/windows/mouseSim.cpp
         src/simulation/windows/vigemClient.cpp
         src/simulation/windows/vigemClient.hpp
+        src/platform/windows/vigemBusInstaller.cpp
+        src/platform/windows/vigemBusInstaller.hpp
     )
 elseif(LINUX)
     list(APPEND PROJECT_SOURCES
@@ -235,6 +310,15 @@ if(WIN32)
         DESTINATION "${CMAKE_INSTALL_BINDIR}"
     )
 
+    # The app looks for this beside itself, so it has to land in the same
+    # directory as the executable. When the download was skipped there is
+    # nothing to install and the app explains where to get the driver instead.
+    if(EXISTS "${VGP_VIGEMBUS_INSTALLER}")
+        install(FILES "${VGP_VIGEMBUS_INSTALLER}"
+            DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        )
+    endif()
+
     install(
         CODE "execute_process(COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/VGamepadPC.exe\")"
     )
@@ -281,4 +365,17 @@ if(WIN32)
         COMMENT "Copying manifest file to output directory"
         VERBATIM
     )
+
+    # Ship the driver installer beside the executable, which is where the app
+    # looks for it before offering to install the driver.
+    if(EXISTS "${VGP_VIGEMBUS_INSTALLER}")
+        add_custom_command(
+            TARGET VGamepadPC POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VGP_VIGEMBUS_INSTALLER}"
+                "$<TARGET_FILE_DIR:VGamepadPC>/${VGP_VIGEMBUS_ASSET}"
+            COMMENT "Copying the ViGEmBus installer next to the application"
+            VERBATIM
+        )
+    endif()
 endif()

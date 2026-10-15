@@ -26,6 +26,7 @@ class Preferences : public QWidget
 	void load_triggers();
 	void load_port();
 	void load_executor_type();
+	void load_virtual_gamepad_type();
   private slots:
 	void show_help();
 	void new_profile();

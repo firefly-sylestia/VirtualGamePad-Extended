@@ -21,6 +21,7 @@ namespace setting_keys
 {
 const QString mouse_sensitivity = "mouse_setting/mouse_sensitivity";
 const QString executor_type = "server/executor_type";
+const QString virtual_gamepad_type = "server/virtual_gamepad_type";
 const QString server_port = "server/port";
 
 enum button_keys

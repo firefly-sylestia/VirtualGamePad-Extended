@@ -15,6 +15,19 @@
  * installed, [`isReady`] is false and the caller keeps its fallback instead of
  * failing to build or start.
  *
+ * Two kinds of device can be plugged in, and they are not interchangeable:
+ *
+ * - **Xbox 360** is an XInput device. Modern games use XInput and get this pad
+ *   as a first-class controller, but an XInput device does *not* appear in the
+ *   HID or DirectInput device list, so older games and launchers that only
+ *   enumerate those see nothing at all.
+ * - **DualShock 4** is a HID gamepad. It shows up through the HID stack, so
+ *   DirectInput-only readers find it too, which is the difference between "the
+ *   game has no controller" and "the game found a PlayStation pad".
+ *
+ * Only one is plugged in at a time: two pads would both deliver the same input
+ * to a game that reads both APIs, and menus would scroll twice.
+ *
  * Reference: https://github.com/nefarius/ViGEmClient (MIT).
  */
 #pragma once
@@ -26,9 +39,21 @@
 class ViGEmGamepad
 {
   public:
+	/** Which virtual device the driver plugs in. */
+	enum class TargetType
+	{
+		/** Xbox 360 pad: XInput only, so DirectInput-only readers miss it. */
+		Xbox360,
+		/** DualShock 4 pad: also a HID gamepad, so DirectInput readers see it. */
+		DualShock4
+	};
+
 	/**
 	 * One report, in the units this class converts to the driver's:
 	 * triggers are 0..1, thumbsticks -1..1, and buttons is a mask of XUSB flags.
+	 *
+	 * The mask owns the *meaning* of each button; picking the target decides how
+	 * that meaning is presented, so callers never deal with two button spaces.
 	 */
 	struct Report
 	{
@@ -62,7 +87,7 @@ class ViGEmGamepad
 	};
 
 	/** Connects to the driver and plugs in the virtual pad. Never throws. */
-	ViGEmGamepad();
+	explicit ViGEmGamepad(TargetType type = TargetType::Xbox360);
 	~ViGEmGamepad();
 
 	ViGEmGamepad(const ViGEmGamepad &) = delete;
@@ -79,8 +104,14 @@ class ViGEmGamepad
 	/** Sends one report to the virtual pad. */
 	void submit(const Report &report);
 
-	/** Human-readable name of the driver behind the pad, for the UI. */
-	static QString backendName();
+	/** Which device this instance is presenting. */
+	TargetType targetType() const;
+
+	/** Human-readable name of the device behind the pad, for the UI. */
+	QString backendName() const;
+
+	/** Human-readable name of a device kind, for a caller with no instance yet. */
+	static QString nameFor(TargetType type);
 
   private:
 	struct Impl;

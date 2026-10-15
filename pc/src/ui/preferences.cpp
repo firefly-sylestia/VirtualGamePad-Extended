@@ -57,6 +57,7 @@ Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferen
 	// Load preferences into UI
 	load_port();
 	load_executor_type();
+	load_virtual_gamepad_type();
 
 	// Connect executor type radio buttons
 	connect(ui->gamepadExecutorRadio, &QRadioButton::toggled, this, &Preferences::executor_type_changed);
@@ -64,6 +65,12 @@ Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferen
 			&QRadioButton::toggled,
 			this,
 			&Preferences::executor_type_changed);
+
+	// The notes name the device that is selected, so they follow the combo too.
+	connect(ui->virtualGamepadComboBox,
+			&QComboBox::currentIndexChanged,
+			this,
+			[this](int) { update_executor_notes(); });
 
 	// No immediate save connections - only save when OK is clicked
 	disconnect(ui->buttonBox, &QDialogButtonBox::accepted, nullptr, nullptr);
@@ -85,6 +92,13 @@ Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferen
 												? ExecutorType::GamepadExecutor
 												: ExecutorType::KeyboardMouseExecutor;
 				settings.setExecutorType(executorType);
+
+				// Save which virtual device the gamepad backend plugs in
+				// The combo lists the devices in the order they are declared in the .ui file.
+				const VirtualGamepadType virtualGamepadType =
+					ui->virtualGamepadComboBox->currentIndex() == 1 ? VirtualGamepadType::DualShock4
+																					: VirtualGamepadType::Xbox360;
+				settings.setVirtualGamepadType(virtualGamepadType);
 
 				// Update key mapping in the active profile
 				change_key_inputs();
@@ -510,6 +524,14 @@ void Preferences::load_executor_type()
 	update_executor_notes();
 }
 
+void Preferences::load_virtual_gamepad_type()
+{
+	const VirtualGamepadType type = SettingsSingleton::instance().virtualGamepadType();
+	// The combo's order is the order it is declared in the .ui file.
+	ui->virtualGamepadComboBox->setCurrentIndex(type == VirtualGamepadType::DualShock4 ? 1 : 0);
+	update_executor_notes();
+}
+
 void Preferences::executor_type_changed()
 {
 	update_executor_notes();
@@ -549,13 +571,14 @@ void Preferences::update_executor_notes()
 	{
 		// notes for GamepadExecutor
 #ifdef _WIN32
-		notes = "- Windows 10 or later\n"
-				"- Administrator privileges\n"
-				"- Enable [app sideloading (developer mode) in Settings](ms-settings:developers)\n"
-				"- Creates a virtual gamepad device\n"
-				"- **Experimental**: "
-				"Known to crash at server launch. [Complain here for "
-				"fix.](https://github.com/microsoft/microsoft-ui-xaml/issues/8639)";
+		const bool dualShock = ui->virtualGamepadComboBox->currentIndex() == 1;
+		notes = "- Games see this as real hardware through the ViGEmBus driver\n"
+				"- No administrator privileges required\n"
+				"- Xbox 360 pads are XInput only, which is what modern games read\n"
+				"- A DualShock 4 also appears as a HID gamepad, so games and "
+				"launchers that only read HID or DirectInput find it too\n"
+				"- Presenting: %1";
+		notes = notes.arg(dualShock ? QStringLiteral("DualShock 4") : QStringLiteral("Xbox 360 pad"));
 #elif defined(__linux__)
 #else
 		notes = "Platform-specific notes apply for virtual gamepad creation.";
@@ -574,6 +597,16 @@ void Preferences::update_executor_notes()
 		notes = "Simulates keyboard and mouse input using configurable key mappings.";
 #endif
 	}
+
+	// Which device to present only means something for the gamepad backend, and
+	// only the Windows backend has a choice to make.
+#ifdef _WIN32
+	const bool deviceChoiceApplies = ui->gamepadExecutorRadio->isChecked();
+#else
+	const bool deviceChoiceApplies = false;
+#endif
+	ui->virtualGamepadLabel->setEnabled(deviceChoiceApplies);
+	ui->virtualGamepadComboBox->setEnabled(deviceChoiceApplies);
 
 	ui->executorNotesLabel->setTextInteractionFlags(Qt::TextInteractionFlag::TextBrowserInteraction);
 	ui->executorNotesLabel->setText(notes);

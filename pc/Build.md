@@ -83,6 +83,37 @@
    cmake --install build-linux --prefix $PWD/dist --config Release
    ```
 
+## Windows packaging: the ViGEmBus driver
+
+The virtual gamepad is a ViGEmBus device. Without that driver the Windows
+backend falls back to the Windows input-injection API, which writes into the
+system input queue while games read XInput, DirectInput or RawInput, so they see
+no controller at all. The application therefore carries the driver installer and
+offers to run it when the driver is missing.
+
+- The configure step downloads the installer into `build-windows/vigembus/` and
+  checks it against a pinned SHA-512. Any failure — an offline machine, a blocked
+  network, or a file that does not match — is a warning, not a build error: the
+  build still succeeds and simply carries no installer.
+- The installer is copied next to `VGamepadPC.exe` as part of the build, and
+  `cmake --install` puts it in the same directory, which is where the app looks
+  for it.
+- To bundle a copy you already have, or to build offline with one:
+
+  ```bash
+  cmake --preset windows -DVGP_VIGEMBUS_INSTALLER=/path/to/ViGEmBus_setup.exe
+  ```
+
+- To skip the download entirely:
+
+  ```bash
+  cmake --preset windows -DVGP_BUNDLE_VIGEMBUS=OFF
+  ```
+
+The driver is a separate third-party component with its own licence. It is only
+downloaded, never modified, and it is installed by the user through the app
+rather than silently.
+
 ## Development Builds
 
 For debug builds, replace config `Release` with `Debug` in the build commands.

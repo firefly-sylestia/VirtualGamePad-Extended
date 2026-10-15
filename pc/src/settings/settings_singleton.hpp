@@ -18,6 +18,20 @@ enum class ExecutorType
 	KeyboardMouseExecutor
 };
 
+/**
+ * Which virtual device the gamepad executor plugs into the driver.
+ *
+ * The two are not interchangeable for a game: an Xbox 360 pad is an XInput
+ * device and nothing else, while a DualShock 4 is also a HID gamepad, so games
+ * and launchers that only read the HID or DirectInput device list only see the
+ * second one. See `vigemClient.hpp` for the full trade-off.
+ */
+enum class VirtualGamepadType
+{
+	Xbox360,
+	DualShock4
+};
+
 class SettingsSingleton : public QObject
 {
 	Q_OBJECT
@@ -51,6 +65,12 @@ class SettingsSingleton : public QObject
 	}
 	void setExecutorType(ExecutorType type);
 
+	VirtualGamepadType virtualGamepadType() const
+	{
+		return virtual_gamepad_type;
+	}
+	void setVirtualGamepadType(VirtualGamepadType type);
+
 	void loadAll();
 	void saveSetting(const QString &key, const QVariant &value);
 	QVariant loadSetting(const QString &key);
@@ -75,6 +95,12 @@ class SettingsSingleton : public QObject
 	static constexpr quint16 DEFAULT_PORT_NUMBER = 0;
 	static constexpr ExecutorType DEFAULT_EXECUTOR_TYPE = ExecutorType::KeyboardMouseExecutor;
 
+	/**
+	 * XInput is what modern games read, so the 360 pad is the default. The
+	 * DualShock 4 is opt-in for the older HID/DirectInput-only readers.
+	 */
+	static constexpr VirtualGamepadType DEFAULT_VIRTUAL_GAMEPAD_TYPE = VirtualGamepadType::Xbox360;
+
   private:
 	SettingsSingleton();
 	~SettingsSingleton() override = default;
@@ -85,6 +111,7 @@ class SettingsSingleton : public QObject
 	int mouse_sensitivity;
 	quint16 port_number;
 	ExecutorType executor_type;
+	VirtualGamepadType virtual_gamepad_type;
 
 	QString m_activeProfileName;
 	KeymapProfile m_activeKeymapProfile;
@@ -92,4 +119,5 @@ class SettingsSingleton : public QObject
 	void loadMouseSensitivity();
 	void loadPort();
 	void loadExecutorType();
+	void loadVirtualGamepadType();
 };

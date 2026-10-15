@@ -29,6 +29,7 @@ import com.fireflysylestia.virtualgamepadextended.ui.theme.darken
 import com.fireflysylestia.virtualgamepadextended.ui.theme.lighten
 import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
+import com.fireflysylestia.virtualgamepadextended.ui.utils.StickResponse
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -104,7 +105,17 @@ private fun handleAnalogDrag(
     val scaleFactor = if (magnitude > maxOffset) maxOffset / magnitude else 1f
     state.visualX = state.offsetX * scaleFactor
     state.visualY = state.offsetY * scaleFactor
-    updateThumbstickValues(type, gamepadState, state.visualX / maxOffset, state.visualY / maxOffset)
+
+    // The knob follows the finger exactly, so it always lands where it was put,
+    // but the value the PC acts on goes through the dead zone and response
+    // curve: a resting finger reports zero instead of creeping the character,
+    // and the middle of the travel is where it responds.
+    if (maxOffset <= 0f) {
+        updateThumbstickValues(type, gamepadState, 0f, 0f)
+        return
+    }
+    val (x, y) = StickResponse.apply(state.visualX / maxOffset, state.visualY / maxOffset)
+    updateThumbstickValues(type, gamepadState, x, y)
 }
 
 @Composable

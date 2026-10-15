@@ -50,6 +50,9 @@ class Server : public QWidget
 	void handleConnection();
 	void destroyServer();
 
+	/** Run the bundled ViGEmBus installer, then rebuild the input backend. */
+	void install_vigem_bus();
+
   private:
 	void initServer();
 	void serveClient();
@@ -72,6 +75,15 @@ class Server : public QWidget
 	/** Executor type the current executor was built for, and the port it opened. */
 	int m_executorType = -1;
 	int m_listenPort = -1;
+
+	/**
+	 * Virtual device the current executor was built for.
+	 *
+	 * The pad exists only once it is created, so switching between an Xbox 360
+	 * and a DualShock 4 needs the executor rebuilt; tracking it here is what lets
+	 * that happen without restarting the app.
+	 */
+	int m_virtualGamepadType = -1;
 
 	/** Set when the port could not be opened, so the page can explain why. */
 	QString m_listenError;

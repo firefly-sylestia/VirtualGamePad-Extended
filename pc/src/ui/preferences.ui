@@ -111,6 +111,44 @@
            </widget>
           </item>
           <item>
+           <layout class="QHBoxLayout" name="virtualGamepadLayout">
+            <item>
+             <widget class="QLabel" name="virtualGamepadLabel">
+              <property name="text">
+               <string>Virtual pad device</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="virtualGamepadComboBox">
+              <item>
+               <property name="text">
+                <string>Xbox 360 pad (XInput)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>DualShock 4 pad (HID + DirectInput)</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <spacer name="virtualGamepadSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
            <widget class="QLabel" name="executorNotesLabel">
             <property name="text">
              <string>Details will be shown based on your selection</string>

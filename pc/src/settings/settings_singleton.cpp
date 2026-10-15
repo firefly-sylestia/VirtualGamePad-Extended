@@ -8,7 +8,8 @@
 
 SettingsSingleton::SettingsSingleton()
 	: settings(QDir::toNativeSeparators(getConfigDir() + "/VirtualGamePad.ini"), QSettings::IniFormat),
-	  executor_type(DEFAULT_EXECUTOR_TYPE)
+	  executor_type(DEFAULT_EXECUTOR_TYPE),
+	  virtual_gamepad_type(DEFAULT_VIRTUAL_GAMEPAD_TYPE)
 {
 	qInfo() << "Settings file path:" << settings.fileName();
 
@@ -43,6 +44,12 @@ void SettingsSingleton::setExecutorType(ExecutorType type)
 	saveSetting(setting_keys::executor_type, static_cast<int>(executor_type));
 }
 
+void SettingsSingleton::setVirtualGamepadType(VirtualGamepadType type)
+{
+	virtual_gamepad_type = type;
+	saveSetting(setting_keys::virtual_gamepad_type, static_cast<int>(virtual_gamepad_type));
+}
+
 void SettingsSingleton::saveSetting(const QString &key, const QVariant &value)
 {
 	settings.setValue(key, value);
@@ -72,6 +79,15 @@ void SettingsSingleton::loadExecutorType()
 		settings.value(setting_keys::executor_type, static_cast<int>(DEFAULT_EXECUTOR_TYPE)).toInt());
 }
 
+void SettingsSingleton::loadVirtualGamepadType()
+{
+	virtual_gamepad_type = static_cast<VirtualGamepadType>(
+		settings
+			.value(setting_keys::virtual_gamepad_type,
+				   static_cast<int>(DEFAULT_VIRTUAL_GAMEPAD_TYPE))
+			.toInt());
+}
+
 void SettingsSingleton::loadAll()
 {
 	try
@@ -79,6 +95,7 @@ void SettingsSingleton::loadAll()
 		loadMouseSensitivity();
 		loadPort();
 		loadExecutorType();
+		loadVirtualGamepadType();
 	}
 	catch (const std::exception &e)
 	{
@@ -288,6 +305,9 @@ void SettingsSingleton::resetToDefaults()
 
 	// Reset executor type
 	setExecutorType(DEFAULT_EXECUTOR_TYPE);
+
+	// Reset which virtual device the gamepad backend plugs in
+	setVirtualGamepadType(DEFAULT_VIRTUAL_GAMEPAD_TYPE);
 
 	// Reset keymapping in active profile to defaults
 	m_activeKeymapProfile.initializeDefaultMappings();

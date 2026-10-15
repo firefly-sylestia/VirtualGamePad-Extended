@@ -84,6 +84,16 @@
     </widget>
    </item>
    <item>
+    <widget class="QPushButton" name="installVigemBusButton">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>Install ViGEmBus</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QPushButton" name="stopButton">
      <property name="text">
       <string>Stop Server and Return</string>

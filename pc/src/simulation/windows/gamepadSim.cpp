@@ -1,10 +1,29 @@
 #include "../gamepadSim.hpp"
 
+#include "../../settings/settings_singleton.hpp"
+
 #include <QDebug>
 #include <cmath>
 
 namespace
 {
+/**
+ * Maps the configured device onto the backend's target type. The two enums are
+ * the same shape but kept apart so the settings layer does not have to know
+ * about the driver and its headers.
+ */
+ViGEmGamepad::TargetType toVigemTarget(VirtualGamepadType type)
+{
+	switch (type)
+	{
+	case VirtualGamepadType::DualShock4:
+		return ViGEmGamepad::TargetType::DualShock4;
+	case VirtualGamepadType::Xbox360:
+	default:
+		return ViGEmGamepad::TargetType::Xbox360;
+	}
+}
+
 /**
  * Translates the WinRT button enum into the flag bits the virtual Xbox 360 pad
  * reports. Both describe the same controls, so a switch over the named values
@@ -74,7 +93,11 @@ GamepadInjector::GamepadInjector() : injector(nullptr)
 	// XInput or DirectInput detect this controller exactly like a physical one.
 	// The injection API below only writes into the system input queue, which those
 	// games never look at, so it is a fallback rather than the first choice.
-	m_vigem = std::make_unique<ViGEmGamepad>();
+	// The device is picked in Preferences. Reading the setting here, rather than
+	// passing it down through the executor, keeps the choice out of every layer
+	// that only forwards it.
+	m_vigem = std::make_unique<ViGEmGamepad>(
+		toVigemTarget(SettingsSingleton::instance().virtualGamepadType()));
 	if (m_vigem->isReady())
 	{
 		m_available = true;
@@ -194,7 +217,7 @@ void GamepadInjector::inject()
 QString GamepadInjector::backendName() const
 {
 	if (m_vigem != nullptr)
-		return ViGEmGamepad::backendName();
+		return m_vigem->backendName();
 	return QStringLiteral("Virtual gamepad (Windows input injection)");
 }
 
