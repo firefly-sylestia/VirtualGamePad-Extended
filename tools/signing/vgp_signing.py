@@ -1,22 +1,28 @@
 #!/usr/bin/env python3
 """VirtualGamePad Extended signing-key helper.
 
-Generate, encrypt/decrypt, and publish the signing keys used by the two
-buildable artifacts of this repository:
+Generate, inspect, encrypt/decrypt, and publish the signing keys used by the
+two buildable artifacts of this repository:
 
 * Android / APK  -> a JKS/PKCS12 keystore consumed by ``mobile/signing.properties``
 * Windows / PC   -> a code-signing certificate + PFX consumed by ``signtool``
 
+Every generation command is **interactive by default**: it asks for each field
+(path, alias, distinguished name, validity, passwords) and shows the value you
+just entered, so nothing is hidden. Pass ``--no-input`` for scripted use, or
+supply individual flags to skip just those prompts.
+
 The tool has no third-party Python dependencies. It shells out to tools that
 must already be on ``PATH``:
 
-* ``keytool``  (ships with any JDK)  - for the Android keystore
-* ``openssl``                         - for the Windows certificate
-* ``gpg``      (optional)             - for passphrase-encrypted secrets
-* ``gh``       (optional)             - to push a secret straight to GitHub
+* ``keytool``  (ships with any JDK)  - Android keystore create/list
+* ``openssl``                         - Windows certificate + PFX inspection
+* ``gpg``      (optional)             - passphrase-encrypted secrets
+* ``gh``       (optional)             - push a secret straight to GitHub
 
-Run ``python3 tools/signing/vgp_signing.py --help`` for the command list and
-see ``tools/signing/README.md`` for the full workflow and GitHub-secrets guide.
+Run ``python3 tools/signing/vgp_signing.py --help`` and see
+``tools/signing/README.md`` for the full workflow, including how to decrypt and
+view the details of every generated key.
 """
 
 from __future__ import annotations
@@ -47,7 +53,7 @@ def log(message: str) -> None:
     print(f"[vgp-signing] {message}", file=sys.stderr)
 
 
-def fail(message: str) -> "NoReturn":  # type: ignore[name-defined]
+def fail(message: str) -> None:
     sys.exit(f"[vgp-signing] error: {message}")
 
 
@@ -61,24 +67,45 @@ def run(cmd: list, env: dict | None = None, stdin: bytes | None = None) -> None:
     subprocess.run([str(part) for part in cmd], check=True, env=env, input=stdin)
 
 
+def is_interactive(no_input: bool) -> bool:
+    return (not no_input) and sys.stdin.isatty()
+
+
+def prompt(text: str, default: str | None = None, interactive: bool = True) -> str:
+    """Ask the user for a value, showing the default, and echo what was chosen."""
+    if not interactive:
+        return default or ""
+    suffix = f" [{default}]" if default else ""
+    try:
+        value = input(f"{text}{suffix}: ").strip()
+    except EOFError:
+        value = ""
+    resolved = value or (default or "")
+    log(f"{text} = {resolved}")
+    return resolved
+
+
+def prompt_password(text: str, interactive: bool, generate_hint: str = "") -> str:
+    """Ask for a password (hidden). Blank input generates a strong random one."""
+    if not interactive:
+        return random_password()
+    hint = " (leave blank to generate)" if generate_hint else ""
+    try:
+        value = getpass.getpass(f"{text}{hint}: ")
+    except EOFError:
+        value = ""
+    if not value:
+        value = random_password()
+        log(f"{text} = (generated, shown once below)")
+        print(f"  {text}: {value}", file=sys.stderr)
+    else:
+        log(f"{text} = ********")
+    return value
+
+
 def random_password(length: int = 32) -> str:
     alphabet = string.ascii_letters + string.digits
     return "".join(pysecrets.choice(alphabet) for _ in range(length))
-
-
-def resolve_or_prompt_password(provided: str | None, label: str, prompt: bool) -> str:
-    if provided:
-        return provided
-    if prompt:
-        first = getpass.getpass(f"{label}: ")
-        second = getpass.getpass(f"{label} (confirm): ")
-        if first != second:
-            fail("passwords did not match")
-        if not first:
-            fail("empty password is not allowed")
-        return first
-    generated = random_password()
-    return generated
 
 
 # --------------------------------------------------------------------------- #
@@ -86,71 +113,68 @@ def resolve_or_prompt_password(provided: str | None, label: str, prompt: bool) -
 # --------------------------------------------------------------------------- #
 def cmd_android(args: argparse.Namespace) -> None:
     require("keytool", "Install a JDK (e.g. Temurin 21) so `keytool` is available.")
+    interactive = is_interactive(args.no_input)
 
-    keystore = Path(args.keystore).expanduser().resolve()
+    keystore = Path(
+        args.keystore
+        or prompt("Keystore file path", str(DEFAULT_ANDROID_KEYSTORE), interactive)
+    ).expanduser().resolve()
+    alias = args.alias or prompt("Key alias", "vgp-release", interactive)
+    dname = args.dname or prompt("Certificate name (dname)", DEFAULT_DNAME, interactive)
+    validity = args.validity_days or int(
+        prompt("Validity in days", "10000", interactive) or "10000"
+    )
+
     if keystore.exists() and not args.force:
         fail(f"{keystore} already exists (pass --force to overwrite)")
-
     keystore.parent.mkdir(parents=True, exist_ok=True)
 
-    store_password = args.store_password or args.password
-    key_password = args.key_password or args.password
-    generated = not (store_password or args.key_password)
-    if not store_password:
-        store_password = random_password()
-    if not key_password:
-        key_password = store_password if not args.distinct_key_password else random_password()
+    store_password = args.store_password or args.password or prompt_password(
+        "Keystore password", interactive, generate_hint=True
+    )
+    key_password = args.key_password or args.password or store_password
 
-    # Pass passwords through the environment so they never appear in the
-    # process list (keytool supports the `:env` qualifier).
     env = dict(os.environ)
     env["VGP_STORE_PASSWORD"] = store_password
     env["VGP_KEY_PASSWORD"] = key_password
 
     run(
         [
-            "keytool",
-            "-genkeypair",
-            "-v",
-            "-keystore",
-            keystore,
-            "-storetype",
-            "PKCS12",
-            "-alias",
-            args.alias,
-            "-keyalg",
-            "RSA",
-            "-keysize",
-            "2048",
-            "-validity",
-            str(int(args.validity_days)),
-            "-dname",
-            args.dname,
-            "-storepass:env",
-            "VGP_STORE_PASSWORD",
-            "-keypass:env",
-            "VGP_KEY_PASSWORD",
+            "keytool", "-genkeypair", "-v",
+            "-keystore", keystore,
+            "-storetype", "PKCS12",
+            "-alias", alias,
+            "-keyalg", "RSA", "-keysize", "2048",
+            "-validity", str(int(validity)),
+            "-dname", dname,
+            "-storepass:env", "VGP_STORE_PASSWORD",
+            "-keypass:env", "VGP_KEY_PASSWORD",
         ],
         env=env,
     )
 
-    props_path = Path(args.properties).expanduser().resolve()
+    props_path = Path(
+        args.properties or str(DEFAULT_SIGNING_PROPERTIES)
+    ).expanduser().resolve()
     props_path.parent.mkdir(parents=True, exist_ok=True)
     props_path.write_text(
         "# Generated by tools/signing/vgp_signing.py - DO NOT COMMIT\n"
         f"STORE_FILE={keystore}\n"
         f"STORE_PASSWORD={store_password}\n"
-        f"KEY_ALIAS={args.alias}\n"
+        f"KEY_ALIAS={alias}\n"
         f"KEY_PASSWORD={key_password}\n"
     )
 
-    log(f"keystore written:        {keystore}")
-    log(f"local build config:      {props_path} (gitignored)")
-    if generated:
-        print("", file=sys.stderr)
-        log("Generated passwords (store these as GitHub secrets, shown only once):")
-        print(f"  STORE_PASSWORD={store_password}")
-        print(f"  KEY_PASSWORD={key_password}")
+    print("", file=sys.stderr)
+    log("--- Android keystore details (keep these safe) ---")
+    print(f"  Keystore file : {keystore}")
+    print(f"  Alias         : {alias}")
+    print(f"  DName         : {dname}")
+    print(f"  Validity      : {validity} days")
+    print(f"  Store password: {store_password}")
+    print(f"  Key password  : {key_password}")
+    print(f"  signing.properties written to {props_path} (gitignored)")
+    log("View these again any time with: vgp_signing.py inspect " + str(keystore))
 
 
 # --------------------------------------------------------------------------- #
@@ -158,13 +182,23 @@ def cmd_android(args: argparse.Namespace) -> None:
 # --------------------------------------------------------------------------- #
 def cmd_windows(args: argparse.Namespace) -> None:
     require("openssl", "Install OpenSSL (Linux/macOS/mingw) to create the certificate.")
+    interactive = is_interactive(args.no_input)
 
-    out = Path(args.out_dir).expanduser().resolve()
+    out = Path(
+        args.out_dir or prompt("Output directory", str(DEFAULT_WINDOWS_OUT), interactive)
+    ).expanduser().resolve()
+    subject = args.subject or prompt(
+        "Certificate subject", DEFAULT_WIN_SUBJECT, interactive
+    )
+    alias = args.alias or prompt("PFX friendly name", "vgp-codesign", interactive)
+    validity = args.validity_days or int(
+        prompt("Validity in days", "3650", interactive) or "3650"
+    )
+    password = args.password or prompt_password(
+        "PFX password", interactive, generate_hint=True
+    )
+
     out.mkdir(parents=True, exist_ok=True)
-
-    password = resolve_or_prompt_password(args.password, "PFX password", args.prompt)
-    generated = args.password is None and not args.prompt
-
     key_path = out / "codesign.key.pem"
     cert_path = out / "codesign.crt.pem"
     pfx_path = out / "codesign.pfx"
@@ -172,53 +206,68 @@ def cmd_windows(args: argparse.Namespace) -> None:
         if existing.exists() and not args.force:
             fail(f"{existing} already exists (pass --force to overwrite)")
 
-    run(
-        [
-            "openssl",
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:4096",
-            "-nodes",
-            "-keyout",
-            key_path,
-            "-out",
-            cert_path,
-            "-days",
-            str(int(args.validity_days)),
-            "-subj",
-            args.subject,
-            "-addext",
-            "extendedKeyUsage=codeSigning",
-            "-addext",
-            "keyUsage=digitalSignature",
-        ]
-    )
-    run(
-        [
-            "openssl",
-            "pkcs12",
-            "-export",
-            "-out",
-            pfx_path,
-            "-inkey",
-            key_path,
-            "-in",
-            cert_path,
-            "-passout",
-            f"pass:{password}",
-            "-name",
-            args.alias,
-        ]
-    )
+    run([
+        "openssl", "req", "-x509", "-newkey", "rsa:4096", "-nodes",
+        "-keyout", key_path, "-out", cert_path,
+        "-days", str(int(validity)),
+        "-subj", subject,
+        "-addext", "extendedKeyUsage=codeSigning",
+        "-addext", "keyUsage=digitalSignature",
+    ])
+    run([
+        "openssl", "pkcs12", "-export", "-out", pfx_path,
+        "-inkey", key_path, "-in", cert_path,
+        "-passout", f"pass:{password}", "-name", alias,
+    ])
 
-    log(f"certificate:  {cert_path}")
-    log(f"private key:  {key_path}")
-    log(f"PFX bundle:   {pfx_path}  <- this is what GitHub secrets needs")
-    if generated:
-        print("", file=sys.stderr)
-        log("Generated PFX password (store as a GitHub secret, shown only once):")
-        print(f"  WINDOWS_PFX_PASSWORD={password}")
+    print("", file=sys.stderr)
+    log("--- Windows code-signing details (keep these safe) ---")
+    print(f"  Subject    : {subject}")
+    print(f"  Friendly   : {alias}")
+    print(f"  Validity   : {validity} days")
+    print(f"  Certificate: {cert_path}")
+    print(f"  Private key: {key_path}")
+    print(f"  PFX bundle : {pfx_path}")
+    print(f"  PFX password: {password}")
+    log("View these again any time with: vgp_signing.py inspect " + str(pfx_path))
+
+
+# --------------------------------------------------------------------------- #
+# Inspect / view an existing key                                              #
+# --------------------------------------------------------------------------- #
+def _detect_kind(path: Path, requested: str) -> str:
+    if requested != "auto":
+        return requested
+    if path.suffix.lower() in (".pfx", ".p12"):
+        return "pfx"
+    return "keystore"
+
+
+def cmd_inspect(args: argparse.Namespace) -> None:
+    path = Path(args.file).expanduser().resolve()
+    if not path.is_file():
+        fail(f"{path} is not a file")
+    kind = _detect_kind(path, args.kind)
+    interactive = is_interactive(args.no_input)
+
+    if kind == "pfx":
+        require("openssl", "Install OpenSSL to inspect a PFX/P12 file.")
+        password = args.password or getpass.getpass("PFX password: ")
+        # -nokeys prints the certificate metadata; -info shows the encryption.
+        run(["openssl", "pkcs12", "-in", path, "-info", "-nokeys",
+             "-passin", f"pass:{password}"])
+    else:
+        require("keytool", "Install a JDK so `keytool` is available.")
+        password = args.password
+        if password is None:
+            if interactive:
+                password = getpass.getpass("Keystore password: ")
+            else:
+                fail("a keystore password is required (use --password)")
+        env = dict(os.environ)
+        env["VGP_STORE_PASSWORD"] = password
+        run(["keytool", "-list", "-v", "-keystore", path,
+             "-storepass:env", "VGP_STORE_PASSWORD"], env=env)
 
 
 # --------------------------------------------------------------------------- #
@@ -229,7 +278,7 @@ def _read_secret_passphrase(args: argparse.Namespace) -> str:
         return args.passphrase
     if os.environ.get("VGP_SECRET_PASSPHRASE"):
         return os.environ["VGP_SECRET_PASSPHRASE"]
-    if args.prompt:
+    if args.prompt or sys.stdin.isatty():
         return getpass.getpass("Secret passphrase: ")
     fail("no passphrase available (use --passphrase, VGP_SECRET_PASSPHRASE, or --prompt)")
 
@@ -242,25 +291,13 @@ def cmd_encrypt(args: argparse.Namespace) -> None:
     if args.mode == "gpg":
         require("gpg", "Install GnuPG to use passphrase encryption.")
         output = Path(args.out or f"{source.name}.gpg").expanduser().resolve()
-        run(
-            [
-                "gpg",
-                "--batch",
-                "--yes",
-                "--symmetric",
-                "--cipher-algo",
-                "AES256",
-                "--passphrase",
-                _read_secret_passphrase(args),
-                "-o",
-                output,
-                source,
-            ]
-        )
+        run([
+            "gpg", "--batch", "--yes", "--symmetric", "--cipher-algo", "AES256",
+            "--passphrase", _read_secret_passphrase(args), "-o", output, source,
+        ])
     else:
         output = Path(args.out or f"{source.name}.b64").expanduser().resolve()
-        encoded = base64.b64encode(source.read_bytes())
-        output.write_bytes(encoded)
+        output.write_bytes(base64.b64encode(source.read_bytes()))
 
     log(f"encrypted secret written: {output}")
     log("Copy its contents into a GitHub Actions secret (see tools/signing/README.md).")
@@ -273,29 +310,32 @@ def cmd_decrypt(args: argparse.Namespace) -> None:
 
     if args.mode == "gpg":
         require("gpg", "Install GnuPG to decrypt passphrase-encrypted secrets.")
-        output = Path(args.out or _strip_suffix(source.name, ".gpg")).expanduser().resolve()
-        run(
-            [
-                "gpg",
-                "--batch",
-                "--yes",
-                "--decrypt",
-                "--passphrase",
-                _read_secret_passphrase(args),
-                "-o",
-                output,
-                source,
-            ]
-        )
+        plaintext = _decrypt_gpg_bytes(source, _read_secret_passphrase(args))
     else:
-        output = Path(args.out or _strip_suffix(source.name, ".b64")).expanduser().resolve()
-        output.write_bytes(base64.b64decode(source.read_bytes()))
+        plaintext = base64.b64decode(source.read_bytes())
 
+    if args.stdout:
+        sys.stdout.buffer.write(plaintext)
+        return
+
+    output = Path(args.out or _strip_suffix(source.name, ".b64" if args.mode == "base64" else ".gpg"))
+    output = output.expanduser().resolve()
+    output.write_bytes(plaintext)
     log(f"decrypted secret written: {output}")
 
 
+def _decrypt_gpg_bytes(source: Path, passphrase: str) -> bytes:
+    result = subprocess.run(
+        ["gpg", "--batch", "--yes", "--decrypt", "--passphrase", passphrase, str(source)],
+        check=True, capture_output=True,
+    )
+    return result.stdout
+
+
 def _strip_suffix(name: str, suffix: str) -> str:
-    return name[: -len(suffix)] if name.endswith(suffix) else f"{name}.decoded"
+    if suffix and name.endswith(suffix):
+        return name[: -len(suffix)]
+    return f"{name}.decoded"
 
 
 # --------------------------------------------------------------------------- #
@@ -321,36 +361,47 @@ def cmd_gh_secret(args: argparse.Namespace) -> None:
 # --------------------------------------------------------------------------- #
 # CLI                                                                         #
 # --------------------------------------------------------------------------- #
+def _add_common(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--no-input", action="store_true",
+                        help="Never prompt; use defaults and generated passwords")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="vgp_signing.py",
-        description="Generate and manage VirtualGamePad Extended signing keys.",
+        description="Generate, inspect and manage VirtualGamePad Extended signing keys.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     android = sub.add_parser("android", help="Generate an Android release keystore + signing.properties")
-    android.add_argument("--keystore", default=str(DEFAULT_ANDROID_KEYSTORE))
-    android.add_argument("--properties", default=str(DEFAULT_SIGNING_PROPERTIES))
-    android.add_argument("--alias", default="vgp-release")
-    android.add_argument("--validity-days", type=int, default=10000)
-    android.add_argument("--dname", default=DEFAULT_DNAME)
+    android.add_argument("--keystore")
+    android.add_argument("--properties")
+    android.add_argument("--alias")
+    android.add_argument("--validity-days", type=int)
+    android.add_argument("--dname")
     android.add_argument("--password", help="Use one password for the store and the key")
     android.add_argument("--store-password")
     android.add_argument("--key-password")
-    android.add_argument("--distinct-key-password", action="store_true",
-                         help="Generate a separate key password when none is supplied")
     android.add_argument("--force", action="store_true", help="Overwrite an existing keystore")
+    _add_common(android)
     android.set_defaults(func=cmd_android)
 
     windows = sub.add_parser("windows", help="Generate a Windows code-signing certificate + PFX")
-    windows.add_argument("--out-dir", default=str(DEFAULT_WINDOWS_OUT))
-    windows.add_argument("--subject", default=DEFAULT_WIN_SUBJECT)
-    windows.add_argument("--alias", default="vgp-codesign")
-    windows.add_argument("--validity-days", type=int, default=3650)
+    windows.add_argument("--out-dir")
+    windows.add_argument("--subject")
+    windows.add_argument("--alias")
+    windows.add_argument("--validity-days", type=int)
     windows.add_argument("--password", help="PFX export password")
-    windows.add_argument("--prompt", action="store_true", help="Prompt for the PFX password")
     windows.add_argument("--force", action="store_true", help="Overwrite existing files")
+    _add_common(windows)
     windows.set_defaults(func=cmd_windows)
+
+    inspect = sub.add_parser("inspect", help="View the details of an existing keystore or PFX")
+    inspect.add_argument("file")
+    inspect.add_argument("--kind", choices=["auto", "keystore", "pfx"], default="auto")
+    inspect.add_argument("--password")
+    _add_common(inspect)
+    inspect.set_defaults(func=cmd_inspect)
 
     encrypt = sub.add_parser("encrypt", help="Encrypt a key file for a GitHub secret")
     encrypt.add_argument("file")
@@ -364,6 +415,7 @@ def build_parser() -> argparse.ArgumentParser:
     decrypt.add_argument("file")
     decrypt.add_argument("--mode", choices=["base64", "gpg"], default="base64")
     decrypt.add_argument("--out")
+    decrypt.add_argument("--stdout", action="store_true", help="Print instead of writing a file")
     decrypt.add_argument("--passphrase")
     decrypt.add_argument("--prompt", action="store_true")
     decrypt.set_defaults(func=cmd_decrypt)

@@ -16,6 +16,12 @@ use them later.
 > build sets `release.signingConfig = null` and produces an **unsigned** release
 > APK. CI currently builds with no secrets, so the release APK is unsigned.
 
+> **The generator is interactive.** Run `android` or `windows` with no flags and
+> it asks for each field (file path, alias, name, validity, passwords), echoes
+> every choice, and prints a summary of the key it created. Pass `--no-input`
+> for scripts, or set an individual flag to skip just that prompt. Use `inspect`
+> (section 6) to view the details of a key again at any time.
+
 ## What you need
 
 - Python 3.10 or newer (standard library only, no `pip install`).
@@ -167,7 +173,43 @@ python3 tools/signing/vgp_signing.py gh-secret ANDROID_KEYSTORE_BASE64 \
 Environment-scoped secrets work the same way under **Environments -> <env> ->
 Environment secrets**; pass `--env <name>` to the CLI helper.
 
-## 5. Decrypt (locally, and what CI would do)
+## 5. View the details of a generated key
+
+The generator prints a summary when it finishes, and you can view it again at
+any time with `inspect`:
+
+```bash
+# Android keystore: alias, owner, validity, signature algorithm, fingerprints
+python3 tools/signing/vgp_signing.py inspect mobile/release.keystore
+
+# Windows PFX: subject, friendly name, encryption and MAC details
+python3 tools/signing/vgp_signing.py inspect tools/signing/out/windows/codesign.pfx
+```
+
+`inspect` auto-detects keystore vs PFX from the file extension; override with
+`--kind keystore` or `--kind pfx`. It asks for the password if you do not pass
+`--password`.
+
+If a key has already been encrypted for GitHub, decrypt it first and view it in
+one step:
+
+```bash
+# base64
+python3 tools/signing/vgp_signing.py decrypt mobile/release.keystore.b64 \
+  --stdout > release.keystore
+python3 tools/signing/vgp_signing.py inspect release.keystore
+
+# gpg (prompts for the passphrase), straight into inspect is not possible,
+# so write it to a file first:
+python3 tools/signing/vgp_signing.py decrypt tools/signing/out/windows/codesign.pfx.gpg \
+  --mode gpg --out codesign.pfx
+python3 tools/signing/vgp_signing.py inspect codesign.pfx
+```
+
+`decrypt --stdout` prints the raw bytes, which is handy for piping into another
+tool or diffing against the original.
+
+## 6. Decrypt (locally, and what CI would do)
 
 Reverse any encrypted secret with the same mode:
 
