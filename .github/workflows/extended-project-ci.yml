@@ -134,24 +134,63 @@ jobs:
           ./gradlew assembleRelease --stacktrace
       - name: Check the APK really is signed with the release key
         working-directory: mobile
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          apk="$(find app/build/outputs/apk/release -name '*.apk' | head -1)"
+          apk="$(find app/build/outputs/apk/release -name '*.apk' | sort | head -1)"
           if [ -z "$apk" ]; then
             echo "::error::The release build produced no APK."
+            ls -laR app/build/outputs/apk/release || true
             exit 1
           fi
-          apksigner="$(find "${ANDROID_SDK_ROOT}/build-tools" -name apksigner | sort | tail -1)"
-          signers="$("$apksigner" verify --print-certs "$apk" | grep -c 'Signer #' || true)"
-          if [ "$signers" -lt 1 ]; then
-            echo "::error::$apk is not signed."
+          echo "APK: $apk"
+
+          # The runner image keeps the SDK somewhere slightly different between
+          # images, so search the ones it is known to use before giving up.
+          apksigner=""
+          for sdk in "${ANDROID_SDK_ROOT:-}" "${ANDROID_HOME:-}" /usr/local/lib/android/sdk "$HOME/android-sdk"; do
+            if [ -n "$sdk" ] && [ -d "$sdk/build-tools" ]; then
+              apksigner="$(find "$sdk/build-tools" -maxdepth 2 -name apksigner 2>/dev/null | sort | tail -1)"
+              if [ -n "$apksigner" ]; then break; fi
+            fi
+          done
+          if [ -z "$apksigner" ]; then
+            apksigner="$(command -v apksigner || true)"
+          fi
+          if [ -z "$apksigner" ]; then
+            echo "::error::apksigner was not found (ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset})."
             exit 1
           fi
-          if "$apksigner" verify --print-certs "$apk" | grep -q 'CN=Android Debug'; then
-            echo "::error::$apk was signed with the debug key, not the release key."
+          echo "apksigner: $apksigner"
+
+          # Only the outcome is logged: the signer's name is not needed here.
+          report="$("$apksigner" verify --print-certs "$apk" 2>&1 || true)"
+          printf '%s\n' "$report" | grep -vE 'certificate DN' || true
+
+          apk_digest="$(printf '%s\n' "$report" | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}' || true)"
+          if [ -z "$apk_digest" ]; then
+            echo "::error::$apk is not signed, so it cannot be installed over an earlier build."
             exit 1
           fi
-          echo "$apk carries $signers release signature(s)."
+
+          # Signing with *a* key is not enough: it has to be this keystore's key,
+          # or Android refuses to install the update.
+          crypto_report="$(keytool -list -v -keystore release.keystore -alias "$ANDROID_KEY_ALIAS" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" 2>&1 || true)"
+          key_digest="$(printf '%s\n' "$crypto_report" | grep -m1 'SHA256:' | awk '{print $NF}' | tr -d ':' | tr 'A-F' 'a-f' || true)"
+          if [ -z "$key_digest" ]; then
+            echo "::error::The signing key could not be read back from the restored keystore."
+            exit 1
+          fi
+          if [ "$apk_digest" != "$key_digest" ]; then
+            echo "::error::$apk is not signed with the release key."
+            echo "APK signer SHA-256: $apk_digest"
+            echo "Keystore SHA-256:   $key_digest"
+            exit 1
+          fi
+          echo "$apk is signed with the release key ($apk_digest)."
       - name: Remove the key material from the runner
         if: always()
         working-directory: mobile
