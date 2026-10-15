@@ -1,8 +1,8 @@
 package io.github.kitswas.VGP_Data_Exchange;
 
-// Should be the same as the GamepadButtons enum in the Windows API.
-// https://learn.microsoft.com/en-us/uwp/api/windows.gaming.input.gamepadbuttons
-// Adapted from windows.gaming.input.h
+// Base flags mirror the common Windows gamepad buttons. The extended flags carry
+// mobile-only semantic controls; hosts may map them to keyboard/mouse actions.
+// Keep this in sync with mobile/VGP_Data_Exchange/io/github/kitswas/VGP_Data_Exchange/GameButtons.java.
 public enum GameButtons {
   None(0x0),
   Menu(0x1),
@@ -18,7 +18,17 @@ public enum GameButtons {
   LeftShoulder(0x400),
   RightShoulder(0x800),
   LeftThumbstick(0x1000),
-  RightThumbstick(0x2000);
+  RightThumbstick(0x2000),
+  Plus(0x4000),
+  Minus(0x8000),
+  Home(0x10000),
+  Capture(0x20000),
+  LeftSide(0x40000),
+  RightSide(0x80000),
+  Paddle1(0x100000),
+  Paddle2(0x200000),
+  Paddle3(0x400000),
+  Paddle4(0x800000);
 
   private final int value;
 
