@@ -69,6 +69,14 @@ set(QR_CODE_GEN_SOURCES
 
 add_library(QR_Code_Generator SHARED ${QR_CODE_GEN_SOURCES})
 
+if(WIN32)
+    # qrcodegen has no dllexport annotations, so MSVC produces a DLL with no
+    # import library and the executable link fails with LNK1181. Auto-export
+    # every symbol so a QR_Code_Generator.lib is generated (MinGW and ELF link
+    # shared objects without an import library, which masked this on other hosts).
+    set_target_properties(QR_Code_Generator PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 # Manifest file for the application
 # This file is used to request permissions on Windows
 SET(APP_MANIFEST_FILE "${CMAKE_SOURCE_DIR}/res/VGamepadPC.exe.manifest")
