@@ -1,0 +1,11 @@
+# Signing key material and generated secrets - never commit these
+/tools/signing/out/
+*.keystore
+*.jks
+*.pfx
+*.p12
+signing.properties
+
+# Python cache
+__pycache__/
+*.pyc
