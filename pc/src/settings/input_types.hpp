@@ -45,9 +45,10 @@ struct ButtonInput
  * */
 struct ThumbstickInput
 {
-	bool is_mouse_move = false;				   // true if the thumbstick is mapped to mouse movement
-	bool is_mouse_scroll = false; // true if the thumbstick cycles the mouse wheel (inventory/hotbar)
+	bool is_mouse_move = false; // true if the thumbstick is mapped to mouse movement
 	ButtonInput up{}, down{}, left{}, right{}; // up, down, left, right directions of the thumbstick
+	// Declared last so the existing brace initialisers keep their meaning.
+	bool is_mouse_scroll = false; // true if the thumbstick cycles the mouse wheel (inventory/hotbar)
 };
 
 /**
