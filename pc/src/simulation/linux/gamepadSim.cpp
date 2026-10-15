@@ -34,7 +34,7 @@ GamepadInjector::GamepadInjector()
 	dev.reset(rawDev);
 
 	// Set device properties
-	libevdev_set_name(dev.get(), "Virtual Gamepad PC");
+	libevdev_set_name(dev.get(), "VirtualGamePad Extended");
 	libevdev_set_id_bustype(dev.get(), BUS_USB);
 	libevdev_set_id_vendor(dev.get(), 0x045e);	// Microsoft vendor ID
 	libevdev_set_id_product(dev.get(), 0x028e); // Xbox 360 controller product ID

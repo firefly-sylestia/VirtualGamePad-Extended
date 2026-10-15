@@ -3,14 +3,14 @@
   xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
   <assemblyIdentity
     type="win32"
-    name="io.github.kitswas.VirtualGamePad"
+    name="com.fireflysylestia.virtualgamepadextended"
     version="1.0.0.0"
     processorArchitecture="*" />
 
   <description>
     A Free and Open Source virtual gamepad system for PCs.
-    [GitHub Repository](https://github.com/kitswas/VirtualGamePad)
-    [Project Website](https://kitswas.github.io/VirtualGamePad/)
+    [GitHub Repository](https://github.com/firefly-sylestia/VirtualGamePad-Extended)
+    [Project Website](https://github.com/firefly-sylestia/VirtualGamePad-Extended)
   </description>
 
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">

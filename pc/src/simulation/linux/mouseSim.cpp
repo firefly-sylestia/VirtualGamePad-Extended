@@ -32,7 +32,7 @@ void MouseInjector::ensureDevice()
 	}
 
 	// Set device properties
-	libevdev_set_name(dev, "Virtual Gamepad PC Mouse");
+	libevdev_set_name(dev, "VirtualGamePad Extended Mouse");
 	libevdev_set_id_bustype(dev, BUS_USB);
 	libevdev_set_id_vendor(dev, 0x1d6b);  // Linux Foundation
 	libevdev_set_id_product(dev, 0x0002); // Generic mouse

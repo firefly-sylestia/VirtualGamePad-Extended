@@ -1,0 +1,207 @@
+package com.fireflysylestia.virtualgamepadextended.data
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+
+val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+class SettingsRepository(context: Context) {
+    private val dataStore = context.settingsDataStore
+
+    val baseColor: Flow<BaseColor> = dataStore.data.map { preferences ->
+        BaseColor.fromInt(preferences[BASE_COLOR] ?: defaultBaseColor.ordinal)
+    }
+
+    val colorScheme: Flow<ColorScheme> = dataStore.data.map { preferences ->
+        ColorScheme.fromInt(preferences[COLOR_SCHEME] ?: defaultColorScheme.ordinal)
+    }
+
+    val pollingDelay: Flow<Int> = dataStore.data.map { preferences ->
+        preferences[POLLING_DELAY] ?: defaultPollingDelay
+    }
+
+    val hapticFeedbackEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[HAPTIC_FEEDBACK_ENABLED] ?: defaultHapticFeedbackEnabled
+    }
+
+    val buttonConfigs: Flow<Map<ButtonComponent, ButtonConfig>> =
+        dataStore.data.map { preferences ->
+            val jsonString = preferences[BUTTON_CONFIGS]
+            if (jsonString != null) {
+                try {
+                    Json.decodeFromString<Map<ButtonComponent, ButtonConfig>>(jsonString)
+                } catch (e: Exception) {
+                    defaultButtonConfigs
+                }
+            } else {
+                defaultButtonConfigs
+            }
+        }
+
+    val controllerLayout: Flow<ControllerLayout> = dataStore.data.map { preferences ->
+        val storedLayout = preferences[CONTROLLER_LAYOUT]
+        when {
+            storedLayout != null -> ControllerLayout.fromStored(storedLayout)
+            preferences[BUTTON_CONFIGS] != null -> ControllerLayout.CUSTOM
+            else -> ControllerLayout.SWITCH_2
+        }
+    }
+
+    val macros: Flow<List<MacroDefinition>> = dataStore.data.map { preferences ->
+        val jsonString = preferences[MACROS]
+        if (jsonString != null) {
+            try {
+                Json.decodeFromString<List<MacroDefinition>>(jsonString)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    val controllerBindings: Flow<Map<String, ControllerAction>> = dataStore.data.map { preferences ->
+        val jsonString = preferences[CONTROLLER_BINDINGS]
+        if (jsonString != null) {
+            try {
+                defaultControllerBindings + Json.decodeFromString<Map<String, ControllerAction>>(jsonString)
+            } catch (e: Exception) {
+                defaultControllerBindings
+            }
+        } else {
+            defaultControllerBindings
+        }
+    }
+
+    val lastConnectionIpAddress: Flow<String> = dataStore.data.map { preferences ->
+        preferences[LAST_CONNECTION_IP_ADDRESS] ?: ""
+    }
+
+    val lastConnectionPort: Flow<String> = dataStore.data.map { preferences ->
+        preferences[LAST_CONNECTION_PORT] ?: ""
+    }
+
+    val saveConnectionCredentials: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[SAVE_CONNECTION_CREDENTIALS] ?: defaultSaveConnectionCredentials
+    }
+
+    val fullScreenEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[FULL_SCREEN_ENABLED] ?: defaultFullScreenEnabled
+    }
+
+    suspend fun setBaseColor(baseColor: BaseColor) {
+        dataStore.edit { preferences ->
+            preferences[BASE_COLOR] = baseColor.ordinal
+        }
+    }
+
+    suspend fun setColorScheme(colorScheme: ColorScheme) {
+        dataStore.edit { preferences ->
+            preferences[COLOR_SCHEME] = colorScheme.ordinal
+        }
+    }
+
+    suspend fun setPollingDelay(delay: Int) {
+        dataStore.edit { preferences ->
+            preferences[POLLING_DELAY] = delay
+        }
+    }
+
+    suspend fun setHapticFeedbackEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[HAPTIC_FEEDBACK_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setButtonConfig(component: ButtonComponent, config: ButtonConfig) {
+        dataStore.edit { preferences ->
+            val currentJson = preferences[BUTTON_CONFIGS]
+            val currentConfigs = if (currentJson != null) {
+                try {
+                    Json.decodeFromString<Map<ButtonComponent, ButtonConfig>>(currentJson)
+                        .toMutableMap()
+                } catch (e: Exception) {
+                    defaultButtonConfigs.toMutableMap()
+                }
+            } else {
+                defaultButtonConfigs.toMutableMap()
+            }
+            currentConfigs[component] = config
+            preferences[BUTTON_CONFIGS] = Json.encodeToString(currentConfigs)
+        }
+    }
+
+    suspend fun setAllButtonConfigs(configs: Map<ButtonComponent, ButtonConfig>) {
+        dataStore.edit { preferences ->
+            preferences[BUTTON_CONFIGS] = Json.encodeToString(configs)
+        }
+    }
+
+    suspend fun setControllerLayout(layout: ControllerLayout) {
+        dataStore.edit { preferences ->
+            preferences[CONTROLLER_LAYOUT] = layout.name
+        }
+    }
+
+    suspend fun setMacros(macros: List<MacroDefinition>) {
+        dataStore.edit { preferences ->
+            preferences[MACROS] = Json.encodeToString(macros)
+        }
+    }
+
+    suspend fun setControllerBindings(bindings: Map<String, ControllerAction>) {
+        dataStore.edit { preferences ->
+            preferences[CONTROLLER_BINDINGS] = Json.encodeToString(bindings)
+        }
+    }
+
+    suspend fun setLastConnectionCredentials(ipAddress: String, port: String) {
+        dataStore.edit { preferences ->
+            preferences[LAST_CONNECTION_IP_ADDRESS] = ipAddress
+            preferences[LAST_CONNECTION_PORT] = port
+        }
+    }
+
+    suspend fun setSaveConnectionCredentials(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[SAVE_CONNECTION_CREDENTIALS] = enabled
+        }
+    }
+
+    suspend fun setFullScreenEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[FULL_SCREEN_ENABLED] = enabled
+        }
+    }
+
+    suspend fun resetAllSettings() {
+        dataStore.edit { preferences ->
+            preferences.clear()
+        }
+    }
+
+    companion object {
+        private val COLOR_SCHEME = intPreferencesKey("color_scheme")
+        private val BASE_COLOR = intPreferencesKey("base_color")
+        private val POLLING_DELAY = intPreferencesKey("polling_delay")
+        private val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
+        private val BUTTON_CONFIGS = stringPreferencesKey("button_configs")
+        private val CONTROLLER_LAYOUT = stringPreferencesKey("controller_layout")
+        private val MACROS = stringPreferencesKey("controller_macros")
+        private val CONTROLLER_BINDINGS = stringPreferencesKey("controller_bindings")
+        private val LAST_CONNECTION_IP_ADDRESS = stringPreferencesKey("last_connection_ip_address")
+        private val LAST_CONNECTION_PORT = stringPreferencesKey("last_connection_port")
+        private val SAVE_CONNECTION_CREDENTIALS =
+            booleanPreferencesKey("save_connection_credentials")
+        private val FULL_SCREEN_ENABLED = booleanPreferencesKey("full_screen_enabled")
+    }
+}

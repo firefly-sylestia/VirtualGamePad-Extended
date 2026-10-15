@@ -23,7 +23,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Virtual Gamepad PC Server</string>
+      <string>VirtualGamePad Extended Server</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignmentFlag::AlignCenter</set>

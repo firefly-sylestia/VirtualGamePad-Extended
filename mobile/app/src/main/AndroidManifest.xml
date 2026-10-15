@@ -14,12 +14,12 @@
         android:label="@string/app_name"
         android:resizeableActivity="false"
         android:usesCleartextTraffic="false"
-        android:theme="@style/Theme.VirtualGamePadMobile">
+        android:theme="@style/Theme.VirtualGamePadExtended">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="userLandscape"
-            android:theme="@style/Theme.VirtualGamePadMobile">
+            android:theme="@style/Theme.VirtualGamePadExtended">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -102,9 +102,9 @@ int main(int argc, char *argv[])
 
 	QApplication a(argc, argv);
 	QApplication::setStyle(QStyleFactory::create("Fusion"));
-	QApplication::setOrganizationName("kitswas");
-	QApplication::setOrganizationDomain("io.github.kitswas");
-	QApplication::setApplicationName("VirtualGamePad");
+	QApplication::setOrganizationName("firefly-sylestia");
+	QApplication::setOrganizationDomain("com.fireflysylestia");
+	QApplication::setApplicationName("VirtualGamePad Extended");
 	QApplication::setApplicationVersion(APP_VERSION);
 	qInfo() << "Build mode:" << (isPortableMode() ? "PORTABLE" : "INSTALLABLE");
 	qInfo() << "Config directory:" << getConfigDir();

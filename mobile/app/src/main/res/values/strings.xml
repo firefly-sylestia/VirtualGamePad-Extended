@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">VirtualGamePadMobile</string>
+    <string name="app_name">VirtualGamePad Extended</string>
 
     <!-- Main Menu -->
     <string name="menu_start">Start</string>
@@ -21,7 +21,7 @@
     <string name="settings_error_save">Error saving settings</string>
 
     <!-- About Screen -->
-    <string name="about_title">🎮 Virtual GamePad Mobile</string>
+    <string name="about_title">🎮 VirtualGamePad Extended</string>
     <string name="about_version">Version %s</string>
     <string name="about_view_license">View Licence</string>
     <string name="about_latest_release">Latest Release</string>

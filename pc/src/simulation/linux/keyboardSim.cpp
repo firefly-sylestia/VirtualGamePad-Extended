@@ -24,7 +24,7 @@ KeyboardInjector::KeyboardInjector() : m_keyboardDevice(nullptr, libevdev_uinput
 	}
 
 	// Set device properties
-	libevdev_set_name(dev, "Virtual Gamepad PC Keyboard");
+	libevdev_set_name(dev, "VirtualGamePad Extended Keyboard");
 	libevdev_set_id_bustype(dev, BUS_USB);
 	libevdev_set_id_vendor(dev, 0x1d6b);  // Linux Foundation
 	libevdev_set_id_product(dev, 0x0001); // Generic keyboard

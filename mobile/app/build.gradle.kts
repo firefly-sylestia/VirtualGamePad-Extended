@@ -11,11 +11,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.kitswas.virtualgamepadmobile"
+    namespace = "com.fireflysylestia.virtualgamepadextended"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "io.github.kitswas.virtualgamepadmobile"
+        applicationId = "com.fireflysylestia.virtualgamepadextended"
         // Defines the minimum API level required to run the app.
         minSdk = 26
         // Specifies the API level used to test the app.
