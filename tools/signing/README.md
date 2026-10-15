@@ -35,6 +35,23 @@ Check everything resolves:
 python3 tools/signing/vgp_signing.py --help
 ```
 
+## Start here: the guided wizard
+
+Run the tool with no arguments and it opens a menu-driven wizard that walks you
+through **Android first, then Windows**, asking for one field at a time and
+printing exactly what to paste at the end of each part:
+
+```bash
+python3 tools/signing/vgp_signing.py
+```
+
+The menu also lets you check your setup, reprint any paste instructions, decrypt
+a secret blob inside the wizard, inspect a key, or upload a secret with `gh`.
+Old key files are replaced automatically (after a confirmation), so regenerating
+a key never fails because a file is already there.
+
+Prefer the scripted commands below for automation; every one of them still works.
+
 ## 1. Generate the Android keystore (APK)
 
 ```bash
