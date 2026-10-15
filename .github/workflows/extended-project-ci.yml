@@ -40,6 +40,14 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew build lint test --stacktrace
+      - name: Upload APK artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vgp-android-apk
+          path: mobile/app/build/outputs/apk/**/*.apk
+          if-no-files-found: warn
+          retention-days: 24
 
   pc-linux-build:
     name: Linux PC application build
@@ -56,3 +64,11 @@ jobs:
       - name: Build
         working-directory: pc
         run: cmake --build build-linux --config Release --parallel 2
+      - name: Upload Linux binary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vgp-pc-linux
+          path: pc/build-linux/Release/VGamepadPC
+          if-no-files-found: warn
+          retention-days: 24
