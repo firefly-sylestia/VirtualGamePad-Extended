@@ -265,6 +265,8 @@ SET(APP_MANIFEST_FILE "${CMAKE_SOURCE_DIR}/res/VGamepadPC.exe.manifest")
 set(PROJECT_SOURCES
     res/icons.qrc
     src/appdir.hpp
+    src/crash_report.cpp
+    src/crash_report.hpp
     src/main.cpp
     src/networking/controller_test_state.cpp
     src/networking/controller_test_state.hpp

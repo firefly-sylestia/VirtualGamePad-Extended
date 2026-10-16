@@ -1,16 +1,21 @@
 #include "appdir.hpp"
+#include "crash_report.hpp"
 #include "platform/windows/console.hpp"
 #include "ui/mainwindow.hpp"
 #include "ui/theme.hpp"
 
 #include <QApplication>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QLockFile>
+#include <QMessageBox>
 #include <QMutex>
+#include <QPushButton>
 #include <QStandardPaths>
 #include <QStyleFactory>
+#include <QUrl>
 #include <memory>
 
 #if defined(QT_DEBUG)
@@ -75,6 +80,13 @@ int main(int argc, char *argv[])
 
 	qSetMessagePattern("[%{time yyyy-MM-ddTHH:mm:ss.zzz} %{pid} %{type}] %{message}");
 
+	// A crash marker from an earlier run is read before this session's log is
+	// opened: after a crash the next run can land on the very same log slot, and
+	// opening it would truncate the very tail the report is made of.
+	CrashReport::PreviousCrash previousCrash;
+	const bool crashedLastRun =
+		CrashReport::takePreviousCrash(QFileInfo(logFile).absoluteFilePath(), previousCrash);
+
 	bool logFileOpened = false;
 	if (lockFile)
 	{
@@ -101,6 +113,12 @@ int main(int argc, char *argv[])
 
 	qInfo() << "Launching app...";
 
+	// Mark this session as running and arm the crash handlers before anything
+	// that can fail: from here on, an exit that never reaches endSession leaves
+	// the marker behind, and the next start turns it into a report.
+	CrashReport::beginSession(QFileInfo(logFile).absoluteFilePath(),
+							  QStringLiteral(APP_VERSION));
+
 	QApplication a(argc, argv);
 	// Fusion plus the dark palette and the stylesheet from the theme module.
 	Theme::apply(a);
@@ -115,8 +133,51 @@ int main(int argc, char *argv[])
 	MainWindow w;
 	w.show();
 	qInfo() << "Application initialized successfully. Version:" << QApplication::applicationVersion();
+
+	// The report is written automatically; the dialog only decides where it
+	// goes. Running before exec() is fine — a message box spins its own loop.
+	if (crashedLastRun)
+	{
+		QString reportPath;
+		const QString report = CrashReport::buildReport(previousCrash, &reportPath);
+
+		QMessageBox crashBox;
+		crashBox.setIcon(QMessageBox::Warning);
+		crashBox.setWindowTitle(QStringLiteral("The app closed unexpectedly"));
+		crashBox.setText(reportPath.isEmpty()
+						  ? QStringLiteral("The previous run of the app ended unexpectedly, and the "
+										 "report could not be saved to disk. The details are below.")
+						  : QStringLiteral("The previous run of the app ended unexpectedly.\n\n"
+										 "A report with the log tail was saved to:\n%1")
+										.arg(QDir::toNativeSeparators(reportPath)));
+		crashBox.setInformativeText(QStringLiteral(
+			"Send it so the crash can be fixed — the report is already filled "
+			"into the issue form."));
+		crashBox.setDetailedText(report);
+
+		QPushButton *reportButton =
+			crashBox.addButton(QStringLiteral("Report on GitHub"), QMessageBox::AcceptRole);
+		// Every button closes the box: clickedButton() is compared after exec()
+		// returns, and a role that kept it open would swallow the choice.
+		QPushButton *fileButton =
+			reportPath.isEmpty()
+				? nullptr
+				: crashBox.addButton(QStringLiteral("Open report file"), QMessageBox::YesRole);
+		QPushButton *closeButton =
+			crashBox.addButton(QStringLiteral("Close"), QMessageBox::RejectRole);
+		crashBox.setDefaultButton(closeButton);
+		crashBox.exec();
+
+		if (crashBox.clickedButton() == reportButton)
+			QDesktopServices::openUrl(CrashReport::issueUrl(report));
+		else if (fileButton != nullptr && crashBox.clickedButton() == fileButton)
+			QDesktopServices::openUrl(QUrl::fromLocalFile(reportPath));
+	}
+
 	int result = QApplication::exec();
 	qInfo() << "Application shutting down with exit code:" << result;
+	// A clean exit: remove the marker so the next launch reports nothing.
+	CrashReport::endSession();
 
 	if (logFileOpened)
 	{
