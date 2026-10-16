@@ -34,6 +34,21 @@ The Switch-first layout adds independent Plus/Minus and Home/Capture button even
 
 See [`plan.md`](plan.md) for the detailed checklist, compatibility notes, and remaining work.
 
+## Windows packaging and updates
+
+The Windows build is published as a single installer executable, not as an
+archive: the build job deploys the application with `cmake --install` (which runs
+`windeployqt`, so the Qt DLLs sit beside the executable) and packs that folder
+with Inno Setup into `VirtualGamePad-Extended-Setup-<version>.exe`. Pushing a
+`v*` tag publishes that installer as a GitHub Release, and the release asset is
+a direct download — no archive to extract.
+
+The PC app checks that release for a newer version: silently a few seconds after
+it starts, and on demand through **Check for updates** on the home page. When a
+newer one exists it asks before downloading it, saves the installer to the
+temporary folder, and starts it once the download is complete — the app closes at
+that point, because the installer replaces the files it is running from.
+
 ## Licensing
 
 The upstream projects are licensed under GPL-3.0. Refer to the respective project license files for applicable terms.

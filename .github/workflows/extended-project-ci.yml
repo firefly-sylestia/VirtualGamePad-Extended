@@ -8,7 +8,10 @@ on:
   pull_request:
     branches: ["main"]
   push:
+    # A `v*` tag publishes the Windows installer as a release, which is what the
+    # app's own update check reads; a branch push only builds and uploads.
     branches: ["main"]
+    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
@@ -276,6 +279,39 @@ jobs:
           & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD `
             /tr http://timestamp.digicert.com /td SHA256 build-windows\Release\VGamepadPC.exe
           Remove-Item $pfx -Force
+      # The app is shipped as one installer to run, not as a folder to extract:
+      # `cmake --install` deploys it with its Qt DLLs, and Inno Setup packs that
+      # folder into a single executable.
+      - name: Build the Windows installer
+        working-directory: pc
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $match = Select-String -Path CMakeLists.txt -Pattern 'set\(APP_VERSION ([0-9]+\.[0-9]+\.[0-9]+)\)'
+          if (-not $match) { throw "APP_VERSION was not found in pc/CMakeLists.txt" }
+          $version = $match.Matches[0].Groups[1].Value
+          cmake --install build-windows --prefix dist --config Release
+          # windeployqt may deploy into bin/ or beside the prefix, depending on
+          # the Qt install, so the folder that actually holds the exe is packed.
+          $exe = Get-ChildItem dist -Recurse -Filter VGamepadPC.exe | Select-Object -First 1
+          if (-not $exe) { throw "the deployed application was not found under pc/dist" }
+          $source = $exe.Directory.FullName
+          Write-Host "Packing $source"
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "Inno Setup 6 is not on this runner" }
+          & $iscc "/DSourceDir=$source" "/DAppVersion=$version" "/DOutputDir=installer-out" "installer\VGamepadPC.iss"
+          if (-not (Test-Path "installer-out\*.exe")) { throw "the installer was not produced" }
+          Get-ChildItem installer-out
+
+      - name: Upload Windows installer
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vgp-pc-windows-installer
+          path: pc/installer-out/*.exe
+          if-no-files-found: warn
+          retention-days: 24
+
       - name: Upload Windows binary
         if: always()
         uses: actions/upload-artifact@v7
@@ -284,3 +320,34 @@ jobs:
           path: pc/build-windows/Release/
           if-no-files-found: warn
           retention-days: 24
+
+  # Runs only for a `v*` tag: the installer built above becomes a release asset,
+  # so the download is one .exe and the app's update check has something to find.
+  pc-windows-release:
+    name: Publish the Windows installer
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: pc-windows-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the installer
+        uses: actions/download-artifact@v5
+        with:
+          name: vgp-pc-windows-installer
+          path: installer
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -l installer
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" installer/*.exe --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" installer/*.exe \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "VirtualGamePad Extended $tag" \
+              --notes "Windows installer for $tag. Download the .exe and run it; the app's Check for updates button finds this release on later versions."
+          fi

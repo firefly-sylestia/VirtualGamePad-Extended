@@ -3,6 +3,7 @@
 #include "../networking/controller_test_state.hpp"
 #include "../networking/input_backend_status.hpp"
 #include "../settings/settings_singleton.hpp"
+#include "../update/update_checker.hpp"
 #include "theme.hpp"
 
 #include <QFrame>
@@ -10,6 +11,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace
@@ -35,6 +37,8 @@ QFrame *statCard(const QString &caption, QLabel **valueOut, QWidget *parent)
 	return card;
 }
 } // namespace
+
+HomePage::~HomePage() = default;
 
 HomePage::HomePage(QWidget *parent) : QWidget(parent)
 {
@@ -79,6 +83,7 @@ HomePage::HomePage(QWidget *parent) : QWidget(parent)
 	auto *prefs = Theme::ghostButton(tr("Preferences"), actionsCard);
 	auto *about = Theme::ghostButton(tr("About"), actionsCard);
 	auto *usb = Theme::ghostButton(tr("Connect over USB"), actionsCard);
+	auto *updates = Theme::ghostButton(tr("Check for updates"), actionsCard);
 
 	grid->addWidget(start, 0, 0);
 	grid->addWidget(test, 0, 1);
@@ -87,7 +92,18 @@ HomePage::HomePage(QWidget *parent) : QWidget(parent)
 	grid->addWidget(prefs, 1, 1);
 	grid->addWidget(about, 1, 2);
 	grid->addWidget(usb, 2, 0);
+	grid->addWidget(updates, 2, 1);
 	actionsLayout->addLayout(grid);
+
+	// A check the user asks for answers either way; the one at startup stays quiet
+	// unless there is something to install, and waits long enough not to interrupt
+	// the app opening.
+	m_updater = std::make_unique<UpdateChecker>();
+	connect(updates, &QPushButton::clicked, this, [this]() { m_updater->check(this, true); });
+	m_updateCheckTimer = new QTimer(this);
+	m_updateCheckTimer->setSingleShot(true);
+	connect(m_updateCheckTimer, &QTimer::timeout, this, [this]() { m_updater->check(this, false); });
+	m_updateCheckTimer->start(4000);
 
 	connect(start, &QPushButton::clicked, this, &HomePage::startServerRequested);
 	connect(test, &QPushButton::clicked, this, &HomePage::openControlTestRequested);

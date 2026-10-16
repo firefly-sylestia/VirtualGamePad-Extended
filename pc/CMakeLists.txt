@@ -182,6 +182,8 @@ set(PROJECT_SOURCES
     src/simulation/gamepadSim.hpp
     src/simulation/keyboardSim.hpp
     src/simulation/mouseSim.hpp
+    src/update/update_checker.cpp
+    src/update/update_checker.hpp
     src/ui/about.cpp
     src/ui/about.hpp
     src/ui/about.ui

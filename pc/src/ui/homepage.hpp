@@ -2,7 +2,11 @@
 
 #include <QWidget>
 
+#include <memory>
+
 class QLabel;
+class QTimer;
+class UpdateChecker;
 
 /**
  * @brief The landing page shown when the application starts.
@@ -16,7 +20,8 @@ class HomePage final : public QWidget
 
   public:
 	explicit HomePage(QWidget *parent = nullptr);
-	~HomePage() override = default;
+	/** Defined in the .cpp, where the update checker is a complete type. */
+	~HomePage() override;
 
 	/** Re-read the connection, profile and port shown in the status cards. */
 	void refreshStatus();
@@ -38,4 +43,8 @@ class HomePage final : public QWidget
 	QLabel *m_profileValue = nullptr;
 	QLabel *m_executorValue = nullptr;
 	QLabel *m_portValue = nullptr;
+
+	/** Rides the app: the newest release is looked for once, at startup. */
+	std::unique_ptr<UpdateChecker> m_updater;
+	QTimer *m_updateCheckTimer = nullptr;
 };
