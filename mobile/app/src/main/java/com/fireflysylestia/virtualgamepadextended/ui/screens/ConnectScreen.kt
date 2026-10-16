@@ -8,6 +8,7 @@ import android.util.Patterns
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
@@ -16,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -48,8 +50,12 @@ import com.fireflysylestia.virtualgamepadextended.data.PreviewHeightDp
 import com.fireflysylestia.virtualgamepadextended.data.PreviewWidthDp
 import com.fireflysylestia.virtualgamepadextended.ui.components.QRScanResult
 import com.fireflysylestia.virtualgamepadextended.ui.components.rememberQRCodeScanner
+import com.fireflysylestia.virtualgamepadextended.network.DiscoveredServer
+import com.fireflysylestia.virtualgamepadextended.network.ServerDiscovery
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 const val LOG_TAG = "ConnectMenu"
 
@@ -296,6 +302,50 @@ fun ConnectMenu(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
             )
+
+            // Auto-discovery: probe the Wi-Fi for a running PC and list whatever
+            // answers, so a tap connects instead of typing an address.
+            var isDiscovering by remember { mutableStateOf(false) }
+            var discoveredServers by remember { mutableStateOf(listOf<DiscoveredServer>()) }
+
+            OutlinedButton(
+                modifier = Modifier.padding(top = 8.dp),
+                shape = MaterialTheme.shapes.small,
+                enabled = !isDiscovering,
+                onClick = {
+                    isDiscovering = true
+                    scope.launch {
+                        // Discovery blocks on socket reads, so it stays off the
+                        // main thread; the result is applied back on it.
+                        val servers = withContext(Dispatchers.IO) {
+                            ServerDiscovery.discover()
+                        }
+                        discoveredServers = servers
+                        isDiscovering = false
+                    }
+                }
+            ) {
+                if (isDiscovering) {
+                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
+                }
+                Text(text = stringResource(R.string.connect_find_pc))
+            }
+
+            discoveredServers.forEach { server ->
+                OutlinedButton(
+                    modifier = Modifier.padding(top = 4.dp).fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    onClick = {
+                        ipAddress = server.host
+                        port = server.port.toString()
+                        isIPValid = validateIP(ipAddress)
+                        isPortValid = validatePort(port)
+                        onNavigateToConnectingScreen(ipAddress, port)
+                    }
+                ) {
+                    Text(text = "${server.name}  —  ${server.host}:${server.port}")
+                }
+            }
 
             OutlinedButton(
                 modifier = Modifier.offset(y = 16.dp),

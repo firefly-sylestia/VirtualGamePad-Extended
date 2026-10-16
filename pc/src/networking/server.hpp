@@ -7,6 +7,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTime>
+#include <QUdpSocket>
 #include <memory>
 
 class QTimer;
@@ -120,4 +121,18 @@ class Server : public QWidget
 
 	/** Fires when the packet stream stops, to release whatever is held. */
 	QTimer *m_holdTimeoutTimer = nullptr;
+
+	/**
+	 * Answers a phone looking for this PC, so a tap on Find replaces a typed IP.
+	 *
+	 * The phone broadcasts a short probe on the discovery port; this socket
+	 * replies with the app name and the TCP port the server is listening on. The
+	 * phone then uses the address the reply came from, so no address has to be
+	 * typed or carried in the packet. Bound only while the TCP server is up, so a
+	 * stopped server is not advertised.
+	 */
+	QUdpSocket *m_discoverySocket = nullptr;
+
+	/** Reply to one discovery probe with this server's name and port. */
+	void answerDiscoveryProbe();
 };

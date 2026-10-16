@@ -11,6 +11,7 @@
 #endif
 
 #include <QByteArray>
+#include <QCoreApplication>
 #include <QDataStream>
 #include <QHostAddress>
 #include <QList>
@@ -19,7 +20,26 @@
 #include <QShowEvent>
 #include <QThread>
 #include <QTimer>
+#include <QUdpSocket>
 #include <algorithm>
+
+namespace
+{
+/**
+ * The UDP port a phone broadcasts its "is anyone there?" probe to.
+ *
+ * Fixed so a phone app can find this PC without being told the port first. It
+ * is separate from the game TCP port, which stays configurable: discovery only
+ * reports which port the server is on, it never carries input.
+ */
+constexpr quint16 DISCOVERY_PORT = 47820;
+
+/** The exact bytes a phone sends to ask for a PC. */
+constexpr const char *DISCOVERY_PROBE = "VGP-DISCOVER";
+
+/** The magic that marks a reply as this app, so stray UDP cannot be read as one. */
+constexpr const char *DISCOVERY_REPLY_MAGIC = "VGP-PC";
+} // namespace
 
 /**
  * @brief Creates a QR code from a string
@@ -382,6 +402,35 @@ void Server::initServer()
 
 	m_listenError.clear();
 	m_listenPort = tcpServer->serverPort();
+
+	// Start answering discovery probes now that there is a port to report. The
+	// socket is bound to the fixed discovery port on any interface, so a phone on
+	// the same network can find this PC by broadcast instead of a typed address.
+	if (m_discoverySocket == nullptr)
+	{
+		m_discoverySocket = new QUdpSocket(this);
+		connect(m_discoverySocket,
+				&QUdpSocket::readyRead,
+				this,
+				&Server::answerDiscoveryProbe);
+	}
+	if (m_discoverySocket->state() != QAbstractSocket::BoundState)
+	{
+		if (!m_discoverySocket->bind(QHostAddress::AnyIPv4,
+									 DISCOVERY_PORT,
+									 QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint))
+		{
+			// Discovery is a convenience, not the connection itself: say so and
+			// carry on, because a QR code or a typed IP still works.
+			qWarning() << "Discovery responder could not bind port" << DISCOVERY_PORT
+						 << ':' << m_discoverySocket->errorString();
+		}
+		else
+		{
+			qInfo() << "Answering phone discovery probes on UDP port" << DISCOVERY_PORT;
+		}
+	}
+
 	// The address list and QR codes are rebuilt for this run, never appended to
 	// a previous one.
 	ui->IPList->clear();
@@ -633,6 +682,10 @@ void Server::destroyServer()
 	// Release the port and everything the backend holds, then go home. A later
 	// visit builds a fresh page, so stopping and starting again works.
 	ControllerTestState::instance().setConnected(false);
+	// Stop advertising before the port closes, so a phone never discovers a PC
+	// it can no longer reach.
+	if (m_discoverySocket != nullptr)
+		m_discoverySocket->close();
 	if (clientConnection != nullptr)
 	{
 		clientConnection->disconnect(this);
@@ -645,4 +698,38 @@ void Server::destroyServer()
 	m_listenPort = -1;
 	emit navigateBack();
 	this->deleteLater();
+}
+
+/**
+ * Reply to one discovery probe with this server's name and port.
+ *
+ * A phone broadcasts {@link DISCOVERY_PROBE}; this answers directly to the
+ * sender with {@link DISCOVERY_REPLY_MAGIC}, a separator, and the TCP port the
+ * game server is on. The phone reads the address the reply arrived from, so the
+ * packet never has to carry an address and cannot hand back the wrong one.
+ */
+void Server::answerDiscoveryProbe()
+{
+	while (m_discoverySocket->hasPendingDatagrams())
+	{
+		QByteArray datagram;
+		datagram.resize(static_cast<int>(m_discoverySocket->pendingDatagramSize()));
+		QHostAddress sender;
+		quint16 senderPort = 0;
+		m_discoverySocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+
+		if (datagram.constData() == nullptr || datagram != DISCOVERY_PROBE)
+			continue; // Not for us; never answer a packet we do not recognise.
+
+		// Only advertise while a phone could actually connect: a bound port with
+		// no listener would send a phone off to a dead address.
+		if (!isListening() || m_listenPort < 0)
+			continue;
+
+		const QByteArray reply = QByteArray(DISCOVERY_REPLY_MAGIC) + '|' +
+			QCoreApplication::applicationName().toUtf8() + '|' +
+			QByteArray::number(static_cast<int>(m_listenPort));
+		m_discoverySocket->writeDatagram(reply, sender, senderPort);
+		qInfo() << "Answered discovery probe from" << sender.toString() << "with port" << m_listenPort;
+	}
 }
