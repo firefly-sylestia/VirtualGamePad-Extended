@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -39,6 +40,7 @@ import com.fireflysylestia.virtualgamepadextended.ui.theme.darken
 import com.fireflysylestia.virtualgamepadextended.ui.theme.faceButtonTextStyle
 import com.fireflysylestia.virtualgamepadextended.ui.theme.lighten
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
+import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -285,6 +287,7 @@ fun FaceButtons(
     }
 
     val pressed = remember { mutableStateOf(emptySet<FaceButtonType>()) }
+    val view = LocalView.current
 
     Box(
         modifier = modifier
@@ -307,6 +310,11 @@ fun FaceButtons(
                         GamepadButtonDispatcher.press(
                             gamepadState, faceSource(it), faceMask(it, bindings)
                         )
+                    }
+                    // Slide mode skips PressAndHold, so the press buzzes here instead:
+                    // rolling a thumb across A/B/X/Y should feel like a real pad.
+                    if (next.isNotEmpty()) {
+                        HapticUtils.performButtonPressFeedback(view)
                     }
                     pressed.value = next
                 }

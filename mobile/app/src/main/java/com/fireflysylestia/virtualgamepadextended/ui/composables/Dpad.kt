@@ -37,6 +37,7 @@ import com.fireflysylestia.virtualgamepadextended.R
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
+import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
 
 enum class DpadButtonType {
     UP, DOWN, LEFT, RIGHT
@@ -219,6 +220,7 @@ fun Dpad(
     }
 
     val pressed = remember { mutableStateOf(emptySet<DpadButtonType>()) }
+    val view = LocalView.current
 
     Box(
         modifier = modifier
@@ -241,6 +243,11 @@ fun Dpad(
                         GamepadButtonDispatcher.press(
                             gamepadState, dpadSlideSource(it), dpadMask(it, bindings)
                         )
+                    }
+                    // Slide mode skips PressAndHold, so the press buzzes here: rolling
+                    // a thumb across the pad should feel like a real D-pad.
+                    if (next.isNotEmpty()) {
+                        HapticUtils.performButtonPressFeedback(view)
                     }
                     pressed.value = next
                 }

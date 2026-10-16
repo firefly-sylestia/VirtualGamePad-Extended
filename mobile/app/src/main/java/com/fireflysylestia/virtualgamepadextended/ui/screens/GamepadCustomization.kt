@@ -202,9 +202,11 @@ private fun GamepadEditorPreview(
                     .alpha(if (config.visible) 1f else 0.6f)
                     .clickable { onSelect(component) }
                     .pointerInput(component, basePx) {
-                        detectDragGestures(
-                            onDragStart = { onSelect(component) },
-                        ) { change, drag ->
+                        // No onSelect here: selecting on drag start popped the editor
+                        // the instant the finger moved, so a control could never be
+                        // dragged. A tap (handled by the clickable above) opens the
+                        // editor; a drag only moves.
+                        detectDragGestures { change, drag ->
                             change.consume()
                             // Both axes move with the finger, so a control can be put
                             // anywhere on the screen by dragging it there instead of

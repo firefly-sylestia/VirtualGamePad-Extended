@@ -10,7 +10,17 @@ import kotlinx.serialization.Serializable
 
 // Centralized value ranges for button configuration
 val SCALE_VALUE_RANGE = 0.5f..2f
-val OFFSET_VALUE_RANGE = -0.5f..0.5f
+
+/**
+ * How far a control may be nudged from its anchor, in layout units (× baseDp).
+ *
+ * A centre-anchored control has to be able to reach either edge of the screen,
+ * which is a full half-width either side — so ±1, not the old ±0.5. The old
+ * range clipped the built-in centre-column defaults (Select/Start sit at −0.65),
+ * which made those controls jump back to the clamp the moment they were dragged
+ * instead of following the finger to anywhere on screen.
+ */
+val OFFSET_VALUE_RANGE = -1f..1f
 
 /**
  * Anchor point for button positioning
