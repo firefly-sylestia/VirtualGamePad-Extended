@@ -600,17 +600,23 @@ bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading con
 	setNativeButtonState(GamepadButtons_RightShoulder, static_cast<int>(RightShoulder), reading.buttons_down & GamepadButtons_RightShoulder);
 	setNativeButtonState(GamepadButtons_LeftThumbstick, static_cast<int>(LeftThumbstick), reading.buttons_down & GamepadButtons_LeftThumbstick);
 	setNativeButtonState(GamepadButtons_RightThumbstick, static_cast<int>(RightThumbstick), reading.buttons_down & GamepadButtons_RightThumbstick);
-	// Each of these keeps a button of its own instead of being folded onto the
-	// nearest Xbox one: HOME and + both being Menu (and Capture and − both being
-	// View, SL/SR both being the shoulders) meant a game could not tell them
-	// apart at all. Home is the Xbox pad's Guide button here, and the reporting
-	// layer gives the rest a button wherever the device has one.
+	// None of these is folded onto another control any more. HOME and + were both
+	// Menu (Capture and − both View, SL/SR both the shoulders), so a game could
+	// not tell them apart; now each carries its own bit (see vgp_native) and the
+	// reporting layer gives it a button wherever the device has one.
 	setNativeButtonState(GamepadButtons_Plus, static_cast<int>(vgp_native::Plus), reading.buttons_down & GamepadButtons_Plus);
 	setNativeButtonState(GamepadButtons_Minus, static_cast<int>(vgp_native::Minus), reading.buttons_down & GamepadButtons_Minus);
 	setNativeButtonState(GamepadButtons_Home, static_cast<int>(vgp_native::Home), reading.buttons_down & GamepadButtons_Home);
 	setNativeButtonState(GamepadButtons_Capture, static_cast<int>(vgp_native::Capture), reading.buttons_down & GamepadButtons_Capture);
 	setNativeButtonState(GamepadButtons_LeftSide, static_cast<int>(vgp_native::LeftSide), reading.buttons_down & GamepadButtons_LeftSide);
 	setNativeButtonState(GamepadButtons_RightSide, static_cast<int>(vgp_native::RightSide), reading.buttons_down & GamepadButtons_RightSide);
+
+	// The rear paddles are the one exception, and they are on the face buttons on
+	// purpose: an Xbox pad has no button left over, XInput has no paddle to report
+	// at all, and this is what an Xbox Elite's paddles are — spare face buttons
+	// the player assigns. The bit stays Paddle* all the way here, so the key map
+	// on the keyboard/mouse side still tells the four apart (P1-P4 have their own
+	// keys); only the virtual pad has to share.
 	setNativeButtonState(GamepadButtons_Paddle1, static_cast<int>(A), reading.buttons_down & GamepadButtons_Paddle1);
 	setNativeButtonState(GamepadButtons_Paddle2, static_cast<int>(B), reading.buttons_down & GamepadButtons_Paddle2);
 	setNativeButtonState(GamepadButtons_Paddle3, static_cast<int>(X), reading.buttons_down & GamepadButtons_Paddle3);
@@ -634,20 +640,22 @@ bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading con
 	setNativeButtonState(GamepadButtons_RightShoulder, BTN_TR, reading.buttons_down & GamepadButtons_RightShoulder);
 	setNativeButtonState(GamepadButtons_LeftThumbstick, BTN_THUMBL, reading.buttons_down & GamepadButtons_LeftThumbstick);
 	setNativeButtonState(GamepadButtons_RightThumbstick, BTN_THUMBR, reading.buttons_down & GamepadButtons_RightThumbstick);
-	// uinput lets the pad report these as codes of their own, so the same rule as
-	// on Windows applies: nothing is folded onto another control. BTN_MODE is the
-	// pad's system button (HOME) and the trigger-happy codes are the ones the
-	// kernel reserves for exactly this — extra buttons on a controller.
+	// +/− take the pad's Start/Select codes, which is what a game reads them as
+	// here. Everything the Xbox layout has no equivalent for reports as itself:
+	// BTN_MODE is the pad's system button (HOME) and the trigger-happy codes are
+	// the ones the kernel reserves for extra buttons on a controller, so Capture,
+	// the rails and the four paddles each arrive as a separate button instead of
+	// being folded onto SHARE, the shoulders or the face buttons.
 	setNativeButtonState(GamepadButtons_Plus, BTN_START, reading.buttons_down & GamepadButtons_Plus);
 	setNativeButtonState(GamepadButtons_Minus, BTN_SELECT, reading.buttons_down & GamepadButtons_Minus);
 	setNativeButtonState(GamepadButtons_Home, BTN_MODE, reading.buttons_down & GamepadButtons_Home);
 	setNativeButtonState(GamepadButtons_Capture, BTN_TRIGGER_HAPPY1, reading.buttons_down & GamepadButtons_Capture);
 	setNativeButtonState(GamepadButtons_LeftSide, BTN_TRIGGER_HAPPY2, reading.buttons_down & GamepadButtons_LeftSide);
 	setNativeButtonState(GamepadButtons_RightSide, BTN_TRIGGER_HAPPY3, reading.buttons_down & GamepadButtons_RightSide);
-	setNativeButtonState(GamepadButtons_Paddle1, BTN_A, reading.buttons_down & GamepadButtons_Paddle1);
-	setNativeButtonState(GamepadButtons_Paddle2, BTN_B, reading.buttons_down & GamepadButtons_Paddle2);
-	setNativeButtonState(GamepadButtons_Paddle3, BTN_X, reading.buttons_down & GamepadButtons_Paddle3);
-	setNativeButtonState(GamepadButtons_Paddle4, BTN_Y, reading.buttons_down & GamepadButtons_Paddle4);
+	setNativeButtonState(GamepadButtons_Paddle1, BTN_TRIGGER_HAPPY4, reading.buttons_down & GamepadButtons_Paddle1);
+	setNativeButtonState(GamepadButtons_Paddle2, BTN_TRIGGER_HAPPY5, reading.buttons_down & GamepadButtons_Paddle2);
+	setNativeButtonState(GamepadButtons_Paddle3, BTN_TRIGGER_HAPPY6, reading.buttons_down & GamepadButtons_Paddle3);
+	setNativeButtonState(GamepadButtons_Paddle4, BTN_TRIGGER_HAPPY7, reading.buttons_down & GamepadButtons_Paddle4);
 #endif
 
 	m_injector.inject();

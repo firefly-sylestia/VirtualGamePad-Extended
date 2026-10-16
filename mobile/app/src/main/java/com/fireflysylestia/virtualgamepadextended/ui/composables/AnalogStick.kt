@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -197,6 +198,27 @@ fun AnalogStick(
                 var clickHeld by remember { mutableStateOf(false) }
                 val clickMask = clickButtonMask ?: thumbstickButtonMask(type)
 
+                // How many taps the stick has seen. The gesture detector only counts
+                // them; the hold that follows is run by the effect below, because a
+                // gesture detector is a restricted coroutine scope and may only
+                // suspend on the pointer events themselves — a `delay` in it does
+                // not compile.
+                var taps by remember { mutableStateOf(0) }
+
+                LaunchedEffect(taps, clickMask) {
+                    if (taps == 0) return@LaunchedEffect
+                    clickHeld = true
+                    GamepadButtonDispatcher.press(gamepadState, "stick_${type.name}", clickMask)
+                    HapticUtils.performButtonPressFeedback(view)
+                    try {
+                        delay(STICK_CLICK_HOLD_MS)
+                    } finally {
+                        GamepadButtonDispatcher.release(gamepadState, "stick_${type.name}")
+                        HapticUtils.performButtonReleaseFeedback(view)
+                        clickHeld = false
+                    }
+                }
+
                 // Calculate maximum offset once
                 val maxOffset = with(density) {
                     (innerCircleRadius + outerCircleWidth).toPx()
@@ -265,20 +287,9 @@ fun AnalogStick(
                                 // down every time they moved.
                                 if (!lifted || travelled > clickSlopPx) return@awaitEachGesture
 
-                                clickHeld = true
-                                GamepadButtonDispatcher.press(
-                                    gamepadState, "stick_${type.name}", clickMask
-                                )
-                                HapticUtils.performButtonPressFeedback(view)
-                                try {
-                                    delay(STICK_CLICK_HOLD_MS)
-                                } finally {
-                                    GamepadButtonDispatcher.release(
-                                        gamepadState, "stick_${type.name}"
-                                    )
-                                    HapticUtils.performButtonReleaseFeedback(view)
-                                    clickHeld = false
-                                }
+                                // The detector goes straight back to watching for the
+                                // next finger; the hold is the effect's job.
+                                taps++
                             }
                         }
                 ) {}
