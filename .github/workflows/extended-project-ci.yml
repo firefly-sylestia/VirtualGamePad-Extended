@@ -327,10 +327,16 @@ jobs:
             & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD `
               /tr http://timestamp.digicert.com /td SHA256 $installer.FullName
             if ($LASTEXITCODE -ne 0) { throw "signtool failed to sign $($installer.Name)" }
-            # Signing is only believed once the signature itself verifies.
-            & $signtool.FullName verify /pa $installer.FullName
-            if ($LASTEXITCODE -ne 0) { throw "the signature on $($installer.Name) does not verify" }
-            Write-Host "Signed and verified: $($installer.Name)"
+            # The certificate is self-signed (see tools/signing/README.md), so a
+            # trust-chain check always fails with "terminated in a root" — even
+            # on a correct signature. What must hold is that the file carries a
+            # signature and that it still matches the file's bytes; a missing or
+            # tampered one is a real failure and is caught here.
+            $signature = Get-AuthenticodeSignature $installer.FullName
+            if ($signature.Status -eq "NotSigned" -or $signature.Status -eq "HashMismatch") {
+              throw "$($installer.Name) is $($signature.Status): signing did not take effect"
+            }
+            Write-Host "Signed: $($installer.Name) [$($signature.Status)] $($signature.SignerCertificate.Subject)"
           }
           Remove-Item $pfx -Force
 
