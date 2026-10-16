@@ -8,9 +8,9 @@ const val defaultPollingDelay = 80 // in milliseconds
 const val defaultHapticFeedbackEnabled = false // vibrations
 const val defaultSaveConnectionCredentials = false
 const val defaultFullScreenEnabled = false
-const val defaultKeepScreenOn = false
+const val defaultKeepScreenOn = true
 const val defaultFullScreenCameraEnabled = false
-const val defaultSlideBetweenButtons = false
+const val defaultSlideBetweenButtons = true
 
 /** 1.0 is the travel the response curve was designed around. */
 const val defaultStickSensitivity = 1.0f

@@ -10,7 +10,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -51,7 +50,10 @@ fun GamePad(
     connectionViewModel: ConnectionViewModel?,
     onNavigateBack: () -> Unit,
 ) {
-    val gamepadState by rememberSaveable { mutableStateOf(GamepadReading()) }
+    // Plain `remember`, not `rememberSaveable`: GamepadReading is a generated Colfer
+    // class and is not Parcelable/Serializable, so saving it crashes on backgrounding
+    // (white screen). It is transient input state and is rebuilt on every entry.
+    val gamepadState by remember { mutableStateOf(GamepadReading()) }
     val context = LocalContext.current
     val settingsRepository = remember { SettingsRepository(context) }
     val pollingDelay =

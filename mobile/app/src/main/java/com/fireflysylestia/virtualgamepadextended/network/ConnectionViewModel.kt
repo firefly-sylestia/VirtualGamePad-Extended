@@ -203,6 +203,10 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
                 socket.tcpNoDelay = true
                 socket.setPerformancePreferences(1, 2, 0)
                 socket.trafficClass = 0x10 // IPTOS_LOWDELAY
+                // Detect a socket the phone radio or a background freeze has
+                // silently dropped, so the next send fails fast and the reconnect
+                // path runs instead of the session hanging on a dead connection.
+                socket.keepAlive = true
 
                 socket.connect(
                     java.net.InetSocketAddress(command.ipAddress, command.port),
