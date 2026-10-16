@@ -446,6 +446,11 @@ void Server::handleConnection()
 	// have arrived on the socket being dropped here, so nothing may stay down.
 	releaseHeldInput();
 
+	// The byte buffer belongs to the stream, not to the page: bytes left by the
+	// previous device — half a packet when it vanished — would sit at the head of
+	// this connection's stream and make every following parse fail.
+	dataBuffer.clear();
+
 	// A phone that reconnects can leave the previous socket half-open. Adopt the
 	// new connection and drop the old one, so the device always ends up on the
 	// socket it is actually writing to instead of on a stale one that only looks
@@ -460,6 +465,8 @@ void Server::handleConnection()
 	}
 
 	clientConnection = tcpServer->nextPendingConnection();
+	if (clientConnection == nullptr)
+		return; // Nothing to adopt; the next newConnection will try again.
 	// disable Nagle's algorithm to avoid delay and bunching of small packages
 	clientConnection->setSocketOption(QAbstractSocket::LowDelayOption, 1);
 	// Detect a phone that walked out of range or went to sleep much sooner than
@@ -497,6 +504,14 @@ void Server::handleConnection()
 				qDebug() << "Average Request Interval" << averageRequestInterval
 						 << "ms, Request Count:" << requestCount;
 				isGamepadConnected = false;
+				// The socket schedules its own deletion above, so this member must
+				// stop pointing at it right now. It used to keep the dangling
+				// pointer, and the next connect — or a Stop press — called methods
+				// on freed memory, which killed the whole app at the moment the
+				// phone reconnected.
+				clientConnection = nullptr;
+				// The stream is over; what is left of it would corrupt the next one.
+				dataBuffer.clear();
 				ControllerTestState::instance().setConnected(false);
 				// The device is gone, so its holds go with it rather than staying
 				// pressed on this PC until someone notices.
@@ -510,6 +525,11 @@ void Server::handleConnection()
 
 void Server::serveClient()
 {
+	// A stray readyRead from a socket that has already been dropped would
+	// otherwise be read through a member that no longer points anywhere.
+	if (clientConnection == nullptr)
+		return;
+
 #ifdef QT_DEBUG
 	qDebug() << "Received: " << clientConnection->bytesAvailable() << "bytes";
 #endif
@@ -529,27 +549,33 @@ void Server::serveClient()
 		ParseResult result = parse_gamepad_state(dataBuffer.constData(), dataBuffer.size());
 
 		if (!result.success)
-		{
-			switch (result.failure_reason)
-			{
-				using enum ParseResult::FailureReason;
-			[[likely]] case IncompleteData:
-				// Wait for more data
-				break;
-			case SchemaMismatch:
-				qWarning() << "Schema mismatch detected in client data";
-				dataBuffer.remove(0, result.bytes_consumed); // Remove the processed data
-				break;
-			case DataTooLarge:
-				qWarning() << "Client sent data that is too large to process";
-				dataBuffer.remove(0, result.bytes_consumed); // Remove the processed data
-				break;
-			[[unlikely]] default:
-				qWarning() << "Unknown error occurred while parsing client data";
-				dataBuffer.clear(); // Clear buffer to avoid cascading errors
-				break;
-			}
-			break; // Exit the processing loop
+		{				switch (result.failure_reason)
+				{
+					using enum ParseResult::FailureReason;
+				[[likely]] case IncompleteData:
+					// Wait for more data
+					break;
+				case SchemaMismatch:
+					qWarning() << "Schema mismatch detected in client data";
+					// A failed parse consumes nothing (`bytes_consumed` is 0 here),
+					// so removing that many bytes used to leave the offending bytes
+					// at the head of the buffer forever: every later packet failed
+					// against them and the connection delivered no input at all.
+					// The stream restarts from the next complete packet instead.
+					dataBuffer.clear();
+					break;
+				case DataTooLarge:
+					qWarning() << "Client sent data that is too large to process";
+					// Same reasoning as SchemaMismatch: the boundary of the bad
+					// record cannot be found, so the buffer is dropped whole.
+					dataBuffer.clear();
+					break;
+				[[unlikely]] default:
+					qWarning() << "Unknown error occurred while parsing client data";
+					dataBuffer.clear(); // Clear buffer to avoid cascading errors
+					break;
+				}
+				break; // Exit the processing loop
 		}
 
 		// Process the gamepad reading
