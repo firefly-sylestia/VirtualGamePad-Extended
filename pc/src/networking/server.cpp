@@ -402,8 +402,9 @@ void Server::initServer()
 void Server::handleConnection()
 {
 	// A phone that reconnects can leave the previous socket half-open. Adopt the
-	// new connection and drop the old one instead of leaking it, otherwise the
-	// stale socket keeps the server paused and the app talks into a dead pipe.
+	// new connection and drop the old one, so the device always ends up on the
+	// socket it is actually writing to instead of on a stale one that only looks
+	// connected.
 	if (clientConnection != nullptr)
 	{
 		qInfo() << "Replacing the previous client connection";
@@ -420,6 +421,9 @@ void Server::handleConnection()
 	// the default keep-alive timers would.
 	clientConnection->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
 	isGamepadConnected = true;
+	// This connection starts with a clean slate, so the first packet it delivers
+	// is announced in the log.
+	m_packetSeen = false;
 	// Tell every page that watches the connection state, so the control test and
 	// the home page stop saying "Not connected" the moment a device arrives.
 	ControllerTestState::instance().setConnected(true);
@@ -431,9 +435,12 @@ void Server::handleConnection()
 				 QString::number(clientConnection->peerPort()));
 	qInfo().noquote() << connectionMessage;
 	ui->clientLabel->setText(connectionMessage);
-	// Stop accepting extra devices while one is connected, but keep the backlog
-	// above so a retry is queued rather than refused.
-	tcpServer->pauseAccepting();
+	// Keep accepting. Pausing here used to strand a reconnecting phone: its
+	// connect() completed into the listen backlog, so the app moved on and
+	// started sending, while the PC still held the previous socket and never
+	// read the new one. Nothing ever registered until the app was restarted.
+	// Staying open lets the branch at the top of this function adopt the next
+	// connection as it arrives.
 	connect(clientConnection, &QAbstractSocket::disconnected, clientConnection, &QObject::deleteLater);
 	connect(clientConnection,
 			&QAbstractSocket::disconnected,
@@ -446,7 +453,6 @@ void Server::handleConnection()
 						 << "ms, Request Count:" << requestCount;
 				isGamepadConnected = false;
 				ControllerTestState::instance().setConnected(false);
-				tcpServer->resumeAccepting();
 			});
 	connect(clientConnection, &QAbstractSocket::readyRead, this, &Server::serveClient);
 
@@ -499,6 +505,13 @@ void Server::serveClient()
 
 		// Process the gamepad reading
 		requestCount++;
+		if (!m_packetSeen)
+		{
+			// Said out loud once per connection: when a phone is connected but the
+			// PC shows nothing, this line is what tells the two apart.
+			m_packetSeen = true;
+			qInfo().noquote() << "Input is arriving from the connected device";
+		}
 		// Calculate performance metrics
 		if (lastRequestTime.isValid())
 		{

@@ -93,4 +93,7 @@ class Server : public QWidget
 
 	/** Set after the first packet the backend could not deliver, to warn once. */
 	bool m_injectionWarningShown = false;
+
+	/** Set once the current connection has delivered a packet, for the log. */
+	bool m_packetSeen = false;
 };

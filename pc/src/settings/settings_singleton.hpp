@@ -93,7 +93,17 @@ class SettingsSingleton : public QObject
 	static constexpr int DEFAULT_MOUSE_SENSITIVITY = 10;
 	static constexpr int MOUSE_SENSITIVITY_MULTIPLIER = 10;
 	static constexpr quint16 DEFAULT_PORT_NUMBER = 0;
-	static constexpr ExecutorType DEFAULT_EXECUTOR_TYPE = ExecutorType::KeyboardMouseExecutor;
+
+	/**
+	 * The virtual gamepad, because that is the only backend that presents a
+	 * controller the PC's other programs can see. Defaulting to keyboard and
+	 * mouse meant a phone that clearly connected registered nothing anywhere
+	 * until the user found Preferences and switched backends by hand.
+	 *
+	 * Keyboard and mouse remain available, but as a deliberate choice: it needs
+	 * a key map, and it is invisible to anything that reads a controller.
+	 */
+	static constexpr ExecutorType DEFAULT_EXECUTOR_TYPE = ExecutorType::GamepadExecutor;
 
 	/**
 	 * XInput is what modern games read, so the 360 pad is the default. The
