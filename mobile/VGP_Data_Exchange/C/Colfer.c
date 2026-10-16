@@ -51,6 +51,30 @@ size_t vgp_data_exchange_gamepad_reading_marshal_len(const vgp_data_exchange_gam
 
 	if (o->right_thumbstick_y != 0.0f) l += 5;
 
+	{
+		size_t n = o->keys_down.len;
+		if (n) {
+			if (n > colfer_list_max) {
+				errno = EFBIG;
+				return 0;
+			}
+			colfer_text* a = o->keys_down.list;
+			for (size_t i = 0; i < n; ++i) {
+				size_t len = a[i].len;
+				if (len > colfer_size_max) {
+					errno = EFBIG;
+					return 0;
+				}
+				for (l += len + 1; len > 127; len >>= 7, ++l);
+			}
+			for (l += 2; n > 127; n >>= 7, ++l);
+			if (l > colfer_size_max) {
+				errno = EFBIG;
+				return 0;
+			}
+		}
+	}
+
 	if (l > colfer_size_max) {
 		errno = EFBIG;
 		return 0;
@@ -200,6 +224,29 @@ size_t vgp_data_exchange_gamepad_reading_marshal(const vgp_data_exchange_gamepad
 		*p++ = x >> 8;
 		*p++ = x;
 #endif
+	}
+
+	{
+		size_t count = o->keys_down.len;
+		if (count) {
+			*p++ = 8;
+
+			uint_fast32_t x = count;
+			for (; x >= 128; x >>= 7) *p++ = x | 128;
+			*p++ = x;
+
+			colfer_text* text = o->keys_down.list;
+			do {
+				size_t n = text->len;
+				for (x = n; x >= 128; x >>= 7) *p++ = x | 128;
+				*p++ = x;
+
+				memcpy(p, text->utf8, n);
+				p += n;
+
+				++text;
+			} while (--count != 0);
+		}
 	}
 
 	*p++ = 127;
@@ -411,6 +458,81 @@ size_t vgp_data_exchange_gamepad_reading_unmarshal(vgp_data_exchange_gamepad_rea
 		x |= (uint_fast32_t) *p++;
 		memcpy(&o->right_thumbstick_y, &x, 4);
 #endif
+		header = *p++;
+	}
+
+	if (header == 8) {
+		if (p >= end) {
+			errno = enderr;
+			return 0;
+		}
+		size_t n = *p++;
+		if (n > 127) {
+			n &= 127;
+			for (int shift = 7; ; shift += 7) {
+				if (p >= end) {
+					errno = enderr;
+					return 0;
+				}
+				size_t c = *p++;
+				if (c <= 127) {
+					n |= c << shift;
+					break;
+				}
+				n |= (c & 127) << shift;
+			}
+		}
+		if (n > colfer_list_max) {
+			errno = EFBIG;
+			return 0;
+		}
+		o->keys_down.len = n;
+
+		colfer_text* text = malloc(n * sizeof(colfer_text));
+		o->keys_down.list = text;
+		for (; n; --n, ++text) {
+			if (p >= end) {
+				errno = enderr;
+				return 0;
+			}
+			size_t len = *p++;
+			if (len > 127) {
+				len &= 127;
+				for (int shift = 7; ; shift += 7) {
+					if (p >= end) {
+						errno = enderr;
+						return 0;
+					}
+					size_t c = *p++;
+					if (c <= 127) {
+						len |= c << shift;
+						break;
+					}
+					len |= (c & 127) << shift;
+				}
+			}
+			if (len > colfer_size_max) {
+				errno = EFBIG;
+				return 0;
+			}
+			if (p+len >= end) {
+				errno = enderr;
+				return 0;
+			}
+			text->len = len;
+
+			char* a = malloc(len);
+			text->utf8 = a;
+			if (len) {
+				memcpy(a, p, len);
+				p += len;
+			}
+		}
+
+		if (p >= end) {
+			errno = enderr;
+			return 0;
+		}
 		header = *p++;
 	}
 

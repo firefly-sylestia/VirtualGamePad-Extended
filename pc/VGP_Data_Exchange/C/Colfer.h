@@ -61,6 +61,19 @@ struct vgp_data_exchange_gamepad_reading {
 	float right_thumbstick_x;
 
 	float right_thumbstick_y;
+	// Keys the phone holds down itself, named as KeyNames does on the PC ("W",
+	// "Space", "Digit1", "MouseLeft"). A control may be bound either to a
+	// gamepad button, which travels in the masks above, or to a key of its own,
+	// which travels here: a virtual gamepad has no way to carry a keyboard, so
+	// this is what lets a keybind chosen on the phone reach the game.
+
+	// An empty list is left out of the encoding, so a phone with nothing bound to
+	// a key sends exactly the packet earlier versions sent, and a PC built before
+	// this field existed only reports a schema mismatch once a key is held.
+	struct {
+		colfer_text* list;
+		size_t len;
+	} keys_down;
 };
 
 // vgp_data_exchange_gamepad_reading_marshal_len returns the Colfer serial octet size.

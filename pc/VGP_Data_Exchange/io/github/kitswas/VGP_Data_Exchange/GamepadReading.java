@@ -13,6 +13,7 @@ import java.io.ObjectOutputStream;
 import java.io.ObjectStreamException;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.InputMismatchException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
@@ -29,6 +30,9 @@ public class GamepadReading implements Serializable {
 
 	/** The upper limit for serial byte sizes. */
 	public static int colferSizeMax = 16 * 1024 * 1024;
+
+	/** The upper limit for the number of elements in a list. */
+	public static int colferListMax = 64 * 1024;
 
 
 	public int ButtonsUp;
@@ -47,14 +51,29 @@ public class GamepadReading implements Serializable {
 
 	public float RightThumbstickY;
 
+	/**
+	 * Keys the phone holds down itself, named as KeyNames does on the PC ("W",
+	 * "Space", "Digit1", "MouseLeft"). A control may be bound either to a
+	 * gamepad button, which travels in the masks above, or to a key of its own,
+	 * which travels here: a virtual gamepad has no way to carry a keyboard, so
+	 * this is what lets a keybind chosen on the phone reach the game.
+
+	 * An empty list is left out of the encoding, so a phone with nothing bound to
+	 * a key sends exactly the packet earlier versions sent, and a PC built before
+	 * this field existed only reports a schema mismatch once a key is held.
+	 */
+	public String[] KeysDown;
+
 	/** Default constructor */
 	public GamepadReading() {
 		init();
 	}
 
+	private static final String[] _zeroKeysDown = new String[0];
 
 	/** Colfer zero values. */
 	private void init() {
+		KeysDown = _zeroKeysDown;
 	}
 
 	/**
@@ -102,7 +121,7 @@ public class GamepadReading implements Serializable {
 		 * Deserializes the following object.
 		 * @return the result or {@code null} when EOF.
 		 * @throws IOException from the input stream.
-		 * @throws SecurityException on an upper limit breach defined by {@link #colferSizeMax}.
+		 * @throws SecurityException on an upper limit breach defined by either {@link #colferSizeMax} or {@link #colferListMax}.
 		 * @throws InputMismatchException when the data does not match this object's schema.
 		 */
 		public GamepadReading next() throws IOException {
@@ -150,19 +169,21 @@ public class GamepadReading implements Serializable {
 	 * @return the number of bytes.
 	 */
 	public int marshalFit() {
-		long n = 1L + 5 + 5 + 5 + 5 + 5 + 5 + 5 + 5;
+		long n = 1L + 5 + 5 + 5 + 5 + 5 + 5 + 5 + 5 + 6 + (long)this.KeysDown.length * 6;
+		for (String s : this.KeysDown) if (s != null) n += (long)s.length() * 3;
 		if (n < 0 || n > (long)GamepadReading.colferSizeMax) return GamepadReading.colferSizeMax;
 		return (int) n;
 	}
 
 	/**
 	 * Serializes the object.
+	 * All {@code null} elements in {@link #KeysDown} will be replaced with {@code ""}.
 	 * @param out the data destination.
 	 * @param buf the initial buffer or {@code null}.
 	 * @return the final buffer. When the serial fits into {@code buf} then the return is {@code buf}.
 	 *  Otherwise the return is a new buffer, large enough to hold the whole serial.
 	 * @throws IOException from {@code out}.
-	 * @throws IllegalStateException on an upper limit breach defined by {@link #colferSizeMax}.
+	 * @throws IllegalStateException on an upper limit breach defined by either {@link #colferSizeMax} or {@link #colferListMax}.
 	 */
 	public byte[] marshal(OutputStream out, byte[] buf) throws IOException {
 		int n = 0;
@@ -179,11 +200,12 @@ public class GamepadReading implements Serializable {
 
 	/**
 	 * Serializes the object.
+	 * All {@code null} elements in {@link #KeysDown} will be replaced with {@code ""}.
 	 * @param buf the data destination.
 	 * @param offset the initial index for {@code buf}, inclusive.
 	 * @return the final index for {@code buf}, exclusive.
 	 * @throws BufferOverflowException when {@code buf} is too small.
-	 * @throws IllegalStateException on an upper limit breach defined by {@link #colferSizeMax}.
+	 * @throws IllegalStateException on an upper limit breach defined by either {@link #colferSizeMax} or {@link #colferListMax}.
 	 */
 	public int marshal(byte[] buf, int offset) {
 		int i = offset;
@@ -277,6 +299,70 @@ public class GamepadReading implements Serializable {
 				buf[i++] = (byte) (x);
 			}
 
+			if (this.KeysDown.length != 0) {
+				buf[i++] = (byte) 8;
+				String[] a = this.KeysDown;
+
+				int x = a.length;
+				if (x > GamepadReading.colferListMax)
+					throw new IllegalStateException(format("colfer: io.github.kitswas/VGP_Data_Exchange.GamepadReading.KeysDown length %d exceeds %d elements", x, GamepadReading.colferListMax));
+				while (x > 0x7f) {
+					buf[i++] = (byte) (x | 0x80);
+					x >>>= 7;
+				}
+				buf[i++] = (byte) x;
+
+				for (int ai = 0; ai < a.length; ai++) {
+					String s = a[ai];
+					if (s == null) {
+						s = "";
+						a[ai] = s;
+					}
+
+					int start = ++i;
+
+					for (int sIndex = 0, sLength = s.length(); sIndex < sLength; sIndex++) {
+						char c = s.charAt(sIndex);
+						if (c < '\u0080') {
+							buf[i++] = (byte) c;
+						} else if (c < '\u0800') {
+							buf[i++] = (byte) (192 | c >>> 6);
+							buf[i++] = (byte) (128 | c & 63);
+						} else if (c < '\ud800' || c > '\udfff') {
+							buf[i++] = (byte) (224 | c >>> 12);
+							buf[i++] = (byte) (128 | c >>> 6 & 63);
+							buf[i++] = (byte) (128 | c & 63);
+						} else {
+							int cp = 0;
+							if (++sIndex < sLength) cp = Character.toCodePoint(c, s.charAt(sIndex));
+							if ((cp >= 1 << 16) && (cp < 1 << 21)) {
+								buf[i++] = (byte) (240 | cp >>> 18);
+								buf[i++] = (byte) (128 | cp >>> 12 & 63);
+								buf[i++] = (byte) (128 | cp >>> 6 & 63);
+								buf[i++] = (byte) (128 | cp & 63);
+							} else
+								buf[i++] = (byte) '?';
+						}
+					}
+					int size = i - start;
+					if (size > GamepadReading.colferSizeMax)
+						throw new IllegalStateException(format("colfer: io.github.kitswas/VGP_Data_Exchange.GamepadReading.KeysDown[%d] size %d exceeds %d UTF-8 bytes", ai, size, GamepadReading.colferSizeMax));
+
+					int ii = start - 1;
+					if (size > 0x7f) {
+						i++;
+						for (int y = size; y >= 1 << 14; y >>>= 7) i++;
+						System.arraycopy(buf, start, buf, i - size, size);
+
+						do {
+							buf[ii++] = (byte) (size | 0x80);
+							size >>>= 7;
+						} while (size > 0x7f);
+					}
+					buf[ii] = (byte) size;
+				}
+			}
+
 			buf[i++] = (byte) 0x7f;
 			return i;
 		} catch (ArrayIndexOutOfBoundsException e) {
@@ -293,7 +379,7 @@ public class GamepadReading implements Serializable {
 	 * @param offset the initial index for {@code buf}, inclusive.
 	 * @return the final index for {@code buf}, exclusive.
 	 * @throws BufferUnderflowException when {@code buf} is incomplete. (EOF)
-	 * @throws SecurityException on an upper limit breach defined by {@link #colferSizeMax}.
+	 * @throws SecurityException on an upper limit breach defined by either {@link #colferSizeMax} or {@link #colferListMax}.
 	 * @throws InputMismatchException when the data does not match this object's schema.
 	 */
 	public int unmarshal(byte[] buf, int offset) {
@@ -307,7 +393,7 @@ public class GamepadReading implements Serializable {
 	 * @param end the index limit for {@code buf}, exclusive.
 	 * @return the final index for {@code buf}, exclusive.
 	 * @throws BufferUnderflowException when {@code buf} is incomplete. (EOF)
-	 * @throws SecurityException on an upper limit breach defined by {@link #colferSizeMax}.
+	 * @throws SecurityException on an upper limit breach defined by either {@link #colferSizeMax} or {@link #colferListMax}.
 	 * @throws InputMismatchException when the data does not match this object's schema.
 	 */
 	public int unmarshal(byte[] buf, int offset, int end) {
@@ -381,6 +467,35 @@ public class GamepadReading implements Serializable {
 				header = buf[i++];
 			}
 
+			if (header == (byte) 8) {
+				int length = 0;
+				for (int shift = 0; true; shift += 7) {
+					byte b = buf[i++];
+					length |= (b & 0x7f) << shift;
+					if (shift == 28 || b >= 0) break;
+				}
+				if (length < 0 || length > GamepadReading.colferListMax)
+					throw new SecurityException(format("colfer: io.github.kitswas/VGP_Data_Exchange.GamepadReading.KeysDown length %d exceeds %d elements", length, GamepadReading.colferListMax));
+
+				String[] a = new String[length];
+				for (int ai = 0; ai < length; ai++) {
+					int size = 0;
+					for (int shift = 0; true; shift += 7) {
+						byte b = buf[i++];
+						size |= (b & 0x7f) << shift;
+						if (shift == 28 || b >= 0) break;
+					}
+					if (size < 0 || size > GamepadReading.colferSizeMax)
+						throw new SecurityException(format("colfer: io.github.kitswas/VGP_Data_Exchange.GamepadReading.KeysDown[%d] size %d exceeds %d UTF-8 bytes", ai, size, GamepadReading.colferSizeMax));
+
+					int start = i;
+					i += size;
+					a[ai] = new String(buf, start, size, StandardCharsets.UTF_8);
+				}
+				this.KeysDown = a;
+				header = buf[i++];
+			}
+
 			if (header != (byte) 0x7f)
 				throw new InputMismatchException(format("colfer: unknown header at byte %d", i - 1));
 		} finally {
@@ -394,7 +509,7 @@ public class GamepadReading implements Serializable {
 	}
 
 	// {@link Serializable} version number.
-	private static final long serialVersionUID = 8L;
+	private static final long serialVersionUID = 9L;
 
 	// {@link Serializable} Colfer extension.
 	private void writeObject(ObjectOutputStream out) throws IOException {
@@ -627,6 +742,32 @@ public class GamepadReading implements Serializable {
 		return this;
 	}
 
+	/**
+	 * Gets io.github.kitswas/VGP_Data_Exchange.GamepadReading.KeysDown.
+	 * @return the value.
+	 */
+	public String[] getKeysDown() {
+		return this.KeysDown;
+	}
+
+	/**
+	 * Sets io.github.kitswas/VGP_Data_Exchange.GamepadReading.KeysDown.
+	 * @param value the replacement.
+	 */
+	public void setKeysDown(String[] value) {
+		this.KeysDown = value;
+	}
+
+	/**
+	 * Sets io.github.kitswas/VGP_Data_Exchange.GamepadReading.KeysDown.
+	 * @param value the replacement.
+	 * @return {@code this}.
+	 */
+	public GamepadReading withKeysDown(String[] value) {
+		this.KeysDown = value;
+		return this;
+	}
+
 	@Override
 	public final int hashCode() {
 		int h = 1;
@@ -638,6 +779,7 @@ public class GamepadReading implements Serializable {
 		h = 31 * h + Float.floatToIntBits(this.LeftThumbstickY);
 		h = 31 * h + Float.floatToIntBits(this.RightThumbstickX);
 		h = 31 * h + Float.floatToIntBits(this.RightThumbstickY);
+		for (String o : this.KeysDown) h = 31 * h + (o == null ? 0 : o.hashCode());
 		return h;
 	}
 
@@ -657,7 +799,8 @@ public class GamepadReading implements Serializable {
 			&& (this.LeftThumbstickX == o.LeftThumbstickX || (this.LeftThumbstickX != this.LeftThumbstickX && o.LeftThumbstickX != o.LeftThumbstickX))
 			&& (this.LeftThumbstickY == o.LeftThumbstickY || (this.LeftThumbstickY != this.LeftThumbstickY && o.LeftThumbstickY != o.LeftThumbstickY))
 			&& (this.RightThumbstickX == o.RightThumbstickX || (this.RightThumbstickX != this.RightThumbstickX && o.RightThumbstickX != o.RightThumbstickX))
-			&& (this.RightThumbstickY == o.RightThumbstickY || (this.RightThumbstickY != this.RightThumbstickY && o.RightThumbstickY != o.RightThumbstickY));
+			&& (this.RightThumbstickY == o.RightThumbstickY || (this.RightThumbstickY != this.RightThumbstickY && o.RightThumbstickY != o.RightThumbstickY))
+			&& java.util.Arrays.equals(this.KeysDown, o.KeysDown);
 	}
 
 }
