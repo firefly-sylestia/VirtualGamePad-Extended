@@ -319,17 +319,19 @@ QString xinputSlots()
 	if (xinput.getState == nullptr)
 		return QString();
 
-	QString slots;
+	// Not named "slots": Qt defines that as a keyword macro, which would erase
+	// the variable declaration.
+	QString reported;
 	for (uint32_t slot = 0; slot < 4; ++slot)
 	{
 		XInputState state;
 		if (xinput.getState(slot, &state) != 0) // not ERROR_SUCCESS
 			continue;
-		if (!slots.isEmpty())
-			slots += QStringLiteral(", ");
-		slots += QString::number(slot);
+		if (!reported.isEmpty())
+			reported += QStringLiteral(", ");
+		reported += QString::number(slot);
 	}
-	return slots;
+	return reported;
 }
 
 /**
@@ -369,9 +371,9 @@ int controllerListCount()
 
 	// joyGetNumDevs reports how many slots the driver supports, not how many are
 	// in use, so every one has to be asked for its capabilities.
-	const uint32_t slots = joy.getNumDevs != nullptr ? joy.getNumDevs() : 16;
+	const uint32_t slotCount = joy.getNumDevs != nullptr ? joy.getNumDevs() : 16;
 	int count = 0;
-	for (uint32_t index = 0; index < slots; ++index)
+	for (uint32_t index = 0; index < slotCount; ++index)
 	{
 		std::uint8_t caps[2048]{};
 		if (joy.getDevCaps(index, caps, sizeof(caps)) == 0) // JOYERR_NOERROR
