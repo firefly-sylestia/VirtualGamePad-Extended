@@ -5,11 +5,12 @@
 /**
  * Installs the ViGEmBus driver from the copy that ships next to the executable.
  *
- * Without the driver there is no virtual gamepad at all: `vigemClient.cpp` finds
- * no `ViGEmClient.dll`, the app falls back to the Windows input-injection API,
- * and games ignore that, so a phone that is clearly sending input looks like "no
- * controller connected". Making the user go and find the driver themselves is
- * the difference between the feature working and not.
+ * Without the driver there is no virtual gamepad at all: `vigemClient.cpp`
+ * loads its library but the bus refuses to connect, the app falls back to the
+ * Windows input-injection API, and games ignore that, so a phone that is
+ * clearly sending input looks like "no controller connected". Making the user
+ * go and find the driver themselves is the difference between the feature
+ * working and not.
  *
  * The installer is therefore carried in the distribution next to the app (see
  * the `VGP_BUNDLE_VIGEMBUS` block in `CMakeLists.txt`), and this is the only
@@ -28,11 +29,12 @@ namespace ViGEmBusInstaller
 QString bundledInstallerPath();
 
 /**
- * Whether the client library the app needs can be loaded right now.
+ * Whether the driver the virtual pad is created through is present.
  *
- * This answers the question the app actually cares about — can a virtual pad be
- * created — rather than whether the driver package is registered, so a
- * half-removed or mismatched install reads as "not installed".
+ * This probes the driver itself — the `ViGEmBus` kernel service — not the
+ * client library, because `ViGEmClient.dll` ships beside the app on every
+ * machine: a library probe would answer "installed" on a machine that has never
+ * seen the driver and would hide the button that installs it.
  */
 bool isInstalled();
 
@@ -41,9 +43,8 @@ bool isInstalled();
  *
  * Elevation is requested through the shell, so the user sees the standard
  * consent prompt; declining it is reported as a failure, not an error to crash
- * on. On success the driver is installed but its client library may not be
- * loadable until the app is restarted, so the caller should re-check rather than
- * assume.
+ * on. On success the driver may not be usable until Windows restarts, so the
+ * caller should re-check rather than assume.
  *
  * @param error filled with a user-facing reason when the result is false
  * @return true when the installer ran and reported success

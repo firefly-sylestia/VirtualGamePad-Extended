@@ -114,6 +114,27 @@ The driver is a separate third-party component with its own licence. It is only
 downloaded, never modified, and it is installed by the user through the app
 rather than silently.
 
+### ViGEmClient.dll (Windows)
+
+Creating the pad also needs the user-mode library `ViGEmClient.dll`. It is not
+part of the driver installer, and a clean Windows machine does not have one, so
+the build fetches the pinned upstream source (`VGP_VIGEMCLIENT_VERSION`,
+checksum-verified like the driver above) and compiles the DLL from it. It lands
+beside `VGamepadPC.exe` and is packed into the installer — without it the app
+loads no library, creates no pad, and no program lists a controller.
+
+- Offline build with an archive you already have:
+
+  ```bash
+  cmake --preset windows -DVGP_VIGEMCLIENT_ARCHIVE=/path/to/ViGEmClient-1.21.222.0.tar.gz
+  ```
+
+- To skip it (the app will warn at run time and fall back to input injection):
+
+  ```bash
+  cmake --preset windows -DVGP_BUNDLE_VIGEMCLIENT=OFF
+  ```
+
 ## Development Builds
 
 For debug builds, replace config `Release` with `Debug` in the build commands.

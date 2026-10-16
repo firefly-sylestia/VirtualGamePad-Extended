@@ -1,9 +1,12 @@
 #include "vigemClient.hpp"
 
+#include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 #include <vector>
 #include <windows.h>
 
@@ -440,12 +443,24 @@ ViGEmGamepad::ViGEmGamepad(TargetType type) : m_impl(std::make_unique<Impl>())
 	Impl &impl = *m_impl;
 	impl.type = type;
 
-	// Standard search order, so the DLL is found wherever ViGEmBus' installer or
-	// another tool (DS4Windows, x360ce, Steam Input) put it.
-	impl.module = LoadLibraryW(L"ViGEmClient.dll");
+	// The library is built from the pinned upstream source and installed beside
+	// the executable, so that path is asked for first. The bare name afterwards
+	// only covers a system-wide copy some other tool (DS4Windows, x360ce, Steam
+	// Input) may have put on the search path. Depending on the bare name alone is
+	// what left a clean machine with no library to load: no pad was ever created,
+	// and every program's input-device list stayed empty.
+	const std::wstring bundled = QDir::toNativeSeparators(
+		QDir(QCoreApplication::applicationDirPath())
+			.filePath(QStringLiteral("ViGEmClient.dll")))
+			.toStdWString();
+	impl.module = LoadLibraryW(bundled.c_str());
+	if (impl.module == nullptr)
+		impl.module = LoadLibraryW(L"ViGEmClient.dll");
 	if (impl.module == nullptr)
 	{
-		impl.error = QStringLiteral("the ViGEmBus driver is not installed");
+		impl.error = QStringLiteral("ViGEmClient.dll, the library that creates the virtual "
+									"controller, is missing beside this application. "
+									"Reinstall VirtualGamePad Extended.");
 		return;
 	}
 
@@ -513,8 +528,9 @@ ViGEmGamepad::ViGEmGamepad(TargetType type) : m_impl(std::make_unique<Impl>())
 
 	if (impl.api.connect(impl.client) != kErrorNone)
 	{
-		impl.error = QStringLiteral("the ViGEmBus driver is installed but not reachable. "
-									"Reinstall ViGEmBus, then start the app again.");
+		// The library loaded but the bus did not answer, so this is the driver
+		// that is missing or broken — not the library beside the app.
+		impl.error = QStringLiteral("the ViGEmBus driver is not installed or not working");
 		impl.teardown();
 		return;
 	}

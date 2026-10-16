@@ -10,10 +10,10 @@
  *
  * ViGEmBus is a kernel driver that presents a virtual USB device instead, so a
  * game detects this pad exactly like a plugged-in Xbox 360 controller, with no
- * per-game configuration and without running the PC app as administrator. It is a
- * separate download, so the client library is loaded at run time: when it is not
- * installed, [`isReady`] is false and the caller keeps its fallback instead of
- * failing to build or start.
+ * per-game configuration and without running the PC app as administrator. The
+ * client library is built with the application and installed beside it, while
+ * the driver is a separate install: when the driver is missing, [`isReady`] is
+ * false and the caller keeps its fallback instead of failing to build or start.
  *
  * Two kinds of device can be plugged in, and they are not interchangeable:
  *
@@ -25,8 +25,10 @@
  *   DirectInput-only readers find it too, which is the difference between "the
  *   game has no controller" and "the game found a PlayStation pad".
  *
- * Only one is plugged in at a time: two pads would both deliver the same input
- * to a game that reads both APIs, and menus would scroll twice.
+ * Both are plugged in at once by default, because a program builds its device
+ * list from one API or the other — present only one and the pad is missing from
+ * half of the lists. A single kind can still be chosen in Preferences for a
+ * program that reads both APIs and would act on two pads at once.
  *
  * Reference: https://github.com/nefarius/ViGEmClient (MIT).
  */

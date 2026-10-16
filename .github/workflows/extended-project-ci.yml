@@ -298,6 +298,12 @@ jobs:
           if (-not $exe) { throw "the deployed application was not found under pc/dist" }
           $source = $exe.Directory.FullName
           Write-Host "Packing $source"
+          # Without this library the shipped app creates no controller at all —
+          # it would fall back to input injection that no game or emulator lists
+          # — so its absence fails the build instead of reaching a user.
+          if (-not (Test-Path (Join-Path $source "ViGEmClient.dll"))) {
+            throw "ViGEmClient.dll was not deployed beside VGamepadPC.exe"
+          }
           $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "Inno Setup 6 is not on this runner" }
           # OutputDir is relative to the .iss file, so the installer lands beside

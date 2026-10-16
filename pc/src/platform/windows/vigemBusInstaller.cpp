@@ -46,14 +46,36 @@ QString ViGEmBusInstaller::bundledInstallerPath()
 
 bool ViGEmBusInstaller::isInstalled()
 {
-	// This is the same probe `vigemClient.cpp` does, so the answer matches what
-	// the gamepad backend will find a moment later.
-	HMODULE module = LoadLibraryW(L"ViGEmClient.dll");
-	if (module == nullptr)
-		return false;
+	// The driver itself, never the client library: `ViGEmClient.dll` now ships
+	// beside the application, so a library probe would answer "installed" on a
+	// machine that has never seen the driver and would hide the button that
+	// installs it. The bus registers the kernel service "ViGEmBus", and asking
+	// the service manager about a service needs no elevation. When the service
+	// manager cannot be asked at all, the driver file is the next best evidence;
+	// a service known to be absent is a real answer, even if a leftover file is
+	// still lying around.
+	SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+	if (manager != nullptr)
+	{
+		SC_HANDLE service = OpenServiceW(manager, L"ViGEmBus", SERVICE_QUERY_STATUS);
+		if (service != nullptr)
+		{
+			CloseServiceHandle(service);
+			CloseServiceHandle(manager);
+			return true;
+		}
+		const bool knownMissing = GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST;
+		CloseServiceHandle(manager);
+		if (knownMissing)
+			return false;
+	}
 
-	FreeLibrary(module);
-	return true;
+	wchar_t systemRoot[MAX_PATH]{};
+	if (GetEnvironmentVariableW(L"SystemRoot", systemRoot, MAX_PATH) == 0)
+		return false;
+	const std::wstring driverFile =
+		std::wstring(systemRoot) + L"\\System32\\drivers\\ViGEmBus.sys";
+	return GetFileAttributesW(driverFile.c_str()) != INVALID_FILE_ATTRIBUTES;
 }
 
 bool ViGEmBusInstaller::run(QString *error)
