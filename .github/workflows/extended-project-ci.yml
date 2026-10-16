@@ -299,16 +299,18 @@ jobs:
           Write-Host "Packing $source"
           $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "Inno Setup 6 is not on this runner" }
+          # OutputDir is relative to the .iss file, so the installer lands beside
+          # the script rather than in the working directory.
           & $iscc "/DSourceDir=$source" "/DAppVersion=$version" "/DOutputDir=installer-out" "installer\VGamepadPC.iss"
-          if (-not (Test-Path "installer-out\*.exe")) { throw "the installer was not produced" }
-          Get-ChildItem installer-out
+          if (-not (Test-Path "installer\installer-out\*.exe")) { throw "the installer was not produced" }
+          Get-ChildItem "installer\installer-out"
 
       - name: Upload Windows installer
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: vgp-pc-windows-installer
-          path: pc/installer-out/*.exe
+          path: pc/installer/installer-out/*.exe
           if-no-files-found: warn
           retention-days: 24
 

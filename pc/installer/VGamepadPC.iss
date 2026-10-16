@@ -11,7 +11,8 @@
 ; own prompt, because that step is the one that needs consent.
 ;
 ; SourceDir, AppVersion and OutputDir are given by the build job on the command
-; line; the values here are for running ISCC by hand.
+; line; the values here are for running ISCC by hand. OutputDir is resolved
+; against this script's own folder, not the working directory.
 
 #ifndef SourceDir
   #define SourceDir "..\dist"
@@ -41,8 +42,8 @@ OutputBaseFilename=VirtualGamePad-Extended-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\VGamepadPC.exe
 ; The app is replaced by this installer, so it has to be closed first; Windows'
 ; restart manager closes it rather than failing on a locked file.
