@@ -597,12 +597,12 @@ QString ViGEmGamepad::systemReport() const
 		return QStringLiteral("the system's controller list shows %1 pad(s)").arg(listed);
 	}
 
-	const QString slots = systemprobe::xinputSlots();
-	if (slots.isEmpty())
+	const QString reportedSlots = systemprobe::xinputSlots();
+	if (reportedSlots.isEmpty())
 		return QStringLiteral("XInput does not report it, so XInput games will not find this pad");
 	return QStringLiteral("XInput reports a controller in slot(s) %1; the system's own controller "
 						  "list shows DirectInput pads only, so it will not appear there")
-		.arg(slots);
+		.arg(reportedSlots);
 }
 
 QString ViGEmGamepad::nameFor(TargetType type)
