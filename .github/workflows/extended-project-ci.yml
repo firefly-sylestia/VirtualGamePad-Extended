@@ -278,6 +278,7 @@ jobs:
             Sort-Object FullName -Descending | Select-Object -First 1
           & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD `
             /tr http://timestamp.digicert.com /td SHA256 build-windows\Release\VGamepadPC.exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed to sign VGamepadPC.exe" }
           Remove-Item $pfx -Force
       # The app is shipped as one installer to run, not as a folder to extract:
       # `cmake --install` deploys it with its Qt DLLs, and Inno Setup packs that
@@ -304,6 +305,34 @@ jobs:
           & $iscc "/DSourceDir=$source" "/DAppVersion=$version" "/DOutputDir=installer-out" "installer\VGamepadPC.iss"
           if (-not (Test-Path "installer\installer-out\*.exe")) { throw "the installer was not produced" }
           Get-ChildItem "installer\installer-out"
+
+      # The file a user actually downloads is the Setup executable, and an
+      # unsigned one makes Windows show "Unknown publisher" and SmartScreen
+      # block it. The inner VGamepadPC.exe is signed above, but Inno Setup
+      # produces a brand-new file, so it needs the signature too.
+      - name: Sign the Windows installer
+        if: steps.pfx.outputs.configured == 'true'
+        working-directory: pc
+        shell: pwsh
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+          WINDOWS_PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          foreach ($installer in (Get-ChildItem "installer\installer-out\*.exe")) {
+            & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD `
+              /tr http://timestamp.digicert.com /td SHA256 $installer.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed to sign $($installer.Name)" }
+            # Signing is only believed once the signature itself verifies.
+            & $signtool.FullName verify /pa $installer.FullName
+            if ($LASTEXITCODE -ne 0) { throw "the signature on $($installer.Name) does not verify" }
+            Write-Host "Signed and verified: $($installer.Name)"
+          }
+          Remove-Item $pfx -Force
 
       - name: Upload Windows installer
         if: always()
