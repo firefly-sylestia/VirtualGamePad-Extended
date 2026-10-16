@@ -58,6 +58,19 @@ class ExecutorInterface
 
 	/** The note that goes with [backendName], saying what it can and cannot do. */
 	virtual QString backendDetail() const = 0;
+
+	/**
+	 * @brief Let go of every key, button and axis this backend is holding.
+	 *
+	 * Called when the stream from the phone ends — the link dropped, no packet
+	 * arrived for a while, the app is closing, or another backend is taking over.
+	 * Without it, anything that was down when the stream stopped stays down: a
+	 * held mouse button turns every later click into a drag and a held Shift or
+	 * Ctrl changes every keystroke, which looks like the PC has stopped responding
+	 * and cannot be undone from the phone any more. Must be safe to call when
+	 * nothing is held.
+	 */
+	virtual void releaseAll() = 0;
 };
 
 class GamepadExecutor : public ExecutorInterface
@@ -79,6 +92,7 @@ class GamepadExecutor : public ExecutorInterface
 
 	QString backendName() const override { return m_backendName; }
 	QString backendDetail() const override { return m_backendDetail; }
+	void releaseAll() override;
 
   private:
 	GamepadInjector m_injector;
@@ -129,11 +143,21 @@ class KeyboardMouseExecutor : public ExecutorInterface
 
 	QString backendName() const override { return m_backendName; }
 	QString backendDetail() const override { return m_backendDetail; }
+	void releaseAll() override;
 
   private:
 	/** What this backend reported when it was built, for the page to show. */
 	QString m_backendName;
 	QString m_backendDetail;
+
+	/**
+	 * Output key or mouse button -> how many controls are holding it down.
+	 *
+	 * The phone reports which controls are held on every packet, so the press is
+	 * only news the first time it arrives; this is what turns that repeating state
+	 * into one press and one release, and what [releaseAll] empties.
+	 */
+	std::unordered_map<InputKeyCode, int> m_heldInputs;
 
 	/** One mouse-wheel tick at most this often while a stick is held over. */
 	static constexpr qint64 SCROLL_INTERVAL_MS = 70;
@@ -144,8 +168,13 @@ class KeyboardMouseExecutor : public ExecutorInterface
 	/** Timestamps (ms since epoch of steady clock) of the last wheel tick per stick. */
 	std::array<qint64, 2> m_lastScrollAt{0, 0};
 
+	/** Press or lift one output, counting how many controls hold it. */
 	void handleButtonDown(const ButtonInput &buttonInput);
 	void handleButtonUp(const ButtonInput &buttonInput);
+
+	/** The events for one input, with no bookkeeping around them. */
+	void injectButtonDown(const ButtonInput &buttonInput);
+	void injectButtonUp(const ButtonInput &buttonInput);
 	void handleThumbstickInput(const ThumbstickInput &thumbstick,
 							   float x_value,
 							   float y_value,
@@ -189,6 +218,7 @@ class CombinedExecutor : public ExecutorInterface
 	bool inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading) override;
 	/** True while the keyboard and mouse path exists, which is always here. */
 	bool isAvailable() const override;
+	void releaseAll() override;
 
 	QString backendName() const override;
 	QString backendDetail() const override;

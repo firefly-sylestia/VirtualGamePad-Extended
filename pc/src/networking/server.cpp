@@ -18,6 +18,7 @@
 #include <QNetworkInterface>
 #include <QShowEvent>
 #include <QThread>
+#include <QTimer>
 #include <algorithm>
 
 /**
@@ -154,6 +155,14 @@ Server::Server(QWidget *parent) : QWidget(parent), ui(new Ui::Server)
 			this,
 			&Server::refreshBackendStatus);
 
+	// A phone that stops sending — out of range, killed, asleep, or its app closed —
+	// must not leave anything held on this PC, so the stream going quiet releases
+	// whatever the backend is holding.
+	m_holdTimeoutTimer = new QTimer(this);
+	m_holdTimeoutTimer->setSingleShot(true);
+	m_holdTimeoutTimer->setInterval(HOLD_TIMEOUT_MS);
+	connect(m_holdTimeoutTimer, &QTimer::timeout, this, &Server::releaseHeldInput);
+
 	// A device chosen in Preferences has to take effect there and then: the pad is
 	// part of the backend, not of the phone connection, so waiting for the next
 	// visit to this page left the user with a controller that never showed up.
@@ -180,6 +189,10 @@ Server::Server(QWidget *parent) : QWidget(parent), ui(new Ui::Server)
  */
 void Server::buildExecutor()
 {
+	// The previous backend lets go of whatever it is holding before it is torn
+	// down: nothing may outlive the backend that pressed it.
+	releaseHeldInput();
+
 	// The previous backend is about to go away, and the virtual device it holds
 	// open with it, so the UI stops calling it active before its replacement is
 	// created.
@@ -326,6 +339,7 @@ Server::~Server()
 	tcpServer->close(); // And then close the server
 	// Drop the input backend here, while this page still exists, so the virtual
 	// pad unplugs and the UI stops reporting it as the active backend.
+	releaseHeldInput();
 	executor.reset();
 	InputBackendStatus::instance().clear();
 	ControllerTestState::instance().setConnected(false);
@@ -428,6 +442,10 @@ void Server::initServer()
 
 void Server::handleConnection()
 {
+	// Whatever the previous device was holding is let go first: its releases would
+	// have arrived on the socket being dropped here, so nothing may stay down.
+	releaseHeldInput();
+
 	// A phone that reconnects can leave the previous socket half-open. Adopt the
 	// new connection and drop the old one, so the device always ends up on the
 	// socket it is actually writing to instead of on a stale one that only looks
@@ -480,6 +498,10 @@ void Server::handleConnection()
 						 << "ms, Request Count:" << requestCount;
 				isGamepadConnected = false;
 				ControllerTestState::instance().setConnected(false);
+				// The device is gone, so its holds go with it rather than staying
+				// pressed on this PC until someone notices.
+				m_holdTimeoutTimer->stop();
+				releaseHeldInput();
 			});
 	connect(clientConnection, &QAbstractSocket::readyRead, this, &Server::serveClient);
 
@@ -539,6 +561,8 @@ void Server::serveClient()
 			m_packetSeen = true;
 			qInfo().noquote() << "Input is arriving from the connected device";
 		}
+		// The stream is alive, so nothing that is held gets let go.
+		m_holdTimeoutTimer->start();
 		// Calculate performance metrics
 		if (lastRequestTime.isValid())
 		{
@@ -570,6 +594,12 @@ void Server::serveClient()
 				 << "bytes, remaining buffer size:" << dataBuffer.size();
 #endif
 	}
+}
+
+void Server::releaseHeldInput()
+{
+	if (executor != nullptr)
+		executor->releaseAll();
 }
 
 void Server::destroyServer()

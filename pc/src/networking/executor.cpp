@@ -227,6 +227,53 @@ GamepadExecutor::GamepadExecutor()
 
 void KeyboardMouseExecutor::handleButtonDown(const ButtonInput &buttonInput)
 {
+	// The phone reports which controls are held on every packet, so a press is
+	// only news the first time it arrives. Sending it again for each packet flooded
+	// the PC with key-down and mouse-button-down events: a held shoulder button
+	// meant the left mouse button going down dozens of times a second, which turned
+	// every real click into a drag and made the desktop look frozen. Counting the
+	// holders of one output also keeps two controls that share it — a shoulder and
+	// a stick direction, say — from releasing each other.
+	int &holdCount = m_heldInputs[buttonInput.vk];
+	if (holdCount++ > 0)
+		return;
+
+	injectButtonDown(buttonInput);
+}
+
+void KeyboardMouseExecutor::handleButtonUp(const ButtonInput &buttonInput)
+{
+	const auto held = m_heldInputs.find(buttonInput.vk);
+	if (held == m_heldInputs.end())
+		// Nothing is held, so a release here would be an event the PC never asked
+		// for — and a stray mouse release ends a drag the user is in the middle of.
+		return;
+	if (--held->second > 0)
+		return;
+	m_heldInputs.erase(held);
+
+	injectButtonUp(buttonInput);
+}
+
+void KeyboardMouseExecutor::releaseAll()
+{
+	if (m_heldInputs.empty())
+		return;
+
+	// The releases are built from the output codes alone: a release only has to
+	// lift something, and the reading the press came from is long gone.
+	std::vector<InputKeyCode> held;
+	held.reserve(m_heldInputs.size());
+	for (const auto &entry : m_heldInputs)
+		held.push_back(entry.first);
+	m_heldInputs.clear();
+
+	for (const InputKeyCode code : held)
+		injectButtonUp(ButtonInput{code, is_mouse_button(code), QString()});
+}
+
+void KeyboardMouseExecutor::injectButtonDown(const ButtonInput &buttonInput)
+{
 	// Mouse-wheel pseudo keys: one tick per press.
 	if (is_scroll_action(buttonInput.vk))
 	{
@@ -263,7 +310,7 @@ void KeyboardMouseExecutor::handleButtonDown(const ButtonInput &buttonInput)
 	}
 }
 
-void KeyboardMouseExecutor::handleButtonUp(const ButtonInput &buttonInput)
+void KeyboardMouseExecutor::injectButtonUp(const ButtonInput &buttonInput)
 {
 	// A wheel tick has no "up" state.
 	if (is_scroll_action(buttonInput.vk))
@@ -615,6 +662,31 @@ bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading con
 	return m_injector.isAvailable();
 }
 
+void GamepadExecutor::releaseAll()
+{
+	// The pad is left reporting nothing held and both sticks at rest. A game keeps
+	// reading the pad as long as the app runs, so a stream that stops in the middle
+	// of a press would otherwise leave it holding a button or a stick pushed over.
+	m_nativeButtonPressCounts.clear();
+	m_semanticButtonStates.clear();
+
+#ifdef _WIN32
+	InjectedInputGamepadInfo atRest;
+	atRest.Buttons(static_cast<WinRTGamepadButtons>(0));
+	atRest.LeftThumbstickX(0.0);
+	atRest.LeftThumbstickY(0.0);
+	atRest.RightThumbstickX(0.0);
+	atRest.RightThumbstickY(0.0);
+	atRest.LeftTrigger(0.0);
+	atRest.RightTrigger(0.0);
+	m_injector.update(atRest);
+#elif defined(__linux__)
+	m_injector.setThumbsticks(0.0f, 0.0f, 0.0f, 0.0f);
+	m_injector.setTriggers(0.0f, 0.0f);
+#endif
+	m_injector.inject();
+}
+
 CombinedExecutor::CombinedExecutor()
 {
 	// Each sub-backend announced itself while it was being built; the page is told
@@ -634,6 +706,14 @@ bool CombinedExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading co
 	// The keyboard and mouse path is the one that always reaches the system, so its
 	// result is what the caller is told: a false here means nothing was delivered.
 	return m_keyboardMouse.inject_gamepad_state(reading);
+}
+
+void CombinedExecutor::releaseAll()
+{
+	// Both halves stop holding, because the stream that would have sent their
+	// releases has ended whichever one it was feeding.
+	m_gamepad.releaseAll();
+	m_keyboardMouse.releaseAll();
 }
 
 bool CombinedExecutor::isAvailable() const

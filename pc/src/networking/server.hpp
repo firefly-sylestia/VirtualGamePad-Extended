@@ -9,6 +9,8 @@
 #include <QTime>
 #include <memory>
 
+class QTimer;
+
 namespace Ui
 {
 class Server;
@@ -53,6 +55,16 @@ class Server : public QWidget
 	/** Run the bundled ViGEmBus installer, then rebuild the input backend. */
 	void install_vigem_bus();
 
+	/**
+	 * Let go of everything the backend is holding.
+	 *
+	 * Called when the stream from the phone ends. A key or mouse button left down
+	 * is not something the user can undo from the phone: a held left button turns
+	 * every later click into a drag, and a held Shift or Ctrl changes every
+	 * keystroke, which is what made the PC look frozen until it was restarted.
+	 */
+	void releaseHeldInput();
+
   private:
 	void initServer();
 	void serveClient();
@@ -96,4 +108,16 @@ class Server : public QWidget
 
 	/** Set once the current connection has delivered a packet, for the log. */
 	bool m_packetSeen = false;
+
+	/**
+	 * How long a connected device may go quiet before its input is let go.
+	 *
+	 * The phone sends at its own polling interval for as long as it is connected,
+	 * even while nothing is being touched, so silence for this long means the link
+	 * or the app on the other end is gone.
+	 */
+	static constexpr int HOLD_TIMEOUT_MS = 1500;
+
+	/** Fires when the packet stream stops, to release whatever is held. */
+	QTimer *m_holdTimeoutTimer = nullptr;
 };

@@ -34,6 +34,19 @@ The Switch-first layout adds independent Plus/Minus and Home/Capture button even
 
 See [`plan.md`](plan.md) for the detailed checklist, compatibility notes, and remaining work.
 
+### Input safety
+
+The phone sends its whole control state many times a second, so the PC treats a
+held control as a state and presses only on the change: re-sending the press for
+every packet used to flood the PC with key and mouse-button-down events, which
+turned real clicks into drags and made the desktop appear frozen.
+
+Anything that goes down is also guaranteed to come up. Every input is released
+when the stream stops — the link drops, no packet arrives for 1.5 seconds, the
+server is stopped, another backend is chosen, or the app closes — and the virtual
+pad is left reporting nothing held with both sticks at rest. A key or mouse
+button can therefore not stay pressed after the phone is gone.
+
 ## Windows packaging and updates
 
 The Windows build is published as a single installer executable, not as an
