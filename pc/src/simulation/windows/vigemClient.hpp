@@ -71,6 +71,15 @@ class ViGEmGamepad
 	struct Report
 	{
 		uint16_t buttons = 0;
+		/**
+		 * Controls the XUSB button word has no room for.
+		 *
+		 * An Xbox 360 pad has no button left over once the standard ones are
+		 * placed, so a control that arrives here is only reported by a device that
+		 * really has somewhere to put it — the DualShock 4's touchpad click is what
+		 * a Capture button becomes there.
+		 */
+		uint16_t extraButtons = 0;
 		float leftTrigger = 0.0f;
 		float rightTrigger = 0.0f;
 		float leftX = 0.0f;
@@ -97,6 +106,13 @@ class ViGEmGamepad
 		B = 0x2000,
 		X = 0x4000,
 		Y = 0x8000,
+	};
+
+	/** Flags for [Report::extraButtons], one per control with no XUSB bit. */
+	enum ExtraButton : uint16_t
+	{
+		/** The DualShock 4's touchpad click, which is the Capture button. */
+		Touchpad = 0x0001,
 	};
 
 	/** Connects to the driver and plugs in the virtual pad. Never throws. */

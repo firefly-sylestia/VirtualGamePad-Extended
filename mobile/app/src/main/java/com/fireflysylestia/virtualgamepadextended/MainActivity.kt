@@ -1,6 +1,7 @@
 package com.fireflysylestia.virtualgamepadextended
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -22,6 +23,7 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultBaseColor
 import com.fireflysylestia.virtualgamepadextended.data.defaultColorScheme
 import com.fireflysylestia.virtualgamepadextended.data.defaultFullScreenEnabled
 import com.fireflysylestia.virtualgamepadextended.data.defaultHapticFeedbackEnabled
+import com.fireflysylestia.virtualgamepadextended.data.defaultKeepScreenOn
 import com.fireflysylestia.virtualgamepadextended.data.defaultSaveConnectionCredentials
 import com.fireflysylestia.virtualgamepadextended.network.ConnectionViewModel
 import com.fireflysylestia.virtualgamepadextended.network.ConnectionViewModelFactory
@@ -90,6 +92,21 @@ class MainActivity : ComponentActivity() {
             } else {
                 WindowCompat.setDecorFitsSystemWindows(window, true)
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+
+        // A controller session is watched, not read: the screen dimming in the
+        // middle of it is the one thing that interrupts a game, so the option to
+        // keep it awake lives with the app's other display settings.
+        val keepScreenOn = settingsRepository.keepScreenOn.collectAsState(
+            initial = defaultKeepScreenOn
+        )
+
+        LaunchedEffect(keepScreenOn.value) {
+            if (keepScreenOn.value) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
 

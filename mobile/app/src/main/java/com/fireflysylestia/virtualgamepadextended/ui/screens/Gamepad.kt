@@ -26,7 +26,15 @@ import com.fireflysylestia.virtualgamepadextended.data.SettingsRepository
 import com.fireflysylestia.virtualgamepadextended.data.ControllerLayout
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
+import com.fireflysylestia.virtualgamepadextended.data.defaultCustomGamepadBackground
+import com.fireflysylestia.virtualgamepadextended.data.defaultFullScreenCameraEnabled
+import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
+import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
+import com.fireflysylestia.virtualgamepadextended.data.defaultGamepadBackground
 import com.fireflysylestia.virtualgamepadextended.data.defaultPollingDelay
+import com.fireflysylestia.virtualgamepadextended.data.defaultSlideBetweenButtons
+import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
+import com.fireflysylestia.virtualgamepadextended.data.gamepadBackgroundColor
 import com.fireflysylestia.virtualgamepadextended.network.ConnectionViewModel
 import com.fireflysylestia.virtualgamepadextended.ui.composables.DrawGamepad
 import com.fireflysylestia.virtualgamepadextended.ui.utils.findActivity
@@ -54,6 +62,20 @@ fun GamePad(
         settingsRepository.controllerLayout.collectAsState(ControllerLayout.SWITCH_2).value
     val macros = settingsRepository.macros.collectAsState(emptyList()).value
     val bindings = settingsRepository.controllerBindings.collectAsState(defaultControllerBindings).value
+    val stickSensitivity =
+        settingsRepository.stickSensitivity.collectAsState(defaultStickSensitivity).value
+    val gyroSensitivity =
+        settingsRepository.gyroSensitivity.collectAsState(defaultGyroSensitivity).value
+    val gyroCalibration =
+        settingsRepository.gyroCalibration.collectAsState(defaultGyroBias to defaultGyroBias).value
+    val fullScreenCamera =
+        settingsRepository.fullScreenCameraEnabled.collectAsState(defaultFullScreenCameraEnabled).value
+    val slideBetweenButtons =
+        settingsRepository.slideBetweenButtons.collectAsState(defaultSlideBetweenButtons).value
+    val gamepadBackground =
+        settingsRepository.gamepadBackground.collectAsState(defaultGamepadBackground).value
+    val customGamepadBackground =
+        settingsRepository.customGamepadBackground.collectAsState(defaultCustomGamepadBackground).value
 
     val configuration = LocalConfiguration.current
 
@@ -62,7 +84,22 @@ fun GamePad(
 
     val isStopping = remember { mutableStateOf(false) }
 
-    DrawGamepad(screenWidth, screenHeight, gamepadState, buttonConfigs, controllerLayout, macros, bindings)
+    DrawGamepad(
+        widthDp = screenWidth,
+        heightDp = screenHeight,
+        gamepadState = gamepadState,
+        buttonConfigs = buttonConfigs,
+        controllerLayout = controllerLayout,
+        macros = macros,
+        bindings = bindings,
+        stickSensitivity = stickSensitivity,
+        gyroSensitivity = gyroSensitivity,
+        gyroBiasX = gyroCalibration.first,
+        gyroBiasY = gyroCalibration.second,
+        fullScreenCamera = fullScreenCamera,
+        slideBetweenButtons = slideBetweenButtons,
+        background = gamepadBackgroundColor(gamepadBackground, customGamepadBackground),
+    )
 
     val activity = LocalContext.current.findActivity()
     // disconnect on back press

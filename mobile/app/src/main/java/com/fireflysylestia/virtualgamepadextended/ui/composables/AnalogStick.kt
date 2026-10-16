@@ -1,7 +1,8 @@
 package com.fireflysylestia.virtualgamepadextended.ui.composables
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -30,6 +31,7 @@ import com.fireflysylestia.virtualgamepadextended.ui.theme.lighten
 import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.utils.StickResponse
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -37,11 +39,30 @@ enum class AnalogStickType {
     LEFT, RIGHT
 }
 
+/** Travel, from where the finger landed, that still counts as a tap rather than a drag. */
+private val STICK_CLICK_SLOP = 16.dp
+
+/**
+ * How long the click is held down.
+ *
+ * A click is generated after the finger has gone, so it has to outlive at least
+ * one polling interval or the packet that would carry it may be sent before or
+ * after it exists. The polling interval can be set as high as 200 ms.
+ */
+private const val STICK_CLICK_HOLD_MS = 250L
+
+/** The sticks tick once when they first reach the edge, and again only after coming off it. */
+private const val EDGE_NOTIFY_AT = 0.95f
+private const val EDGE_REARM_AT = 0.85f
+
 private class AnalogStickUiState {
     var offsetX by mutableFloatStateOf(0f)
     var offsetY by mutableFloatStateOf(0f)
     var visualX by mutableFloatStateOf(0f)
     var visualY by mutableFloatStateOf(0f)
+
+    /** Whether the edge tick has already been given for the push in progress. */
+    var edgeNotified = false
 }
 
 private fun updateThumbstickValues(
@@ -77,6 +98,7 @@ private fun resetAnalogStick(
     state.offsetY = 0f
     state.visualX = 0f
     state.visualY = 0f
+    state.edgeNotified = false
     updateThumbstickValues(type, gamepadState, 0f, 0f)
 }
 
@@ -88,14 +110,25 @@ private fun handleAnalogDrag(
     type: AnalogStickType,
     gamepadState: GamepadReading,
     view: android.view.View,
+    sensitivity: Float,
 ) {
     state.offsetX += dragX
     state.offsetY += dragY
 
     val magnitude = sqrt(state.offsetX * state.offsetX + state.offsetY * state.offsetY)
     val normalizedDistance = (magnitude / maxOffset).coerceIn(0f, 1f)
-    if (normalizedDistance > 0.3f) {
-        HapticUtils.performAnalogMovementFeedback(view, normalizedDistance)
+
+    // One tick as the stick first reaches its edge, then nothing more until it
+    // comes back off it. This used to fire for every drag event past the
+    // threshold, and drag events arrive dozens of times a second: holding the
+    // stick against the edge buzzed the hand continuously.
+    if (normalizedDistance >= EDGE_NOTIFY_AT) {
+        if (!state.edgeNotified) {
+            state.edgeNotified = true
+            HapticUtils.performAnalogMovementFeedback(view, normalizedDistance)
+        }
+    } else if (normalizedDistance <= EDGE_REARM_AT) {
+        state.edgeNotified = false
     }
 
     if (magnitude <= 0f) {
@@ -109,12 +142,17 @@ private fun handleAnalogDrag(
     // The knob follows the finger exactly, so it always lands where it was put,
     // but the value the PC acts on goes through the dead zone and response
     // curve: a resting finger reports zero instead of creeping the character,
-    // and the middle of the travel is where it responds.
+    // and the middle of the travel is where it responds. [sensitivity] is
+    // applied to that travel first, so a setting above one reaches full speed
+    // before the stick's edge and one below it needs a longer push.
     if (maxOffset <= 0f) {
         updateThumbstickValues(type, gamepadState, 0f, 0f)
         return
     }
-    val (x, y) = StickResponse.apply(state.visualX / maxOffset, state.visualY / maxOffset)
+    val (x, y) = StickResponse.apply(
+        state.visualX / maxOffset * sensitivity,
+        state.visualY / maxOffset * sensitivity,
+    )
     updateThumbstickValues(type, gamepadState, x, y)
 }
 
@@ -130,9 +168,11 @@ fun AnalogStick(
     gamepadState: GamepadReading,
     type: AnalogStickType,
     clickButtonMask: Int? = null,
+    sensitivity: Float = 1f,
 ) {
     val density = LocalDensity.current
     val view = LocalView.current
+    val clickSlopPx = with(density) { STICK_CLICK_SLOP.toPx() }
 
     Box(
         modifier = modifier.testTag("AnalogStick_${type.name}"),
@@ -193,28 +233,53 @@ fun AnalogStick(
                                         type = type,
                                         gamepadState = gamepadState,
                                         view = view,
+                                        sensitivity = sensitivity,
                                     )
                                 }
                             )
                         }
-                        .pointerInput(clickMask) {
-                            detectTapGestures(
-                                onPress = {
-                                    clickHeld = true
-                                    GamepadButtonDispatcher.press(
-                                        gamepadState, "stick_${type.name}", clickMask
-                                    )
-                                    HapticUtils.performButtonPressFeedback(view)
-                                    // Returns false when a drag takes over, and the
-                                    // click is released either way.
-                                    tryAwaitRelease()
+                        .pointerInput(clickMask, clickSlopPx) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+
+                                // Follow the finger to its release, adding up how far
+                                // it travelled from where it landed.
+                                var travelled = 0f
+                                var lifted = false
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change =
+                                        event.changes.firstOrNull { it.id == down.id } ?: break
+                                    travelled +=
+                                        (change.position - change.previousPosition).getDistance()
+                                    if (!change.pressed) {
+                                        lifted = true
+                                        break
+                                    }
+                                }
+
+                                // Only a tap that stayed put is a stick click. The
+                                // click used to be sent the moment the finger landed,
+                                // so pushing the stick to walk also pressed L3 — which
+                                // is crouch or sneak in most games — and the player sat
+                                // down every time they moved.
+                                if (!lifted || travelled > clickSlopPx) return@awaitEachGesture
+
+                                clickHeld = true
+                                GamepadButtonDispatcher.press(
+                                    gamepadState, "stick_${type.name}", clickMask
+                                )
+                                HapticUtils.performButtonPressFeedback(view)
+                                try {
+                                    delay(STICK_CLICK_HOLD_MS)
+                                } finally {
                                     GamepadButtonDispatcher.release(
                                         gamepadState, "stick_${type.name}"
                                     )
                                     HapticUtils.performButtonReleaseFeedback(view)
                                     clickHeld = false
                                 }
-                            )
+                            }
                         }
                 ) {}
             }

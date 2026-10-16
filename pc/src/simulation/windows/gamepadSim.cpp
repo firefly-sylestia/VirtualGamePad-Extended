@@ -73,7 +73,35 @@ uint16_t toXusbButtons(WinRTGamepadButtons buttons)
 	if (has(GamepadButtons::Y))
 		include(ViGEmGamepad::Y);
 
+	// The controls the WinRT enum has no member of its own for arrive as bits of
+	// ours (see vgp_native). Home is the one an Xbox pad has a button for, and
+	// using it is what keeps HOME apart from + and from Menu.
+	if (has(static_cast<GamepadButtons>(vgp_native::Plus)))
+		include(ViGEmGamepad::Start);
+	if (has(static_cast<GamepadButtons>(vgp_native::Minus)))
+		include(ViGEmGamepad::Back);
+	if (has(static_cast<GamepadButtons>(vgp_native::Home)))
+		include(ViGEmGamepad::Guide);
+
+	// Capture (+/− stay above) and the Joy-Con rail buttons are left out here on
+	// purpose. An Xbox pad has no button left over once the standard set is
+	// placed, and putting them on Back or on a shoulder is exactly what made them
+	// the same control as − and L/R. They are still sent as their own keys by the
+	// keyboard/mouse mapping, and the DualShock 4 has a place for them.
+
 	return static_cast<uint16_t>(flags);
+}
+
+/**
+ * Controls that need a device with a button to spare.
+ *
+ * Only the DualShock 4 has any, and its touchpad click is the Capture button.
+ * An Xbox pad answers with none of these: see [toXusbButtons] for why.
+ */
+uint16_t toExtraButtons(WinRTGamepadButtons buttons)
+{
+	const uint32_t held = static_cast<uint32_t>(buttons);
+	return (held & vgp_native::Capture) != 0 ? static_cast<uint16_t>(ViGEmGamepad::Touchpad) : 0u;
 }
 } // namespace
 
@@ -192,6 +220,7 @@ void GamepadInjector::inject()
 	{
 		ViGEmGamepad::Report report;
 		report.buttons = toXusbButtons(gamepadState.Buttons());
+		report.extraButtons = toExtraButtons(gamepadState.Buttons());
 		// The executor already flips Y for Windows, which is what XInput expects.
 		report.leftTrigger = static_cast<float>(gamepadState.LeftTrigger());
 		report.rightTrigger = static_cast<float>(gamepadState.RightTrigger());

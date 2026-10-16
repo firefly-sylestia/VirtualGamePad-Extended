@@ -71,7 +71,18 @@ enum class ButtonComponent(
     REAR_PADDLES(R.string.component_rear_paddles, "Rear Paddles (P1–P4)", ButtonAnchor.BOTTOM_CENTER),
     TOUCH_SURFACE(R.string.component_touch_surface, "Touch Surface", ButtonAnchor.TOP_CENTER),
     GYRO_TOGGLE(R.string.component_gyro_toggle, "Gyroscope Aim Toggle", ButtonAnchor.BOTTOM_CENTER),
-    MACRO_BUTTONS(R.string.component_macro_buttons, "Macro Triggers (M1–M4)", ButtonAnchor.BOTTOM_CENTER);
+    MACRO_BUTTONS(R.string.component_macro_buttons, "Macro Triggers (M1–M4)", ButtonAnchor.BOTTOM_CENTER),
+
+    /**
+     * A pair of buttons for L3/R3, which are the stick clicks.
+     *
+     * The sticks still send a click on a deliberate tap, but a stick click is
+     * also what a game usually reads as crouch or sneak, and pressing it by
+     * moving the stick sat the player down in the middle of walking. Having the
+     * pair on its own means sneak can be bound to a button that is not under the
+     * thumb that steers.
+     */
+    STICK_CLICKS(R.string.component_stick_clicks, "Stick Clicks (L3 / R3)", ButtonAnchor.TOP_CENTER);
 
     override fun toString(): String = displayName
 }

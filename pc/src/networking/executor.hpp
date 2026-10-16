@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 struct ParseResult
 {
@@ -151,13 +152,20 @@ class KeyboardMouseExecutor : public ExecutorInterface
 	QString m_backendDetail;
 
 	/**
-	 * Output key or mouse button -> how many controls are holding it down.
+	 * The outputs this backend is holding down right now: keys, mouse buttons and
+	 * the wheel pseudo-codes.
 	 *
-	 * The phone reports which controls are held on every packet, so the press is
-	 * only news the first time it arrives; this is what turns that repeating state
-	 * into one press and one release, and what [releaseAll] empties.
+	 * The phone reports which controls are held on *every* packet, so the set of
+	 * outputs a reading asks for is what is compared against this, rather than the
+	 * `buttons_up` edge. Counting press edges instead was wrong in a way that broke
+	 * the whole keyboard and mouse: a held control is named on every packet, so the
+	 * count climbed the whole time it was held while only the single release edge
+	 * ever brought it back down. The output was therefore never released (a stuck
+	 * Shift or Ctrl, or a stuck mouse button that turned every click into a drag)
+	 * and, because its count never returned to zero, pressing that control again
+	 * produced nothing at all.
 	 */
-	std::unordered_map<InputKeyCode, int> m_heldInputs;
+	std::unordered_set<InputKeyCode> m_heldInputs;
 
 	/** One mouse-wheel tick at most this often while a stick is held over. */
 	static constexpr qint64 SCROLL_INTERVAL_MS = 70;
@@ -168,22 +176,36 @@ class KeyboardMouseExecutor : public ExecutorInterface
 	/** Timestamps (ms since epoch of steady clock) of the last wheel tick per stick. */
 	std::array<qint64, 2> m_lastScrollAt{0, 0};
 
-	/** Press or lift one output, counting how many controls hold it. */
-	void handleButtonDown(const ButtonInput &buttonInput);
-	void handleButtonUp(const ButtonInput &buttonInput);
+	/**
+	 * The outputs one reading asks for, gathered before any event is sent.
+	 *
+	 * The wheel pseudo-codes belong here as well: a press injects one tick, and
+	 * leaving the set is what arms the next press.
+	 */
+	using OutputSet = std::unordered_set<InputKeyCode>;
 
-	/** The events for one input, with no bookkeeping around them. */
+	/** Everything @p reading holds, with direct outputs only — no events are sent. */
+	void collectWantedOutputs(const vgp_data_exchange_gamepad_reading &reading, OutputSet &wanted);
+
+	/**
+	 * A stick's direction keys, or its wheel ticks and pointer movement.
+	 *
+	 * Movement and wheel ticks are not held states: they happen while the stick is
+	 * over, so they are sent here and add nothing to @p wanted.
+	 */
+	void collectThumbstickOutputs(const ThumbstickInput &thumbstick,
+								  float x_value,
+								  float y_value,
+								  double threshold,
+								  int stickIndex,
+								  OutputSet &wanted);
+
+	/** Press what @p wanted asks for and let go of everything it leaves out. */
+	void applyWantedOutputs(const OutputSet &wanted);
+
+	/** The events for one output, with no bookkeeping around them. */
 	void injectButtonDown(const ButtonInput &buttonInput);
 	void injectButtonUp(const ButtonInput &buttonInput);
-	void handleThumbstickInput(const ThumbstickInput &thumbstick,
-							   float x_value,
-							   float y_value,
-							   double threshold,
-							   int stickIndex);
-	void handleTriggerInput(const TriggerInput &trigger, float trigger_value);
-
-	/** Fire any extra keys the active profile layers on top of the standard map. */
-	void handleCustomBindings(const vgp_data_exchange_gamepad_reading &reading);
 };
 
 /**

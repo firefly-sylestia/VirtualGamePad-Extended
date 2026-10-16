@@ -85,7 +85,8 @@ object GamepadGeometry {
     fun buttonsIn(component: ButtonComponent): Int = when (component) {
         ButtonComponent.PLUS_MINUS,
         ButtonComponent.HOME_CAPTURE,
-        ButtonComponent.SIDE_BUTTONS -> 2
+        ButtonComponent.SIDE_BUTTONS,
+        ButtonComponent.STICK_CLICKS -> 2
 
         ButtonComponent.REAR_PADDLES,
         ButtonComponent.MACRO_BUTTONS -> 4

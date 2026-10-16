@@ -39,11 +39,20 @@ fun Trigger(
 ) {
     val view = LocalView.current
 
-    // Trigger input is pressure-like: touching near the top sends a high value,
-    // dragging toward the bottom lowers it, and releasing always returns to zero.
+    // Trigger input is pressure-like: a touch is a full pull, and dragging down
+    // from where the finger landed eases it off toward zero. Releasing always
+    // returns the value to zero.
     val triggerLabel = labelOverride ?: when (type) {
         TriggerType.LEFT -> stringResource(R.string.button_lt)
         TriggerType.RIGHT -> stringResource(R.string.button_rt)
+    }
+
+    fun setTriggerValue(value: Float) {
+        val clamped = value.coerceIn(0f, 1f)
+        when (type) {
+            TriggerType.LEFT -> gamepadState.LeftTrigger = clamped
+            TriggerType.RIGHT -> gamepadState.RightTrigger = clamped
+        }
     }
 
     val triggerShape = when (type) {
@@ -62,17 +71,21 @@ fun Trigger(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(type, size) {
-                    val pointerHeight = this.size.height.coerceAtLeast(1)
+                    val travel = this.size.height.toFloat().coerceAtLeast(1f)
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
-                        fun updateFromY(y: Float) {
-                            val value = (1f - y / pointerHeight).coerceIn(0f, 1f)
-                            when (type) {
-                                TriggerType.LEFT -> gamepadState.LeftTrigger = value
-                                TriggerType.RIGHT -> gamepadState.RightTrigger = value
-                            }
+                        val startY = down.position.y
+                        // The pull is measured from where the finger landed rather
+                        // than from the top of the button: a tap is a full pull,
+                        // exactly like a real trigger squeezed to the stop. The
+                        // value used to come from the touch position instead, so a
+                        // tap anywhere below the middle — most of the button —
+                        // stayed under the PC's press threshold and did nothing,
+                        // which is what made ZL and ZR look broken on a tap.
+                        fun updateFromDrag(y: Float) {
+                            setTriggerValue(1f - (y - startY) / travel)
                         }
-                        updateFromY(down.position.y)
+                        updateFromDrag(startY)
                         HapticUtils.performButtonPressFeedback(view)
                         try {
                             var released = false
@@ -82,15 +95,12 @@ fun Trigger(
                                 if (change == null || !change.pressed) {
                                     released = true
                                 } else {
-                                    updateFromY(change.position.y)
+                                    updateFromDrag(change.position.y)
                                 }
                             }
                         } finally {
                             // Also release on gesture cancellation or composition disposal.
-                            when (type) {
-                                TriggerType.LEFT -> gamepadState.LeftTrigger = 0f
-                                TriggerType.RIGHT -> gamepadState.RightTrigger = 0f
-                            }
+                            setTriggerValue(0f)
                             HapticUtils.performButtonReleaseFeedback(view)
                         }
                     }

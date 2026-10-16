@@ -22,6 +22,24 @@ The current mobile layout editor provides starting presets for:
 
 The Switch-first layout adds independent Plus/Minus and Home/Capture button events, optional Joy-Con-style SL/SR controls, optional rear paddles, a gyroscope aiming toggle, a software touch surface, analog-like trigger drag input, and configurable M1–M4 macro sequences. Existing L3/R3 stick-click events are reused instead of duplicated. Presets can be selected in the mobile customization screen; the component editor still supports visibility, size, anchor, and offset customization.
 
+Settings also cover how the controller itself behaves:
+
+- **Stick sensitivity** scales how far a push has to travel before the PC sees full
+  deflection, for both sticks.
+- **Whole Screen Camera** makes the whole gamepad screen aim the right stick, so
+  games whose camera sits on the right stick (Pokémon Legends Z-A, and most
+  third-person games) can be played by dragging anywhere. It sits behind the
+  controls, so every button keeps working, and the background takes the accent
+  colour while it is on. The background itself is selectable — matching the theme,
+  the five dark presets, or a colour picked with red/green/blue sliders.
+- **Slide Between Buttons** turns the D-pad and the A/B/X/Y cluster into one
+  surface each: the direction or button follows the finger, so a press rolls from
+  one into the next without lifting it, and a diagonal is the finger between two.
+- **Keep Screen On** holds the display awake for the whole session.
+- The **trigger buttons** are pulled, not positioned: a touch is a full pull and
+  sliding down from where the finger landed eases it off, so a tap always
+  registers instead of depending on where on the button it landed.
+
 ### Host and input limitations
 
 - Gyroscope motion and touch-surface drags currently feed the existing right-stick axes. They do not create a native motion sensor or HID touchpad on the PC.
@@ -47,10 +65,25 @@ over to both once; after that, the choice in Preferences is kept as it is set.
 
 ### Input safety
 
-The phone sends its whole control state many times a second, so the PC treats a
-held control as a state and presses only on the change: re-sending the press for
-every packet used to flood the PC with key and mouse-button-down events, which
-turned real clicks into drags and made the desktop appear frozen.
+The phone sends its whole control state many times a second, so a packet is a
+*state*, not a list of events. The keyboard/mouse backend therefore builds the
+set of outputs one reading asks for and compares it against what it is already
+holding: new outputs are pressed, and anything the reading no longer names is
+released. That is what makes a held control one press and one release, and it
+cannot leave something stuck — a control that is not named in the current packet
+is not held, whatever happened to earlier packets.
+
+Two earlier shapes of this were wrong in ways worth remembering. Re-sending the
+press for every packet flooded the PC with key and mouse-button-down events,
+which turned real clicks into drags and made the desktop appear frozen. Counting
+press *edges* instead looked right and was worse: a held control is named on every
+packet, so the count climbed for as long as it was held while only the single
+release edge ever brought it back down. The mapped key was then never lifted — a
+stuck Shift or Ctrl made typing come out as shortcuts, a stuck mouse button turned
+every click into a drag (both of which look like the keyboard and mouse have
+stopped working) — and, because the count never returned to zero, the next press
+of that same control did nothing at all, which is why the triggers (ZL/ZR, mapped
+to Shift and Ctrl by default) appeared to work once and then never again.
 
 Anything that goes down is also guaranteed to come up. Every input is released
 when the stream stops — the link drops, no packet arrives for 1.5 seconds, the

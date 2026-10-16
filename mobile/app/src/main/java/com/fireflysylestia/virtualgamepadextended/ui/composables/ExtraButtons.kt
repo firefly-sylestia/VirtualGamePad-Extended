@@ -27,6 +27,7 @@ enum class ExtraButtonClusterType {
     PLUS_MINUS,
     HOME_CAPTURE,
     SIDE_BUTTONS,
+    STICK_CLICKS,
     REAR_PADDLES,
 }
 
@@ -67,6 +68,12 @@ private fun ExtraButtonClusterType.buttons(): List<ExtraButtonSpec> = when (this
     ExtraButtonClusterType.SIDE_BUTTONS -> listOf(
         ExtraButtonSpec("SL", GameButtons.LeftSide, "left_side"),
         ExtraButtonSpec("SR", GameButtons.RightSide, "right_side"),
+    )
+    // Held, like every other button here, so a game that wants L3 held gets it;
+    // the sticks' own tap-to-click stays available for a quick press.
+    ExtraButtonClusterType.STICK_CLICKS -> listOf(
+        ExtraButtonSpec("L3", GameButtons.LeftThumbstick, "left_stick_click"),
+        ExtraButtonSpec("R3", GameButtons.RightThumbstick, "right_stick_click"),
     )
     ExtraButtonClusterType.REAR_PADDLES -> listOf(
         ExtraButtonSpec("P1", GameButtons.Paddle1, "paddle_1"),

@@ -16,6 +16,26 @@
 using winrt::Windows::UI::Input::Preview::Injection::InjectedInputGamepadInfo;
 using winrt::Windows::UI::Input::Preview::Injection::InputInjector;
 using WinRTGamepadButtons = winrt::Windows::Gaming::Input::GamepadButtons;
+
+/**
+ * Report bits for the controls the WinRT button enum has no member of its own for.
+ *
+ * The enum is what the injection fallback understands, and it stops at the
+ * controls an Xbox pad has: there is no member for +/−, HOME/Capture or the
+ * Joy-Con rail buttons. Turning each of those into the nearest member instead —
+ * + and HOME both becoming Menu, SL/SR becoming the shoulders — is what made
+ * them indistinguishable to a game, so they get bits of their own above the
+ * enum's, which the platform-specific reporting below translates.
+ */
+namespace vgp_native
+{
+constexpr uint32_t Plus = 1u << 20;
+constexpr uint32_t Minus = 1u << 21;
+constexpr uint32_t Home = 1u << 22;
+constexpr uint32_t Capture = 1u << 23;
+constexpr uint32_t LeftSide = 1u << 24;
+constexpr uint32_t RightSide = 1u << 25;
+} // namespace vgp_native
 #elif defined(__linux__)
 // Linux includes for gamepad injection
 #include <libevdev/libevdev-uinput.h>

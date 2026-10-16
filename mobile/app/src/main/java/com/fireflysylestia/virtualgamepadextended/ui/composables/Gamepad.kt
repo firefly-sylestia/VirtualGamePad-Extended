@@ -4,10 +4,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.data.ButtonComponent
@@ -18,7 +21,13 @@ import com.fireflysylestia.virtualgamepadextended.data.GamepadGeometry
 import com.fireflysylestia.virtualgamepadextended.data.MacroDefinition
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
+import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
+import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
+import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
+
+/** How far the background is pushed toward the accent colour in camera mode. */
+private const val CAMERA_TINT = 0.35f
 
 /**
  * The live gamepad.
@@ -36,6 +45,19 @@ fun DrawGamepad(
     controllerLayout: ControllerLayout = ControllerLayout.SWITCH_2,
     macros: List<MacroDefinition> = emptyList(),
     bindings: Map<String, ControllerAction> = defaultControllerBindings,
+    // How far a stick push is amplified before it is sent.
+    stickSensitivity: Float = defaultStickSensitivity,
+    // How far a phone turn is amplified before it is sent.
+    gyroSensitivity: Float = defaultGyroSensitivity,
+    // The gyro's measured resting reading, taken off before it is shaped.
+    gyroBiasX: Float = defaultGyroBias,
+    gyroBiasY: Float = defaultGyroBias,
+    // Whole screen aims the right stick, for games whose camera is on it.
+    fullScreenCamera: Boolean = false,
+    // A D-pad or face cluster follows a finger slid across it.
+    slideBetweenButtons: Boolean = false,
+    // The background the player chose, or `null` for the theme's surface.
+    background: Color? = null,
 ) {
     DisposableEffect(gamepadState) {
         onDispose {
@@ -73,9 +95,26 @@ fun DrawGamepad(
         }
     }
 
-    // First we make a box that will contain the gamepad
-    // And put padding around it so that it doesn't touch the edges of the screen
-    Surface {
+    // The background is the player's choice, and it says when the whole screen has
+    // become a camera control: the surface takes the accent colour, so the change
+    // is visible without a label sitting on top of the controls.
+    val chosenSurface = background ?: MaterialTheme.colorScheme.surface
+    val surfaceColour =
+        if (fullScreenCamera) lerp(chosenSurface, MaterialTheme.colorScheme.primary, CAMERA_TINT)
+        else chosenSurface
+
+    Surface(color = surfaceColour) {
+        // Declared before the controls, so it sits behind them: a touch that lands
+        // on a control belongs to that control and never reaches this area.
+        if (fullScreenCamera) {
+            FullScreenStickArea(
+                gamepadState = gamepadState,
+                sensitivity = stickSensitivity,
+            )
+        }
+
+        // First we make a box that will contain the gamepad
+        // And put padding around it so that it doesn't touch the edges of the screen
         Box(
             modifier = Modifier
                 .padding(deadZonePadding.dp)
@@ -93,6 +132,7 @@ fun DrawGamepad(
                     gamepadState = gamepadState,
                     type = AnalogStickType.LEFT,
                     clickButtonMask = bindings["left_stick_click"]?.mask,
+                    sensitivity = stickSensitivity,
                 )
             }
 
@@ -108,6 +148,7 @@ fun DrawGamepad(
                     gamepadState = gamepadState,
                     type = AnalogStickType.RIGHT,
                     clickButtonMask = bindings["right_stick_click"]?.mask,
+                    sensitivity = stickSensitivity,
                 )
             }
 
@@ -121,6 +162,7 @@ fun DrawGamepad(
                     size = (0.45 * baseDp * config.scale).dp,
                     gamepadState = gamepadState,
                     bindings = bindings,
+                    slideBetweenButtons = slideBetweenButtons,
                 )
             }
 
@@ -139,6 +181,7 @@ fun DrawGamepad(
                         FaceButtonStyle.XBOX -> FaceButtonLayout.XBOX
                     },
                     bindings = bindings,
+                    slideBetweenButtons = slideBetweenButtons,
                 )
             }
 
@@ -219,6 +262,21 @@ fun DrawGamepad(
                 )
             }
 
+            // L3/R3 on their own buttons, so sneak/crouch is not the stick the
+            // player is steering with.
+            RenderComponent(ButtonComponent.STICK_CLICKS) { config ->
+                ExtraButtonCluster(
+                    type = ExtraButtonClusterType.STICK_CLICKS,
+                    gamepadState = gamepadState,
+                    metrics = AuxiliaryButtonMetrics.of(baseDp, 2, config.scale),
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    ),
+                    bindings = bindings,
+                )
+            }
+
             RenderComponent(ButtonComponent.REAR_PADDLES) { config ->
                 ExtraButtonCluster(
                     type = ExtraButtonClusterType.REAR_PADDLES,
@@ -251,7 +309,10 @@ fun DrawGamepad(
                     modifier = Modifier.offset(
                         x = (config.offsetX * baseDp).dp,
                         y = (config.offsetY * baseDp).dp
-                    )
+                    ),
+                    sensitivity = gyroSensitivity,
+                    biasX = gyroBiasX,
+                    biasY = gyroBiasY,
                 )
             }
 

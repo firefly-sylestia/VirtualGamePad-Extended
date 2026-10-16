@@ -1,9 +1,12 @@
 package com.fireflysylestia.virtualgamepadextended.ui.composables
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -11,13 +14,16 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -30,9 +36,40 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
+import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 
 enum class DpadButtonType {
     UP, DOWN, LEFT, RIGHT
+}
+
+/** Fraction of half the pad a finger has to leave the centre by to count. */
+private const val SLIDE_DEAD_ZONE = 0.35f
+
+/** Output a direction drives through the active bindings. */
+private fun dpadMask(type: DpadButtonType, bindings: Map<String, ControllerAction>): Int =
+    when (type) {
+        DpadButtonType.UP -> bindings["dpad_up"]
+        DpadButtonType.DOWN -> bindings["dpad_down"]
+        DpadButtonType.LEFT -> bindings["dpad_left"]
+        DpadButtonType.RIGHT -> bindings["dpad_right"]
+    }?.mask ?: when (type) {
+        DpadButtonType.UP -> GameButtons.DPadUp.value
+        DpadButtonType.DOWN -> GameButtons.DPadDown.value
+        DpadButtonType.LEFT -> GameButtons.DPadLeft.value
+        DpadButtonType.RIGHT -> GameButtons.DPadRight.value
+    }
+
+/** Source name one direction is held under while the pad is being slid over. */
+private fun dpadSlideSource(type: DpadButtonType) = "dpad_slide_${type.name}"
+
+/** The directions a finger at (@p nx, @p ny), each in -1..1 from the centre, is over. */
+private fun directionsAt(nx: Float, ny: Float): Set<DpadButtonType> {
+    val pressed = mutableSetOf<DpadButtonType>()
+    if (nx > SLIDE_DEAD_ZONE) pressed += DpadButtonType.RIGHT
+    if (nx < -SLIDE_DEAD_ZONE) pressed += DpadButtonType.LEFT
+    if (ny > SLIDE_DEAD_ZONE) pressed += DpadButtonType.DOWN
+    if (ny < -SLIDE_DEAD_ZONE) pressed += DpadButtonType.UP
+    return pressed
 }
 
 @Composable
@@ -47,6 +84,10 @@ fun DpadButton(
     size: Dp,
     gamepadState: GamepadReading,
     actionMask: Int? = null,
+    // Forces the lit-up look, for a pad that slides between its buttons: the pad
+    // presses the direction the finger is over, so the button must not press a
+    // second time on its own account.
+    pressedOverride: Boolean? = null,
 ) {
     // Held down lights the control up, so the pressed pair is the strong one.
     val pressedBackground = MaterialTheme.colorScheme.primary
@@ -66,15 +107,18 @@ fun DpadButton(
     }
     val buttonMask = actionMask ?: gameButton.value
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val sourcePressed by interactionSource.collectIsPressedAsState()
+    val isPressed = pressedOverride ?: sourcePressed
 
-    // Held for as long as the finger is down; never latches on.
-    PressAndHold(
-        pressed = isPressed,
-        source = "dpad_${type.name}",
-        gamepadState = gamepadState,
-        mask = buttonMask,
-    )
+    if (pressedOverride == null) {
+        // Held for as long as the finger is down; never latches on.
+        PressAndHold(
+            pressed = isPressed,
+            source = "dpad_${type.name}",
+            gamepadState = gamepadState,
+            mask = buttonMask,
+        )
+    }
 
     OutlinedIconButton(
         modifier = modifier
@@ -103,8 +147,54 @@ fun DpadButton(
     }
 }
 
+/** The D-pad's four arrows, each bound to its own direction. */
+@Composable
+private fun BoxScope.DpadButtons(
+    buttonSize: Dp,
+    gamepadState: GamepadReading,
+    bindings: Map<String, ControllerAction>,
+    pressed: Set<DpadButtonType>?,
+) {
+    DpadButton(
+        type = DpadButtonType.UP,
+        modifier = Modifier.align(Alignment.TopCenter),
+        size = buttonSize,
+        gamepadState = gamepadState,
+        actionMask = dpadMask(DpadButtonType.UP, bindings),
+        pressedOverride = pressed?.contains(DpadButtonType.UP),
+    )
+    DpadButton(
+        type = DpadButtonType.DOWN,
+        modifier = Modifier.align(Alignment.BottomCenter),
+        size = buttonSize,
+        gamepadState = gamepadState,
+        actionMask = dpadMask(DpadButtonType.DOWN, bindings),
+        pressedOverride = pressed?.contains(DpadButtonType.DOWN),
+    )
+    DpadButton(
+        type = DpadButtonType.LEFT,
+        modifier = Modifier.align(Alignment.CenterStart),
+        size = buttonSize,
+        gamepadState = gamepadState,
+        actionMask = dpadMask(DpadButtonType.LEFT, bindings),
+        pressedOverride = pressed?.contains(DpadButtonType.LEFT),
+    )
+    DpadButton(
+        type = DpadButtonType.RIGHT,
+        modifier = Modifier.align(Alignment.CenterEnd),
+        size = buttonSize,
+        gamepadState = gamepadState,
+        actionMask = dpadMask(DpadButtonType.RIGHT, bindings),
+        pressedOverride = pressed?.contains(DpadButtonType.RIGHT),
+    )
+}
+
 /**
  * A directional pad with up, down, left, and right buttons.
+ *
+ * With [slideBetweenButtons] the four arrows become one surface: the direction
+ * follows the finger, so a push can be rolled from one arrow into the next
+ * without lifting it — and a diagonal is the finger sitting between two of them.
  */
 @Composable
 fun Dpad(
@@ -112,36 +202,81 @@ fun Dpad(
     size: Dp = 360.dp,
     gamepadState: GamepadReading,
     bindings: Map<String, ControllerAction> = defaultControllerBindings,
+    slideBetweenButtons: Boolean = false,
 ) {
     val buttonSize = 2 * size / 5
-    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
-        DpadButton(
-            type = DpadButtonType.UP,
-            modifier = Modifier.align(Alignment.TopCenter),
-            size = buttonSize,
+
+    if (!slideBetweenButtons) {
+        Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+            DpadButtons(
+                buttonSize = buttonSize,
+                gamepadState = gamepadState,
+                bindings = bindings,
+                pressed = null,
+            )
+        }
+        return
+    }
+
+    val pressed = remember { mutableStateOf(emptySet<DpadButtonType>()) }
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .pointerInput(bindings) {
+                val width = this.size.width.toFloat().coerceAtLeast(1f)
+                val height = this.size.height.toFloat().coerceAtLeast(1f)
+
+                fun update(position: Offset) {
+                    val nx = position.x / width * 2f - 1f
+                    val ny = position.y / height * 2f - 1f
+                    val next = directionsAt(nx, ny)
+                    val current = pressed.value
+                    if (next == current) return
+
+                    (current - next).forEach {
+                        GamepadButtonDispatcher.release(gamepadState, dpadSlideSource(it))
+                    }
+                    (next - current).forEach {
+                        GamepadButtonDispatcher.press(
+                            gamepadState, dpadSlideSource(it), dpadMask(it, bindings)
+                        )
+                    }
+                    pressed.value = next
+                }
+
+                awaitEachGesture {
+                    // `false`: a touch that lands on one of the arrows is claimed by
+                    // that arrow, and the pad still has to take it over — it is the
+                    // pad, not the arrow, that decides what the finger is over.
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    update(down.position)
+                    var released = false
+                    try {
+                        while (!released) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id }
+                            if (change == null || !change.pressed) {
+                                released = true
+                            } else {
+                                update(change.position)
+                            }
+                        }
+                    } finally {
+                        pressed.value.forEach {
+                            GamepadButtonDispatcher.release(gamepadState, dpadSlideSource(it))
+                        }
+                        pressed.value = emptySet()
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        DpadButtons(
+            buttonSize = buttonSize,
             gamepadState = gamepadState,
-            actionMask = bindings["dpad_up"]?.mask,
-        )
-        DpadButton(
-            type = DpadButtonType.DOWN,
-            modifier = Modifier.align(Alignment.BottomCenter),
-            size = buttonSize,
-            gamepadState = gamepadState,
-            actionMask = bindings["dpad_down"]?.mask,
-        )
-        DpadButton(
-            type = DpadButtonType.LEFT,
-            modifier = Modifier.align(Alignment.CenterStart),
-            size = buttonSize,
-            gamepadState = gamepadState,
-            actionMask = bindings["dpad_left"]?.mask,
-        )
-        DpadButton(
-            type = DpadButtonType.RIGHT,
-            modifier = Modifier.align(Alignment.CenterEnd),
-            size = buttonSize,
-            gamepadState = gamepadState,
-            actionMask = bindings["dpad_right"]?.mask,
+            bindings = bindings,
+            pressed = pressed.value,
         )
     }
 }

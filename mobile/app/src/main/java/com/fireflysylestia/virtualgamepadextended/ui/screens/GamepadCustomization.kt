@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -45,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -168,6 +170,12 @@ private fun GamepadEditorPreview(
 
         ButtonComponent.entries.forEach { component ->
             val config = buttonConfigs[component] ?: ButtonConfig.default(component)
+            // The drag writes the offsets it is reading, so the gesture must not be
+            // keyed on the config: every drag event changes it, and restarting the
+            // pointer input mid-drag cancels the gesture that is running — the
+            // control moved one step and then stopped following the finger. The
+            // gesture reads the newest config from here instead.
+            val draggedConfig by rememberUpdatedState(config)
             val rect = GamepadGeometry.bounds(component, config, widthDp, heightDp)
             val isSelected = selected == component
 
@@ -193,13 +201,23 @@ private fun GamepadEditorPreview(
                     )
                     .alpha(if (config.visible) 1f else 0.6f)
                     .clickable { onSelect(component) }
-                    .pointerInput(component, config) {
-                        detectDragGestures { change, drag ->
+                    .pointerInput(component, basePx) {
+                        detectDragGestures(
+                            onDragStart = { onSelect(component) },
+                        ) { change, drag ->
                             change.consume()
-                            onSelect(component)
-                            val nx = (config.offsetX + drag.x / basePx).coerceIn(OFFSET_VALUE_RANGE)
-                            val ny = (config.offsetY + drag.y / basePx).coerceIn(OFFSET_VALUE_RANGE)
-                            onConfigChange(component, config.copy(offsetX = nx, offsetY = ny))
+                            // Both axes move with the finger, so a control can be put
+                            // anywhere on the screen by dragging it there instead of
+                            // by pushing two sliders until it looks right.
+                            val current = draggedConfig
+                            val nx = (current.offsetX + drag.x / basePx)
+                                .coerceIn(OFFSET_VALUE_RANGE)
+                            val ny = (current.offsetY + drag.y / basePx)
+                                .coerceIn(OFFSET_VALUE_RANGE)
+                            onConfigChange(
+                                component,
+                                current.copy(offsetX = nx, offsetY = ny)
+                            )
                         }
                     },
                 contentAlignment = Alignment.Center
@@ -234,7 +252,13 @@ private fun FloatingControlEditor(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier = modifier) {
+    BoxWithConstraints(
+        modifier = modifier
+            // A tap anywhere but on the card closes the editor, which is what every
+            // other floating panel in the app does. The card is drawn over this, so
+            // a tap that lands on the card never reaches it.
+            .pointerInput(Unit) { detectTapGestures { onDismiss() } }
+    ) {
         // Wide enough for the sliders, and never wider than the preview.
         val cardWidth = (maxWidth.value * 0.42f).coerceIn(220f, 330f).dp
         Card(
@@ -242,7 +266,11 @@ private fun FloatingControlEditor(
                 // Opposite side to the control being edited, so it stays visible.
                 .align(if (controlIsOnRightHalf) Alignment.BottomStart else Alignment.BottomEnd)
                 .padding(10.dp)
-                .width(cardWidth),
+                .width(cardWidth)
+                // Swallows taps on the card's own background, so reading a label or
+                // touching the space between two rows does not throw the editor
+                // away. A control inside the card takes its own taps first.
+                .pointerInput(Unit) { detectTapGestures { } },
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(

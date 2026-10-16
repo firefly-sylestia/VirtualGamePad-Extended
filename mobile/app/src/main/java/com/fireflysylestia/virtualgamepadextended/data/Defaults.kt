@@ -2,10 +2,39 @@ package com.fireflysylestia.virtualgamepadextended.data
 
 val defaultColorScheme = ColorScheme.SYSTEM
 val defaultBaseColor = BaseColor.BLUE
+val defaultGamepadBackground = GamepadBackground.SYSTEM
+val defaultCustomGamepadBackground = 0xFF1B2030.toInt() // ARGB
 const val defaultPollingDelay = 80 // in milliseconds
 const val defaultHapticFeedbackEnabled = false // vibrations
 const val defaultSaveConnectionCredentials = false
 const val defaultFullScreenEnabled = false
+const val defaultKeepScreenOn = false
+const val defaultFullScreenCameraEnabled = false
+const val defaultSlideBetweenButtons = false
+
+/** 1.0 is the travel the response curve was designed around. */
+const val defaultStickSensitivity = 1.0f
+
+/** Below and above [defaultStickSensitivity]: a full push arrives sooner or later. */
+val stickSensitivityRange = 0.5f..2.0f
+const val stickSensitivityStep = 0.1f
+
+/** 1.0 is the turn rate the gyro curve was designed around. */
+const val defaultGyroSensitivity = 1.0f
+
+/** Below and above [defaultGyroSensitivity]: aim speed arrives at a smaller or wider turn. */
+val gyroSensitivityRange = 0.3f..3.0f
+const val gyroSensitivityStep = 0.1f
+
+/**
+ * Radians per second a resting gyroscope is assumed to report before it has been
+ * calibrated. Zero means the phone is taken at its word, which is also what an
+ * install that has never been calibrated should do rather than guessing.
+ */
+const val defaultGyroBias = 0f
+
+/** How long the phone is held still while the gyroscope's resting bias is measured. */
+const val gyroCalibrationMillis = 1200L
 
 /**
  * Default button configurations, laid out so that **no two controls overlap**.
@@ -25,6 +54,7 @@ const val defaultFullScreenEnabled = false
  * | bottom-left / bottom-right  | D-pad and face buttons in the corners                |
  * | inboard of those            | the two thumbsticks                                  |
  * | bottom centre               | touch surface, in the gap between the sticks         |
+ * | centre, beside the sticks   | the L3/R3 stick-click pair (sneak/crouch)            |
  *
  * `GamepadLayoutTest` fails if two visible controls in one of the built-in
  * presets ever overlap, or stray off-screen, so keep this in step with that.
@@ -183,5 +213,18 @@ val defaultButtonConfigs = mapOf(
         offsetX = 0f,
         offsetY = 0f,
         anchor = ButtonAnchor.BOTTOM_CENTER
+    ),
+
+    // --- Middle of the screen: the L3/R3 pair, in the empty band between the
+    // sticks and the rows above them. It is the one control that starts visible
+    // everywhere the sticks are, because it is the button that keeps a stick
+    // click out of the finger that steers.
+    ButtonComponent.STICK_CLICKS to ButtonConfig(
+        component = ButtonComponent.STICK_CLICKS,
+        visible = true,
+        scale = 1.0f,
+        offsetX = 0f,
+        offsetY = 0.45f,
+        anchor = ButtonAnchor.TOP_CENTER
     )
 )

@@ -225,34 +225,31 @@ GamepadExecutor::GamepadExecutor()
 	InputBackendStatus::instance().set(m_backendName, available, m_backendDetail);
 }
 
-void KeyboardMouseExecutor::handleButtonDown(const ButtonInput &buttonInput)
+void KeyboardMouseExecutor::applyWantedOutputs(const OutputSet &wanted)
 {
-	// The phone reports which controls are held on every packet, so a press is
-	// only news the first time it arrives. Sending it again for each packet flooded
-	// the PC with key-down and mouse-button-down events: a held shoulder button
-	// meant the left mouse button going down dozens of times a second, which turned
-	// every real click into a drag and made the desktop look frozen. Counting the
-	// holders of one output also keeps two controls that share it — a shoulder and
-	// a stick direction, say — from releasing each other.
-	int &holdCount = m_heldInputs[buttonInput.vk];
-	if (holdCount++ > 0)
-		return;
+	// Releases come first. An output that a remap has just handed from one control
+	// to another is already in `wanted`, so it is left alone rather than lifted and
+	// pressed again in the same packet, which would reach a game as a double click.
+	for (auto it = m_heldInputs.begin(); it != m_heldInputs.end();)
+	{
+		if (wanted.count(*it) != 0)
+		{
+			++it;
+			continue;
+		}
 
-	injectButtonDown(buttonInput);
-}
+		const InputKeyCode code = *it;
+		it = m_heldInputs.erase(it);
+		injectButtonUp(ButtonInput{code, is_mouse_button(code), QString()});
+	}
 
-void KeyboardMouseExecutor::handleButtonUp(const ButtonInput &buttonInput)
-{
-	const auto held = m_heldInputs.find(buttonInput.vk);
-	if (held == m_heldInputs.end())
-		// Nothing is held, so a release here would be an event the PC never asked
-		// for — and a stray mouse release ends a drag the user is in the middle of.
-		return;
-	if (--held->second > 0)
-		return;
-	m_heldInputs.erase(held);
-
-	injectButtonUp(buttonInput);
+	for (const InputKeyCode code : wanted)
+	{
+		if (m_heldInputs.count(code) != 0)
+			continue;
+		m_heldInputs.insert(code);
+		injectButtonDown(ButtonInput{code, is_mouse_button(code), QString()});
+	}
 }
 
 void KeyboardMouseExecutor::releaseAll()
@@ -262,10 +259,7 @@ void KeyboardMouseExecutor::releaseAll()
 
 	// The releases are built from the output codes alone: a release only has to
 	// lift something, and the reading the press came from is long gone.
-	std::vector<InputKeyCode> held;
-	held.reserve(m_heldInputs.size());
-	for (const auto &entry : m_heldInputs)
-		held.push_back(entry.first);
+	std::vector<InputKeyCode> held(m_heldInputs.begin(), m_heldInputs.end());
 	m_heldInputs.clear();
 
 	for (const InputKeyCode code : held)
@@ -352,11 +346,12 @@ qint64 steadyNowMs()
 }
 } // namespace
 
-void KeyboardMouseExecutor::handleThumbstickInput(const ThumbstickInput &thumbstick,
-												  float x_value,
-												  float y_value,
-												  double threshold,
-												  int stickIndex)
+void KeyboardMouseExecutor::collectThumbstickOutputs(const ThumbstickInput &thumbstick,
+													float x_value,
+													float y_value,
+													double threshold,
+													int stickIndex,
+													OutputSet &wanted)
 {
 	// Wheel mode: pushing the stick up or down cycles the mouse wheel. This is
 	// what swaps hotbar slots in Minecraft and pages through inventories.
@@ -413,45 +408,31 @@ void KeyboardMouseExecutor::handleThumbstickInput(const ThumbstickInput &thumbst
 				m_mouseInjector->moveMouseByOffset(stepX, stepY);
 			}
 		}
+		return;
 	}
-	else
-	{
-		// Direction handling
-		if (x_value > threshold)
-			handleButtonDown(thumbstick.right);
-		else if (x_value < -threshold)
-			handleButtonDown(thumbstick.left);
-		else
-		{
-			handleButtonUp(thumbstick.right);
-			handleButtonUp(thumbstick.left);
-		}
 
-		if (y_value > threshold)
-			handleButtonDown(thumbstick.down);
-		else if (y_value < -threshold)
-			handleButtonDown(thumbstick.up);
-		else
-		{
-			handleButtonUp(thumbstick.down);
-			handleButtonUp(thumbstick.up);
-		}
-	}
+	// Direction handling: a direction is held for exactly as long as the stick is
+	// pushed past it, so the output is simply part of what this reading asks for.
+	// Directions the profile left unmapped contribute nothing.
+	auto add = [&wanted](InputKeyCode code)
+	{
+		if (code != 0)
+			wanted.insert(code);
+	};
+
+	if (x_value > threshold)
+		add(thumbstick.right.vk);
+	else if (x_value < -threshold)
+		add(thumbstick.left.vk);
+
+	if (y_value > threshold)
+		add(thumbstick.down.vk);
+	else if (y_value < -threshold)
+		add(thumbstick.up.vk);
 }
 
-void KeyboardMouseExecutor::handleTriggerInput(const TriggerInput &trigger, float trigger_value)
-{
-	if (trigger_value >= trigger.threshold)
-	{
-		handleButtonDown(trigger.button_input);
-	}
-	else
-	{
-		handleButtonUp(trigger.button_input);
-	}
-}
-
-bool KeyboardMouseExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading)
+void KeyboardMouseExecutor::collectWantedOutputs(
+	const vgp_data_exchange_gamepad_reading &reading, OutputSet &wanted)
 {
 	// Handle button input using active keymap profile
 	const auto &profile = SettingsSingleton::instance().activeKeymapProfile();
@@ -481,57 +462,60 @@ bool KeyboardMouseExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_readi
 														GamepadButtons_Paddle4};
 	for (auto button : buttons)
 	{
+		if ((reading.buttons_down & button) == 0)
+			continue;
 		InputKeyCode vk = profile.buttonMap(button);
 		if (vk == 0)
 			continue;
-		ButtonInput input{vk, is_mouse_button(vk), ""};
-		if (reading.buttons_down & button)
-			handleButtonDown(input);
-		if (reading.buttons_up & button)
-			handleButtonUp(input);
+		wanted.insert(vk);
 	}
 
-	handleThumbstickInput(
-		SettingsSingleton::instance().activeKeymapProfile().thumbstickInput(Thumbstick_Left),
-		reading.left_thumbstick_x,
-		reading.left_thumbstick_y,
-		THRESHOLD,
-		0);
+	collectThumbstickOutputs(profile.thumbstickInput(Thumbstick_Left),
+							 reading.left_thumbstick_x,
+							 reading.left_thumbstick_y,
+							 THRESHOLD,
+							 0,
+							 wanted);
 
-	handleThumbstickInput(
-		SettingsSingleton::instance().activeKeymapProfile().thumbstickInput(Thumbstick_Right),
-		reading.right_thumbstick_x,
-		reading.right_thumbstick_y,
-		THRESHOLD,
-		1);
+	collectThumbstickOutputs(profile.thumbstickInput(Thumbstick_Right),
+							 reading.right_thumbstick_x,
+							 reading.right_thumbstick_y,
+							 THRESHOLD,
+							 1,
+							 wanted);
 
-	handleCustomBindings(reading);
-
-	handleTriggerInput(SettingsSingleton::instance().activeKeymapProfile().triggerInput(Trigger::Left),
-					   reading.left_trigger);
-
-	handleTriggerInput(SettingsSingleton::instance().activeKeymapProfile().triggerInput(Trigger::Right),
-					   reading.right_trigger);
-
-	return true;
-}
-
-void KeyboardMouseExecutor::handleCustomBindings(vgp_data_exchange_gamepad_reading const &reading)
-{
-	const auto &custom = SettingsSingleton::instance().activeKeymapProfile().customBindings();
-	if (custom.empty())
-		return;
-
-	for (const auto &binding : custom)
+	// Extra keys the profile layers on top of the standard map.
+	for (const auto &binding : profile.customBindings())
 	{
 		if (binding.gamepadMask == 0 || binding.vk == 0)
 			continue;
-		ButtonInput input{binding.vk, is_mouse_button(binding.vk), binding.displayName};
-		if (reading.buttons_down & binding.gamepadMask)
-			handleButtonDown(input);
-		if (reading.buttons_up & binding.gamepadMask)
-			handleButtonUp(input);
+		if ((reading.buttons_down & binding.gamepadMask) != 0)
+			wanted.insert(binding.vk);
 	}
+
+	// Triggers: held from their own threshold up, which is where a partial pull is
+	// an analog value on the pad and a key here.
+	const TriggerInput left = profile.triggerInput(Trigger::Left);
+	if (left.button_input.vk != 0 && reading.left_trigger >= left.threshold)
+		wanted.insert(left.button_input.vk);
+
+	const TriggerInput right = profile.triggerInput(Trigger::Right);
+	if (right.button_input.vk != 0 && reading.right_trigger >= right.threshold)
+		wanted.insert(right.button_input.vk);
+}
+
+bool KeyboardMouseExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading)
+{
+	// The reading is a whole state, so it is treated as one: the outputs it asks
+	// for are gathered first, then compared with what is held. Presses and releases
+	// therefore follow the state itself rather than a one-shot `buttons_up` edge a
+	// dropped or coalesced packet could lose — a control that is held is held here,
+	// and one that is not is let go, every packet.
+	OutputSet wanted;
+	collectWantedOutputs(reading, wanted);
+	applyWantedOutputs(wanted);
+
+	return true;
 }
 
 void GamepadExecutor::pressNativeButton(int buttonCode)
@@ -616,12 +600,17 @@ bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading con
 	setNativeButtonState(GamepadButtons_RightShoulder, static_cast<int>(RightShoulder), reading.buttons_down & GamepadButtons_RightShoulder);
 	setNativeButtonState(GamepadButtons_LeftThumbstick, static_cast<int>(LeftThumbstick), reading.buttons_down & GamepadButtons_LeftThumbstick);
 	setNativeButtonState(GamepadButtons_RightThumbstick, static_cast<int>(RightThumbstick), reading.buttons_down & GamepadButtons_RightThumbstick);
-	setNativeButtonState(GamepadButtons_Plus, static_cast<int>(Menu), reading.buttons_down & GamepadButtons_Plus);
-	setNativeButtonState(GamepadButtons_Minus, static_cast<int>(View), reading.buttons_down & GamepadButtons_Minus);
-	setNativeButtonState(GamepadButtons_Home, static_cast<int>(Menu), reading.buttons_down & GamepadButtons_Home);
-	setNativeButtonState(GamepadButtons_Capture, static_cast<int>(View), reading.buttons_down & GamepadButtons_Capture);
-	setNativeButtonState(GamepadButtons_LeftSide, static_cast<int>(LeftShoulder), reading.buttons_down & GamepadButtons_LeftSide);
-	setNativeButtonState(GamepadButtons_RightSide, static_cast<int>(RightShoulder), reading.buttons_down & GamepadButtons_RightSide);
+	// Each of these keeps a button of its own instead of being folded onto the
+	// nearest Xbox one: HOME and + both being Menu (and Capture and − both being
+	// View, SL/SR both being the shoulders) meant a game could not tell them
+	// apart at all. Home is the Xbox pad's Guide button here, and the reporting
+	// layer gives the rest a button wherever the device has one.
+	setNativeButtonState(GamepadButtons_Plus, static_cast<int>(vgp_native::Plus), reading.buttons_down & GamepadButtons_Plus);
+	setNativeButtonState(GamepadButtons_Minus, static_cast<int>(vgp_native::Minus), reading.buttons_down & GamepadButtons_Minus);
+	setNativeButtonState(GamepadButtons_Home, static_cast<int>(vgp_native::Home), reading.buttons_down & GamepadButtons_Home);
+	setNativeButtonState(GamepadButtons_Capture, static_cast<int>(vgp_native::Capture), reading.buttons_down & GamepadButtons_Capture);
+	setNativeButtonState(GamepadButtons_LeftSide, static_cast<int>(vgp_native::LeftSide), reading.buttons_down & GamepadButtons_LeftSide);
+	setNativeButtonState(GamepadButtons_RightSide, static_cast<int>(vgp_native::RightSide), reading.buttons_down & GamepadButtons_RightSide);
 	setNativeButtonState(GamepadButtons_Paddle1, static_cast<int>(A), reading.buttons_down & GamepadButtons_Paddle1);
 	setNativeButtonState(GamepadButtons_Paddle2, static_cast<int>(B), reading.buttons_down & GamepadButtons_Paddle2);
 	setNativeButtonState(GamepadButtons_Paddle3, static_cast<int>(X), reading.buttons_down & GamepadButtons_Paddle3);
@@ -645,12 +634,16 @@ bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading con
 	setNativeButtonState(GamepadButtons_RightShoulder, BTN_TR, reading.buttons_down & GamepadButtons_RightShoulder);
 	setNativeButtonState(GamepadButtons_LeftThumbstick, BTN_THUMBL, reading.buttons_down & GamepadButtons_LeftThumbstick);
 	setNativeButtonState(GamepadButtons_RightThumbstick, BTN_THUMBR, reading.buttons_down & GamepadButtons_RightThumbstick);
+	// uinput lets the pad report these as codes of their own, so the same rule as
+	// on Windows applies: nothing is folded onto another control. BTN_MODE is the
+	// pad's system button (HOME) and the trigger-happy codes are the ones the
+	// kernel reserves for exactly this — extra buttons on a controller.
 	setNativeButtonState(GamepadButtons_Plus, BTN_START, reading.buttons_down & GamepadButtons_Plus);
 	setNativeButtonState(GamepadButtons_Minus, BTN_SELECT, reading.buttons_down & GamepadButtons_Minus);
-	setNativeButtonState(GamepadButtons_Home, BTN_START, reading.buttons_down & GamepadButtons_Home);
-	setNativeButtonState(GamepadButtons_Capture, BTN_SELECT, reading.buttons_down & GamepadButtons_Capture);
-	setNativeButtonState(GamepadButtons_LeftSide, BTN_TL, reading.buttons_down & GamepadButtons_LeftSide);
-	setNativeButtonState(GamepadButtons_RightSide, BTN_TR, reading.buttons_down & GamepadButtons_RightSide);
+	setNativeButtonState(GamepadButtons_Home, BTN_MODE, reading.buttons_down & GamepadButtons_Home);
+	setNativeButtonState(GamepadButtons_Capture, BTN_TRIGGER_HAPPY1, reading.buttons_down & GamepadButtons_Capture);
+	setNativeButtonState(GamepadButtons_LeftSide, BTN_TRIGGER_HAPPY2, reading.buttons_down & GamepadButtons_LeftSide);
+	setNativeButtonState(GamepadButtons_RightSide, BTN_TRIGGER_HAPPY3, reading.buttons_down & GamepadButtons_RightSide);
 	setNativeButtonState(GamepadButtons_Paddle1, BTN_A, reading.buttons_down & GamepadButtons_Paddle1);
 	setNativeButtonState(GamepadButtons_Paddle2, BTN_B, reading.buttons_down & GamepadButtons_Paddle2);
 	setNativeButtonState(GamepadButtons_Paddle3, BTN_X, reading.buttons_down & GamepadButtons_Paddle3);

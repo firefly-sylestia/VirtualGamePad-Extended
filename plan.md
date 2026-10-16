@@ -90,6 +90,8 @@ The PC side already consumes that schema and has keyboard/mouse mappings for ord
 ### Phase D — Analog triggers and configurable actions
 
 - [x] Replace binary-only trigger touch behavior with a vertical position-to-value interaction; analog value is transmitted through the existing trigger fields. Configurable action fallback remains planned.
+- [x] Pull the trigger from where the finger lands, so a tap is a full pull and dragging down eases it off. Measuring the value from the button's top edge meant a tap in the lower half stayed under the PC's press threshold and did nothing, which is what made ZL/ZR look broken.
+- [x] Add a stick sensitivity setting (0.5×-2.0×), applied to the travel before the dead zone and response curve so both sticks and the whole-screen camera area share it.
 - [ ] Define calibration, dead zone, sensitivity curve, maximum value, and release-to-zero behavior for LT/RT and ZL/ZR where applicable.
 - [ ] Ensure touch cancellation, app backgrounding, rotation, disconnect, and navigation release every held input and reset axes/triggers. (Trigger cancellation path still needs a final safety pass.)
 - [x] Provide a mobile action-binding editor so existing digital controls can be remapped to supported gamepad button actions. Direct keyboard/mouse action selection and analog-trigger-to-button remapping remain planned.
@@ -103,6 +105,9 @@ The PC side already consumes that schema and has keyboard/mouse mappings for ord
 - [ ] Add gyro/motion data to a versioned protocol extension only after confirming encoding, units, sampling cadence, compatibility, and a safe disabled-by-default behavior.
 - [x] Implement an optional Android gyroscope toggle with sensor lifecycle handling and a user-visible unavailable state. Calibration and adjustable sensitivity remain planned.
 - [x] Define touch-surface drag mapping to the existing right-stick axes and reset on drag end/cancel; tap/click behavior remains planned.
+- [x] Add an optional whole-screen right-stick camera area, drawn behind the controls so every button keeps working, with the gamepad background taking the accent colour while it is on.
+- [x] Add an optional sliding mode for the D-pad and A/B/X/Y clusters: one surface per cluster, where the pressed direction or button follows the finger and diagonals are the finger between two of them.
+- [x] Add controller background choices (theme, five dark presets, and a custom colour) plus keep-screen-on, both saved with the rest of the settings.
 - [ ] Add a mapping table for unsupported host-specific controls so they remain configurable without falsely advertising native emulation.
 - [ ] Add protocol round-trip tests and old/new fixture tests for buttons, analog axes, triggers, and motion data.
 

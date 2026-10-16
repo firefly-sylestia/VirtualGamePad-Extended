@@ -83,6 +83,10 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
     fun coreControls() {
         show(ButtonComponent.LEFT_ANALOG_STICK, true)
         show(ButtonComponent.RIGHT_ANALOG_STICK, true)
+        // The mobile app's own L3/R3 pair travels with the sticks: wherever there
+        // are sticks to click, the click also gets a button of its own, so a game
+        // that reads it as crouch does not crouch every time the player walks.
+        show(ButtonComponent.STICK_CLICKS, true)
         show(ButtonComponent.DPAD, true)
         show(ButtonComponent.FACE_BUTTONS, true)
         show(ButtonComponent.LEFT_TRIGGER, true)

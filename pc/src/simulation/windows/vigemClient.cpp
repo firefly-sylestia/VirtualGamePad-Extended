@@ -87,6 +87,9 @@ constexpr uint16_t kR3 = 1u << 15;     // DS4_BUTTON_THUMB_RIGHT
 /** The PS button, which lives outside the button word. */
 constexpr uint8_t kPs = 1u << 0;
 
+/** The touchpad click, which sits beside the PS bit in the same byte. */
+constexpr uint8_t kTouchpad = 1u << 1;
+
 /**
  * `DS4_DPAD_DIRECTIONS`: the d-pad is a hat, so one nibble names all eight
  * directions and `8` is the centred ("none") value — not `0`, which is north.
@@ -256,16 +259,20 @@ uint16_t toDs4Buttons(uint16_t xusb)
 /**
  * The buttons that live outside the DS4's button word.
  *
- * Guide is the only Xbox system button the DS4 has a counterpart for. The
- * Nintendo Home/Capture controls arrive here as Menu/View, so they stay on
- * OPTIONS/SHARE rather than being pulled onto the PS button as well.
- *
- * The DS4's touchpad button has no equivalent in the shared button mask, so
- * nothing is reported for it.
+ * The DS4 has two, and they are what let the Nintendo and PlayStation system
+ * controls stay apart from each other: HOME becomes the PS button and Capture
+ * the touchpad click, while +/− stay on OPTIONS/SHARE. Sending Home/Capture as
+ * Menu/View instead — which is what happens when only the Xbox button word is
+ * available — is what made them the same buttons as +/− to the game.
  */
-uint8_t toDs4Special(uint16_t xusb)
+uint8_t toDs4Special(uint16_t xusb, uint16_t extra)
 {
-	return (xusb & ViGEmGamepad::Guide) != 0 ? ds4::kPs : 0;
+	uint8_t special = 0;
+	if ((xusb & ViGEmGamepad::Guide) != 0)
+		special |= ds4::kPs;
+	if ((extra & ViGEmGamepad::Touchpad) != 0)
+		special |= ds4::kTouchpad;
+	return special;
 }
 
 /**
@@ -621,7 +628,7 @@ void ViGEmGamepad::submit(const Report &report)
 				ds4.wButtons |= ds4::kL2;
 			if (report.rightTrigger >= ds4::kDigitalTriggerThreshold)
 				ds4.wButtons |= ds4::kR2;
-			ds4.bSpecial = toDs4Special(report.buttons);
+			ds4.bSpecial = toDs4Special(report.buttons, report.extraButtons);
 
 			result = target.updateDs4(impl.client, target.handle, ds4);
 		}

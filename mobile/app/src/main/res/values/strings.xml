@@ -17,8 +17,30 @@
     <string name="settings_haptic_feedback">Haptic Feedback (Vibrations)</string>
     <string name="settings_save_connection_credentials">Remember IP Address and Port</string>
     <string name="settings_full_screen">Full Screen</string>
+    <string name="settings_keep_screen_on">Keep Screen On</string>
+    <string name="settings_stick_sensitivity">Stick Sensitivity</string>
+    <string name="settings_stick_sensitivity_desc">How far a stick push is amplified before it is sent.\nAbove 1.0 reaches full speed with a shorter push, below 1.0 needs a longer one.</string>
+    <string name="settings_stick_sensitivity_info">Information about stick sensitivity</string>
+    <string name="settings_gyro_sensitivity">Gyro Sensitivity</string>
+    <string name="settings_gyro_sensitivity_desc">How far a turn of the phone is amplified before it is sent.\nAbove 1.0 reaches full aim speed with a smaller turn, below 1.0 needs a wider one.</string>
+    <string name="settings_gyro_sensitivity_info">Information about gyro sensitivity</string>
+    <string name="settings_gyro_calibrate">Calibrate Gyro</string>
+    <string name="settings_gyro_calibrating">Hold Still…</string>
+    <string name="settings_full_screen_camera">Whole Screen Camera</string>
+    <string name="settings_slide_between_buttons">Slide Between Buttons</string>
+    <string name="settings_gamepad_background">Controller Background</string>
+    <string name="settings_custom_background_color">Custom Background Colour</string>
     <string name="settings_customize_layout">Customize Gamepad Layout</string>
     <string name="settings_error_save">Error saving settings</string>
+
+    <!-- Controller Backgrounds -->
+    <string name="gamepad_background_system">Match Theme</string>
+    <string name="gamepad_background_midnight">Midnight</string>
+    <string name="gamepad_background_black">Black</string>
+    <string name="gamepad_background_forest">Forest</string>
+    <string name="gamepad_background_magma">Magma</string>
+    <string name="gamepad_background_ocean">Ocean</string>
+    <string name="gamepad_background_custom">Custom</string>
 
     <!-- About Screen -->
     <string name="about_title">🎮 VirtualGamePad Extended</string>
@@ -145,6 +167,7 @@
     <string name="component_rear_paddles">Rear Paddles (P1–P4)</string>
     <string name="component_touch_surface">Touch Surface</string>
     <string name="component_gyro_toggle">Gyroscope Aim Toggle</string>
+    <string name="component_stick_clicks">Stick Clicks (L3 / R3)</string>
     <string name="component_macro_buttons">Macro Triggers (M1–M4)</string>
 
     <!-- Color Schemes -->

@@ -61,12 +61,18 @@ GamepadInjector::GamepadInjector()
 	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_Y, nullptr);		// Y button
 	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TL, nullptr);		// Left shoulder
 	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TR, nullptr);		// Right shoulder
-	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_SELECT, nullptr); // View/Back button
-	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_START, nullptr);	// Menu/Start button
+	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_SELECT, nullptr); // Minus/View button
+	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_START, nullptr);	// Plus/Menu button
 	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_THUMBL, nullptr); // Left thumbstick click
 	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_THUMBR, nullptr); // Right thumbstick click
-	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_MODE,
-							   nullptr); // Unused, just increments button id
+	// HOME, and the buttons an Xbox pad has no place for. BTN_MODE is the pad's
+	// system button and the trigger-happy codes are the ones the kernel keeps for
+	// extra buttons on a controller, so +/−, HOME/Capture and SL/SR each report as
+	// themselves instead of being folded onto Start/Select or the shoulders.
+	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_MODE, nullptr); // Home
+	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TRIGGER_HAPPY1, nullptr); // Capture
+	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TRIGGER_HAPPY2, nullptr); // Left side (SL)
+	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TRIGGER_HAPPY3, nullptr); // Right side (SR)
 
 	// D-pad (digital)
 	libevdev_enable_event_code(dev.get(), EV_KEY, BTN_DPAD_UP, nullptr);
