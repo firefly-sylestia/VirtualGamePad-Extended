@@ -129,9 +129,15 @@ void HomePage::refreshSummary()
 	}
 	else
 	{
-		m_executorValue->setText(settings.executorType() == ExecutorType::GamepadExecutor
-									 ? tr("Virtual gamepad")
-									 : tr("Keyboard + mouse"));
+		// No backend is alive — this page can be shown before the server page is
+		// built, or after the server was stopped — so name the configured one
+		// without claiming a device exists.
+		m_executorValue->setText(
+			settings.executorType() == ExecutorType::GamepadExecutor
+				? tr("Virtual gamepad (not started)")
+				: tr("Keyboard + mouse (not started)"));
+		m_executorValue->setStyleSheet(
+			QStringLiteral("font-size: 17px; font-weight: 700; color: #98a0b8;"));
 	}
 	m_portValue->setText(QString::number(settings.port()));
 }

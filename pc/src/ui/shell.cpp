@@ -169,10 +169,35 @@ void Shell::navigateTo(int index)
 	case PageLayouts:
 	case PageKeymap:
 	case PageUsb:
-	case PageServer:
 		if (QWidget *page = m_created.value(index, nullptr))
 			m_pages->setCurrentWidget(page);
 		break;
+	case PageServer:
+	{
+		// Stopping the server tears its page down, so a later visit has to build a
+		// fresh one. Without this the sidebar entry did nothing at all afterwards,
+		// and there was no way back to a running server but a restart.
+		auto *page = m_created.value(index, nullptr);
+		if (page == nullptr)
+		{
+			auto *server = new Server(m_pages);
+			m_created.insert(PageServer, server);
+			m_pages->addWidget(server);
+			connect(server,
+					&Server::navigateBack,
+					this,
+					[this, server]
+					{
+						m_pages->removeWidget(server);
+						m_created.remove(PageServer);
+						server->deleteLater();
+						navigateTo(PageHome);
+					});
+			page = server;
+		}
+		m_pages->setCurrentWidget(page);
+		break;
+	}
 	case PagePreferences:
 	{
 		auto *preferences = new Preferences();

@@ -35,6 +35,17 @@ enum class VirtualGamepadType
 class SettingsSingleton : public QObject
 {
 	Q_OBJECT
+  signals:
+	/**
+	 * Emitted when a setting that decides the input backend takes a new value.
+	 *
+	 * The virtual pad is baked into the backend when it is created, so the page
+	 * that owns that backend has to be told: otherwise a device chosen in
+	 * Preferences only appears the next time that page is visited, which reads as
+	 * "the controller was never detected".
+	 */
+	void inputBackendChanged();
+
   public:
 	static SettingsSingleton &instance()
 	{

@@ -232,3 +232,13 @@ bool GamepadInjector::detectsAsPhysicalController() const
 	// The uinput device is a real evdev device, so games read it like a pad.
 	return true;
 }
+
+QString GamepadInjector::systemReport() const
+{
+	if (!m_available)
+		return QString();
+
+	// A uinput pad is a real input device, so the kernel lists it and evdev or
+	// SDL readers find it like any plugged-in controller.
+	return QStringLiteral("the kernel lists it as an input device");
+}

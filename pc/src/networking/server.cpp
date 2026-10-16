@@ -149,12 +149,24 @@ Server::Server(QWidget *parent) : QWidget(parent), ui(new Ui::Server)
 	tcpServer = new QTcpServer(this);
 	isGamepadConnected = false;
 
-	// The executor is built the first time the page is shown, so the virtual
-	// gamepad device does not appear on a PC where the server is never used.
 	connect(&InputBackendStatus::instance(),
 			&InputBackendStatus::changed,
 			this,
 			&Server::refreshBackendStatus);
+
+	// A device chosen in Preferences has to take effect there and then: the pad is
+	// part of the backend, not of the phone connection, so waiting for the next
+	// visit to this page left the user with a controller that never showed up.
+	connect(&SettingsSingleton::instance(),
+			&SettingsSingleton::inputBackendChanged,
+			this,
+			[this]() { buildExecutor(); });
+
+	// Build the configured backend now, not the first time this page is shown.
+	// The virtual gamepad is a device the rest of the PC can see, so it has to be
+	// plugged in as soon as the app runs rather than only once the user happens to
+	// find the server page.
+	buildExecutor();
 
 	qDebug() << "Server widget initialized";
 }
@@ -168,7 +180,14 @@ Server::Server(QWidget *parent) : QWidget(parent), ui(new Ui::Server)
  */
 void Server::buildExecutor()
 {
+	// The previous backend is about to go away, and the virtual device it holds
+	// open with it, so the UI stops calling it active before its replacement is
+	// created.
 	executor.reset();
+	InputBackendStatus::instance().clear();
+	// A new backend deserves its own warning: the old one's may not apply.
+	m_injectionWarningShown = false;
+
 	const ExecutorType type = SettingsSingleton::instance().executorType();
 	try
 	{
@@ -301,6 +320,10 @@ Server::~Server()
 		isGamepadConnected = false;
 	}
 	tcpServer->close(); // And then close the server
+	// Drop the input backend here, while this page still exists, so the virtual
+	// pad unplugs and the UI stops reporting it as the active backend.
+	executor.reset();
+	InputBackendStatus::instance().clear();
 	ControllerTestState::instance().setConnected(false);
 	qInfo() << "Server stopped.";
 	tcpServer->deleteLater();

@@ -19,3 +19,12 @@ void InputBackendStatus::set(const QString &backendName, bool available, const Q
 	m_snapshot.detail = detail;
 	emit changed();
 }
+
+void InputBackendStatus::clear()
+{
+	if (m_snapshot.backendName.isEmpty() && m_snapshot.detail.isEmpty())
+		return;
+
+	m_snapshot = Snapshot{};
+	emit changed();
+}

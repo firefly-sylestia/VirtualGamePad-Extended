@@ -572,13 +572,21 @@ void Preferences::update_executor_notes()
 		// notes for GamepadExecutor
 #ifdef _WIN32
 		const bool dualShock = ui->virtualGamepadComboBox->currentIndex() == 1;
+		// Where the device shows up is what the user goes looking for, and the two
+		// targets are not listed in the same places, so both are spelled out.
 		notes = "- Games see this as real hardware through the ViGEmBus driver\n"
 				"- No administrator privileges required\n"
-				"- Xbox 360 pads are XInput only, which is what modern games read\n"
-				"- A DualShock 4 also appears as a HID gamepad, so games and "
-				"launchers that only read HID or DirectInput find it too\n"
-				"- Presenting: %1";
-		notes = notes.arg(dualShock ? QStringLiteral("DualShock 4") : QStringLiteral("Xbox 360 pad"));
+				"- Presenting: %1\n"
+				"- Xbox 360 pad: XInput only, which is what most modern games read. It is "
+				"a real device while this app runs, but Windows' own \"Set up USB game "
+				"controllers\" list shows DirectInput pads only, so it never appears "
+				"there. XInput-aware tools and games still find it\n"
+				"- DualShock 4 pad: also a HID gamepad, so it does appear in that list, "
+				"and in games and launchers that only read HID or DirectInput\n"
+				"- The pad is plugged in as soon as the app starts, and changing it here "
+				"takes effect at once";
+		notes = notes.arg(dualShock ? QStringLiteral("DualShock 4 pad")
+									 : QStringLiteral("Xbox 360 pad"));
 #elif defined(__linux__)
 #else
 		notes = "Platform-specific notes apply for virtual gamepad creation.";

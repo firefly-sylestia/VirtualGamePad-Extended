@@ -206,7 +206,15 @@ GamepadExecutor::GamepadExecutor()
 	if (!available)
 		detail = m_injector.lastError();
 	else if (m_injector.detectsAsPhysicalController())
-		detail = QStringLiteral("games detect this as a physical controller");
+	{
+		// "Is it detected as an input device?" is worth answering with what the
+		// system itself reports, because the answer differs by device and by list.
+		const QString report = m_injector.systemReport();
+		detail = report.isEmpty()
+					 ? QStringLiteral("games detect this as a physical controller")
+					 : QStringLiteral("games detect this as a physical controller; %1")
+						   .arg(report);
+	}
 	else
 		detail = QStringLiteral("games that read XInput or DirectInput directly may not see this "
 								"pad. Install ViGEmBus, or switch to Keyboard + mouse mode");

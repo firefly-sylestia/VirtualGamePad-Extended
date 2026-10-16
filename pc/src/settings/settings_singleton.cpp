@@ -40,14 +40,22 @@ void SettingsSingleton::setPort(quint16 value)
 
 void SettingsSingleton::setExecutorType(ExecutorType type)
 {
+	// Only a real change is announced, so saving the dialog with the same value
+	// does not tear the running backend down and plug it back in.
+	const bool changed = executor_type != type;
 	executor_type = type;
 	saveSetting(setting_keys::executor_type, static_cast<int>(executor_type));
+	if (changed)
+		emit inputBackendChanged();
 }
 
 void SettingsSingleton::setVirtualGamepadType(VirtualGamepadType type)
 {
+	const bool changed = virtual_gamepad_type != type;
 	virtual_gamepad_type = type;
 	saveSetting(setting_keys::virtual_gamepad_type, static_cast<int>(virtual_gamepad_type));
+	if (changed)
+		emit inputBackendChanged();
 }
 
 void SettingsSingleton::saveSetting(const QString &key, const QVariant &value)

@@ -30,6 +30,15 @@ class InputBackendStatus : public QObject
 	/** Called by each executor when it becomes the active backend. */
 	void set(const QString &backendName, bool available, const QString &detail);
 
+	/**
+	 * Forget the current backend, for when its executor is gone.
+	 *
+	 * A backend exists only while the object that created it does, so the UI must
+	 * stop calling a torn-down one "active": that read as "the pad is ready"
+	 * while nothing was plugged in at all.
+	 */
+	void clear();
+
 	Snapshot snapshot() const { return m_snapshot; }
 
   signals:

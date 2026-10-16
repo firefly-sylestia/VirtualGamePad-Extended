@@ -100,6 +100,16 @@ class GamepadInjector
 	 */
 	bool detectsAsPhysicalController() const;
 
+	/**
+	 * @brief What the operating system itself reports for the created pad.
+	 *
+	 * Shown by the UI so that "the game does not detect it" can be told apart
+	 * from "the pad was never created": this is what the system's own controller
+	 * APIs answer when they are asked about the device. Empty when a backend
+	 * creates no device at all, and empty before a pad exists.
+	 */
+	QString systemReport() const;
+
 #ifdef _WIN32
 	/**
 	 * @brief Updates the gamepad state (Windows only).

@@ -226,3 +226,13 @@ bool GamepadInjector::detectsAsPhysicalController() const
 	// Only the ViGEmBus device is a real device as far as a game is concerned.
 	return m_vigem != nullptr;
 }
+
+QString GamepadInjector::systemReport() const
+{
+	if (m_vigem != nullptr)
+		return m_vigem->systemReport();
+
+	// The input-injection API writes into the system input queue: it creates no
+	// device for anything to list, so there is nothing to report.
+	return QString();
+}

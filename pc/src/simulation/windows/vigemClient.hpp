@@ -107,6 +107,17 @@ class ViGEmGamepad
 	/** Which device this instance is presenting. */
 	TargetType targetType() const;
 
+	/**
+	 * What the system itself currently reports for the created pad, in words the
+	 * UI can show. Empty when the pad is not ready.
+	 *
+	 * "Is it detected as an input device?" is answered by asking the same APIs a
+	 * game uses — XInput for the Xbox 360 pad, the joystick API behind the
+	 * system's own controller list for the DualShock 4 — so the app states what
+	 * the system sees instead of leaving the user to guess which list to look in.
+	 */
+	QString systemReport() const;
+
 	/** Human-readable name of the device behind the pad, for the UI. */
 	QString backendName() const;
 

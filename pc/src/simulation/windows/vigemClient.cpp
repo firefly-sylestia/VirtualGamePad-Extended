@@ -263,6 +263,123 @@ uint8_t toDs4Special(uint16_t xusb)
 {
 	return (xusb & ViGEmGamepad::Guide) != 0 ? ds4::kPs : 0;
 }
+
+/**
+ * Asking the system what it makes of the pad that was just plugged in.
+ *
+ * A virtual pad is only useful if the PC's own controller support agrees that it
+ * is there, and the two targets register in different places: an Xbox 360 pad
+ * answers XInput, while a DualShock 4 is also a HID gamepad that the system's
+ * DirectInput controller list shows. Both are queried here through the same API
+ * a game would use, each loaded from its own DLL so the build needs no extra
+ * import libraries or headers.
+ */
+namespace systemprobe
+{
+/** `XINPUT_STATE`: a packet counter followed by the same 12-byte gamepad. */
+struct XInputState
+{
+	uint32_t packetNumber = 0;
+	XusbReport gamepad{};
+};
+static_assert(sizeof(XInputState) == sizeof(XusbReport) + sizeof(uint32_t),
+			  "XINPUT_STATE is a packet number followed by a gamepad report");
+
+/** XInput, from the DLL the system ships it in. */
+struct XInput
+{
+	using GetState = uint32_t(WINAPI *)(uint32_t, void *);
+
+	GetState getState = nullptr;
+
+	XInput()
+	{
+		for (const wchar_t *name : {L"xinput1_4.dll", L"xinput1_3.dll"})
+		{
+			HMODULE module = LoadLibraryW(name);
+			if (module == nullptr)
+				continue;
+			getState = reinterpret_cast<GetState>(
+				reinterpret_cast<void *>(GetProcAddress(module, "XInputGetState")));
+			if (getState != nullptr)
+				return;
+		}
+	}
+};
+
+/**
+ * The XInput slots the system reports a controller in, as "0" or "0, 1".
+ *
+ * Which slot is which cannot be asked, so this reports what the system says is
+ * there rather than guessing which of them is this pad.
+ */
+QString xinputSlots()
+{
+	static const XInput xinput;
+	if (xinput.getState == nullptr)
+		return QString();
+
+	QString slots;
+	for (uint32_t slot = 0; slot < 4; ++slot)
+	{
+		XInputState state;
+		if (xinput.getState(slot, &state) != 0) // not ERROR_SUCCESS
+			continue;
+		if (!slots.isEmpty())
+			slots += QStringLiteral(", ");
+		slots += QString::number(slot);
+	}
+	return slots;
+}
+
+/**
+ * The joystick API behind the system's own "Set up USB game controllers" list.
+ *
+ * `joyGetDevCaps` is what that list is built from, so counting the devices it
+ * reports is the answer to whether the pad appears there. `JOYCAPS` is not
+ * declared here to keep the headers out of the build; it is a few hundred bytes,
+ * and the call never writes more than the size it is given.
+ */
+struct JoyApi
+{
+	using GetNumDevs = uint32_t(WINAPI *)();
+	using GetDevCaps = uint32_t(WINAPI *)(uintptr_t, void *, uint32_t);
+
+	GetNumDevs getNumDevs = nullptr;
+	GetDevCaps getDevCaps = nullptr;
+
+	JoyApi()
+	{
+		HMODULE module = LoadLibraryW(L"winmm.dll");
+		if (module == nullptr)
+			return;
+		getNumDevs = reinterpret_cast<GetNumDevs>(
+			reinterpret_cast<void *>(GetProcAddress(module, "joyGetNumDevs")));
+		getDevCaps = reinterpret_cast<GetDevCaps>(
+			reinterpret_cast<void *>(GetProcAddress(module, "joyGetDevCapsW")));
+	}
+};
+
+/** How many game controllers that list shows, or -1 when it cannot be read. */
+int controllerListCount()
+{
+	static const JoyApi joy;
+	if (joy.getDevCaps == nullptr)
+		return -1;
+
+	// joyGetNumDevs reports how many slots the driver supports, not how many are
+	// in use, so every one has to be asked for its capabilities.
+	const uint32_t slots = joy.getNumDevs != nullptr ? joy.getNumDevs() : 16;
+	int count = 0;
+	for (uint32_t index = 0; index < slots; ++index)
+	{
+		std::uint8_t caps[2048]{};
+		if (joy.getDevCaps(index, caps, sizeof(caps)) == 0) // JOYERR_NOERROR
+			++count;
+	}
+	return count;
+}
+} // namespace systemprobe
 } // namespace
 
 struct ViGEmGamepad::Impl
@@ -463,6 +580,27 @@ void ViGEmGamepad::submit(const Report &report)
 QString ViGEmGamepad::backendName() const
 {
 	return nameFor(targetType());
+}
+
+QString ViGEmGamepad::systemReport() const
+{
+	if (!isReady())
+		return QString();
+
+	if (m_impl->type == TargetType::DualShock4)
+	{
+		const int listed = systemprobe::controllerListCount();
+		if (listed < 0)
+			return QStringLiteral("the system's controller list could not be read");
+		return QStringLiteral("the system's controller list shows %1 pad(s)").arg(listed);
+	}
+
+	const QString slots = systemprobe::xinputSlots();
+	if (slots.isEmpty())
+		return QStringLiteral("XInput does not report it, so XInput games will not find this pad");
+	return QStringLiteral("XInput reports a controller in slot(s) %1; the system's own controller "
+						  "list shows DirectInput pads only, so it will not appear there")
+		.arg(slots);
 }
 
 QString ViGEmGamepad::nameFor(TargetType type)
