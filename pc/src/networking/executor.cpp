@@ -190,9 +190,10 @@ KeyboardMouseExecutor::KeyboardMouseExecutor()
 		throw;
 	}
 
-	InputBackendStatus::instance().set(QStringLiteral("Keyboard + mouse"),
-									   true,
-									   QStringLiteral("works in every game, following the active key map"));
+	m_backendName = QStringLiteral("Keyboard + mouse");
+	m_backendDetail =
+		QStringLiteral("works in every game, following the active key map");
+	InputBackendStatus::instance().set(m_backendName, true, m_backendDetail);
 }
 
 GamepadExecutor::GamepadExecutor()
@@ -219,7 +220,9 @@ GamepadExecutor::GamepadExecutor()
 		detail = QStringLiteral("games that read XInput or DirectInput directly may not see this "
 								"pad. Install ViGEmBus, or switch to Keyboard + mouse mode");
 
-	InputBackendStatus::instance().set(m_injector.backendName(), available, detail);
+	m_backendName = m_injector.backendName();
+	m_backendDetail = detail;
+	InputBackendStatus::instance().set(m_backendName, available, m_backendDetail);
 }
 
 void KeyboardMouseExecutor::handleButtonDown(const ButtonInput &buttonInput)
@@ -610,4 +613,44 @@ bool GamepadExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading con
 	m_injector.inject();
 	// false tells the caller nothing reached the system; the UI reports why once.
 	return m_injector.isAvailable();
+}
+
+CombinedExecutor::CombinedExecutor()
+{
+	// Each sub-backend announced itself while it was being built; the page is told
+	// about the pair instead, because both stay live. The pad's note comes first
+	// because it is the one that can fail to exist, and it says why if it did.
+	InputBackendStatus::instance().set(
+		QStringLiteral("%1 + %2").arg(m_gamepad.backendName(), m_keyboardMouse.backendName()),
+		true,
+		QStringLiteral("%1. Keyboard and mouse input is sent at the same time, so programs "
+					   "with no controller support react too")
+			.arg(m_gamepad.backendDetail()));
+}
+
+bool CombinedExecutor::inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading)
+{
+	m_gamepad.inject_gamepad_state(reading);
+	// The keyboard and mouse path is the one that always reaches the system, so its
+	// result is what the caller is told: a false here means nothing was delivered.
+	return m_keyboardMouse.inject_gamepad_state(reading);
+}
+
+bool CombinedExecutor::isAvailable() const
+{
+	// Input still reaches the desktop through the keyboard and mouse mapping even
+	// when the virtual pad could not be created, so this mode works either way.
+	return m_keyboardMouse.isAvailable();
+}
+
+QString CombinedExecutor::backendName() const
+{
+	return QStringLiteral("%1 + %2").arg(m_gamepad.backendName(), m_keyboardMouse.backendName());
+}
+
+QString CombinedExecutor::backendDetail() const
+{
+	return QStringLiteral("%1. Keyboard and mouse input is sent at the same time, so programs "
+						  "with no controller support react too")
+		.arg(m_gamepad.backendDetail());
 }

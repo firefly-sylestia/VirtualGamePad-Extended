@@ -201,6 +201,10 @@ void Server::buildExecutor()
 			executor = std::make_unique<KeyboardMouseExecutor>();
 			qInfo() << "KeyboardMouseExecutor initialized successfully";
 			break;
+		case ExecutorType::GamepadAndKeyboardMouse:
+			executor = std::make_unique<CombinedExecutor>();
+			qInfo() << "CombinedExecutor initialized successfully";
+			break;
 		default:
 			qCritical() << "Unknown executor type";
 		}

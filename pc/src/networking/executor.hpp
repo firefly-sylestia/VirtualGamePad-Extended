@@ -47,6 +47,17 @@ class ExecutorInterface
 	 * injection API) is explained instead of failing silently.
 	 */
 	virtual bool isAvailable() const { return true; }
+
+	/**
+	 * @brief What this backend is called, as the page shows it.
+	 *
+	 * Needed by a backend made of more than one, which has to name the parts it
+	 * is running rather than only the one that reported itself last.
+	 */
+	virtual QString backendName() const = 0;
+
+	/** The note that goes with [backendName], saying what it can and cannot do. */
+	virtual QString backendDetail() const = 0;
 };
 
 class GamepadExecutor : public ExecutorInterface
@@ -66,10 +77,17 @@ class GamepadExecutor : public ExecutorInterface
 
 	bool inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading) override;
 
+	QString backendName() const override { return m_backendName; }
+	QString backendDetail() const override { return m_backendDetail; }
+
   private:
 	GamepadInjector m_injector;
 	std::unordered_map<int, int> m_nativeButtonPressCounts;
 	std::unordered_map<uint32_t, bool> m_semanticButtonStates;
+
+	/** What this backend reported when it was built, for the page to show. */
+	QString m_backendName;
+	QString m_backendDetail;
 
 	void pressNativeButton(int buttonCode);
 	void releaseNativeButton(int buttonCode);
@@ -109,7 +127,14 @@ class KeyboardMouseExecutor : public ExecutorInterface
 	 */
 	bool inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading) override;
 
+	QString backendName() const override { return m_backendName; }
+	QString backendDetail() const override { return m_backendDetail; }
+
   private:
+	/** What this backend reported when it was built, for the page to show. */
+	QString m_backendName;
+	QString m_backendDetail;
+
 	/** One mouse-wheel tick at most this often while a stick is held over. */
 	static constexpr qint64 SCROLL_INTERVAL_MS = 70;
 
@@ -130,4 +155,45 @@ class KeyboardMouseExecutor : public ExecutorInterface
 
 	/** Fire any extra keys the active profile layers on top of the standard map. */
 	void handleCustomBindings(const vgp_data_exchange_gamepad_reading &reading);
+};
+
+/**
+ * @brief The virtual gamepad and the keyboard/mouse mapping, both at once.
+ *
+ * Declared after both of the backends it runs, because it holds each of them by
+ * value and a class member has to be a complete type.
+ *
+ * The two backends answer different questions. A controller-aware game reads the
+ * pad, while the desktop, a launcher, or a program with no controller support
+ * only reacts to keys and the pointer — and which of those the phone is being
+ * used for is not knowable in advance, which is why the app used to need the
+ * mode switched by hand. Feeding the same reading to both means whichever kind
+ * of program is in front of the user reacts.
+ *
+ * The cost is a program that reads controller *and* key input itself: it sees
+ * both versions of one press, which is why the single-backend modes remain in
+ * Preferences for anyone who hits that.
+ */
+class CombinedExecutor : public ExecutorInterface
+{
+  public:
+	/** Builds both backends and publishes what the pair can do. Never throws. */
+	CombinedExecutor();
+	~CombinedExecutor() override = default;
+
+	CombinedExecutor(const CombinedExecutor &) = delete;
+	CombinedExecutor &operator=(const CombinedExecutor &) = delete;
+	CombinedExecutor(CombinedExecutor &&) = delete;
+	CombinedExecutor &operator=(CombinedExecutor &&) = delete;
+
+	bool inject_gamepad_state(vgp_data_exchange_gamepad_reading const &reading) override;
+	/** True while the keyboard and mouse path exists, which is always here. */
+	bool isAvailable() const override;
+
+	QString backendName() const override;
+	QString backendDetail() const override;
+
+  private:
+	GamepadExecutor m_gamepad;
+	KeyboardMouseExecutor m_keyboardMouse;
 };

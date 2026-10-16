@@ -12,10 +12,27 @@
 #include <QString>
 #include <QVariant>
 
+/**
+ * Which backend turns the phone's input into something on this PC.
+ *
+ * The values are stored as their number, so new ones are appended rather than
+ * inserted: an existing setting has to keep meaning what it meant.
+ */
 enum class ExecutorType
 {
+	/** The virtual pad alone: what controller-aware games read. */
 	GamepadExecutor,
-	KeyboardMouseExecutor
+	/** Keys and pointer alone: what the desktop and older programs read. */
+	KeyboardMouseExecutor,
+	/**
+	 * Both at once, the same reading fed to each.
+	 *
+	 * Which list the program in front of the user reads is not knowable in
+	 * advance — feeding only the pad left the desktop, launchers and non-controller
+	 * games dead, and feeding only keys left controller games dead — so the default
+	 * covers both and the single modes are there for anyone they double up on.
+	 */
+	GamepadAndKeyboardMouse
 };
 
 /**
@@ -106,15 +123,14 @@ class SettingsSingleton : public QObject
 	static constexpr quint16 DEFAULT_PORT_NUMBER = 0;
 
 	/**
-	 * The virtual gamepad, because that is the only backend that presents a
-	 * controller the PC's other programs can see. Defaulting to keyboard and
-	 * mouse meant a phone that clearly connected registered nothing anywhere
-	 * until the user found Preferences and switched backends by hand.
-	 *
-	 * Keyboard and mouse remain available, but as a deliberate choice: it needs
-	 * a key map, and it is invisible to anything that reads a controller.
+	 * Both backends, because neither one alone works everywhere: a virtual pad is
+	 * invisible to the desktop and to programs that only read keys, while keys and
+	 * the pointer are ignored by anything that reads a controller. Defaulting to
+	 * either single one meant a phone that clearly connected did nothing in one
+	 * half of the user's programs until they found Preferences and switched by
+	 * hand; the single modes remain for programs that react to both at once.
 	 */
-	static constexpr ExecutorType DEFAULT_EXECUTOR_TYPE = ExecutorType::GamepadExecutor;
+	static constexpr ExecutorType DEFAULT_EXECUTOR_TYPE = ExecutorType::GamepadAndKeyboardMouse;
 
 	/**
 	 * XInput is what modern games read, so the 360 pad is the default. The

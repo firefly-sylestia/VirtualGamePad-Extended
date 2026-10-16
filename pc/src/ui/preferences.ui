@@ -104,9 +104,16 @@
            </widget>
           </item>
           <item>
+           <widget class="QRadioButton" name="gamepadAndKeyboardMouseExecutorRadio">
+            <property name="text">
+             <string>Virtual Gamepad + Keyboard/Mouse (recommended)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QRadioButton" name="keyboardMouseExecutorRadio">
             <property name="text">
-             <string>Keyboard/Mouse Simulation</string>
+             <string>Keyboard/Mouse Simulation only</string>
             </property>
            </widget>
           </item>

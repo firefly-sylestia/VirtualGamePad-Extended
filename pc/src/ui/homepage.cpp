@@ -132,10 +132,19 @@ void HomePage::refreshSummary()
 		// No backend is alive — this page can be shown before the server page is
 		// built, or after the server was stopped — so name the configured one
 		// without claiming a device exists.
-		m_executorValue->setText(
-			settings.executorType() == ExecutorType::GamepadExecutor
-				? tr("Virtual gamepad (not started)")
-				: tr("Keyboard + mouse (not started)"));
+		switch (settings.executorType())
+		{
+		case ExecutorType::GamepadExecutor:
+			m_executorValue->setText(tr("Virtual gamepad (not started)"));
+			break;
+		case ExecutorType::GamepadAndKeyboardMouse:
+			m_executorValue->setText(tr("Virtual gamepad + keyboard/mouse (not started)"));
+			break;
+		case ExecutorType::KeyboardMouseExecutor:
+		default:
+			m_executorValue->setText(tr("Keyboard + mouse (not started)"));
+			break;
+		}
 		m_executorValue->setStyleSheet(
 			QStringLiteral("font-size: 17px; font-weight: 700; color: #98a0b8;"));
 	}

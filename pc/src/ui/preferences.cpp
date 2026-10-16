@@ -61,6 +61,10 @@ Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferen
 
 	// Connect executor type radio buttons
 	connect(ui->gamepadExecutorRadio, &QRadioButton::toggled, this, &Preferences::executor_type_changed);
+	connect(ui->gamepadAndKeyboardMouseExecutorRadio,
+			&QRadioButton::toggled,
+			this,
+			&Preferences::executor_type_changed);
 	connect(ui->keyboardMouseExecutorRadio,
 			&QRadioButton::toggled,
 			this,
@@ -87,10 +91,12 @@ Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferen
 				// Save port number now
 				settings.setPort(static_cast<quint16>(ui->portSpinBox->value()));
 
-				// Save executor type
-				ExecutorType executorType = ui->gamepadExecutorRadio->isChecked()
-												? ExecutorType::GamepadExecutor
-												: ExecutorType::KeyboardMouseExecutor;
+				// Save executor type, which one is picked deciding what reaches the PC
+				ExecutorType executorType = ExecutorType::KeyboardMouseExecutor;
+				if (ui->gamepadExecutorRadio->isChecked())
+					executorType = ExecutorType::GamepadExecutor;
+				else if (ui->gamepadAndKeyboardMouseExecutorRadio->isChecked())
+					executorType = ExecutorType::GamepadAndKeyboardMouse;
 				settings.setExecutorType(executorType);
 
 				// Save which virtual device the gamepad backend plugs in
@@ -488,13 +494,18 @@ void Preferences::restore_defaults()
 	// Update UI to reflect the default values
 	ui->pointerSlider->setValue(SettingsSingleton::DEFAULT_MOUSE_SENSITIVITY);
 	ui->portSpinBox->setValue(SettingsSingleton::DEFAULT_PORT_NUMBER);
-	if (SettingsSingleton::DEFAULT_EXECUTOR_TYPE == ExecutorType::GamepadExecutor)
+	switch (SettingsSingleton::DEFAULT_EXECUTOR_TYPE)
 	{
+	case ExecutorType::GamepadExecutor:
 		ui->gamepadExecutorRadio->setChecked(true);
-	}
-	else
-	{
+		break;
+	case ExecutorType::GamepadAndKeyboardMouse:
+		ui->gamepadAndKeyboardMouseExecutorRadio->setChecked(true);
+		break;
+	case ExecutorType::KeyboardMouseExecutor:
+	default:
 		ui->keyboardMouseExecutorRadio->setChecked(true);
+		break;
 	}
 
 	// Refresh UI to show the default values
@@ -512,13 +523,18 @@ void Preferences::load_executor_type()
 {
 	ExecutorType executorType = SettingsSingleton::instance().executorType();
 
-	if (executorType == ExecutorType::GamepadExecutor)
+	switch (executorType)
 	{
+	case ExecutorType::GamepadExecutor:
 		ui->gamepadExecutorRadio->setChecked(true);
-	}
-	else
-	{
+		break;
+	case ExecutorType::GamepadAndKeyboardMouse:
+		ui->gamepadAndKeyboardMouseExecutorRadio->setChecked(true);
+		break;
+	case ExecutorType::KeyboardMouseExecutor:
+	default:
 		ui->keyboardMouseExecutorRadio->setChecked(true);
+		break;
 	}
 
 	update_executor_notes();
@@ -567,7 +583,10 @@ void Preferences::update_executor_notes()
 	}
 #endif
 
-	if (ui->gamepadExecutorRadio->isChecked())
+	// The combined mode drives the pad as well, so it gets the device's notes with
+	// one line saying what else is fed alongside it.
+	if (ui->gamepadExecutorRadio->isChecked() ||
+		ui->gamepadAndKeyboardMouseExecutorRadio->isChecked())
 	{
 		// notes for GamepadExecutor
 #ifdef _WIN32
@@ -591,6 +610,12 @@ void Preferences::update_executor_notes()
 #else
 		notes = "Platform-specific notes apply for virtual gamepad creation.";
 #endif
+
+		if (ui->gamepadAndKeyboardMouseExecutorRadio->isChecked())
+			notes += "\n- Keyboard and mouse input is sent at the same time, so the desktop, "
+					 "launchers and programs with no controller support react too\n"
+					 "- Choose a single backend above if a program reads both and shows the "
+					 "press twice";
 	}
 	else
 	{
@@ -609,7 +634,8 @@ void Preferences::update_executor_notes()
 	// Which device to present only means something for the gamepad backend, and
 	// only the Windows backend has a choice to make.
 #ifdef _WIN32
-	const bool deviceChoiceApplies = ui->gamepadExecutorRadio->isChecked();
+	const bool deviceChoiceApplies = ui->gamepadExecutorRadio->isChecked() ||
+			ui->gamepadAndKeyboardMouseExecutorRadio->isChecked();
 #else
 	const bool deviceChoiceApplies = false;
 #endif
