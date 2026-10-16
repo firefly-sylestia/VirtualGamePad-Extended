@@ -130,12 +130,17 @@
              <widget class="QComboBox" name="virtualGamepadComboBox">
               <item>
                <property name="text">
-                <string>Xbox 360 pad (XInput)</string>
+                <string>Xbox 360 pad (XInput only)</string>
                </property>
               </item>
               <item>
                <property name="text">
-                <string>DualShock 4 pad (HID + DirectInput)</string>
+                <string>DualShock 4 pad (HID + DirectInput only)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Both pads (XInput and HID, recommended)</string>
                </property>
               </item>
              </widget>

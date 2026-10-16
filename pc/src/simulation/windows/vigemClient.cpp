@@ -4,12 +4,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 #include <windows.h>
 
 namespace
-{
-/**
- * `VIGEM_ERROR_NONE` from ViGEm's `Client.h`. Every failure code sets the high
+{	/**
+	 * `VIGEM_ERROR_NONE` from ViGEm's `Client.h`. Every failure code sets the high
  * bit, so this is the only value that means "the driver accepted the call".
  */
 constexpr uint32_t kErrorNone = 0x20000000u;
@@ -126,12 +126,13 @@ struct Api
 	Free freeClient = nullptr;
 	Connect connect = nullptr;
 	Disconnect disconnect = nullptr;
-	/** Whichever of the two allocators the chosen target kind uses. */
-	TargetAlloc targetAlloc = nullptr;
+	/** One allocator per kind, because both kinds can be plugged in at once. */
+	TargetAlloc targetAllocX360 = nullptr;
+	TargetAlloc targetAllocDs4 = nullptr;
 	TargetFree targetFree = nullptr;
 	TargetAdd targetAdd = nullptr;
 	TargetRemove targetRemove = nullptr;
-	/** Exactly one of these is resolved, matching the target kind. */
+	/** One update entry point per kind, for the same reason. */
 	UpdateX360 updateX360 = nullptr;
 	UpdateDs4 updateDs4 = nullptr;
 };
@@ -386,10 +387,21 @@ int controllerListCount()
 
 struct ViGEmGamepad::Impl
 {
+	/** One device the driver has plugged in, and how to send it a report. */
+	struct Target
+	{
+		void *handle = nullptr;
+		TargetType type = TargetType::Xbox360;
+		/** Resolved when the target is created, so [submit] needs no switch. */
+		Api::UpdateX360 updateX360 = nullptr;
+		Api::UpdateDs4 updateDs4 = nullptr;
+	};
+
 	HMODULE module = nullptr;
 	Api api;
 	void *client = nullptr;
-	void *target = nullptr;
+	/** One entry for a single device, two when both kinds are presented. */
+	std::vector<Target> targets;
 	TargetType type = TargetType::Xbox360;
 	bool ready = false;
 	QString error;
@@ -398,13 +410,16 @@ struct ViGEmGamepad::Impl
 	/** Undo whatever half of the set-up succeeded, so nothing is left behind. */
 	void teardown()
 	{
-		if (target != nullptr)
+		for (Target &target : targets)
 		{
+			if (target.handle == nullptr)
+				continue;
 			if (client != nullptr)
-				api.targetRemove(client, target);
-			api.targetFree(target);
-			target = nullptr;
+				api.targetRemove(client, target.handle);
+			api.targetFree(target.handle);
+			target.handle = nullptr;
 		}
+		targets.clear();
 		if (client != nullptr)
 		{
 			api.disconnect(client);
@@ -442,29 +457,46 @@ ViGEmGamepad::ViGEmGamepad(TargetType type) : m_impl(std::make_unique<Impl>())
 	impl.api.targetAdd = resolve<Api::TargetAdd>(impl.module, "vigem_target_add");
 	impl.api.targetRemove = resolve<Api::TargetRemove>(impl.module, "vigem_target_remove");
 
-	// Only the pair that is actually in use is required. A client too old to
-	// carry the DS4 entry points still works for the Xbox 360 pad rather than
-	// failing the whole class.
-	switch (type)
+	// Both kinds are resolved, because both can be in use at once. A kind whose
+	// entry points are missing is dropped rather than failing the whole class: an
+	// older ViGEmClient.dll can still back the Xbox 360 pad.
+	impl.api.targetAllocX360 = resolve<Api::TargetAlloc>(impl.module, "vigem_target_x360_alloc");
+	impl.api.updateX360 = resolve<Api::UpdateX360>(impl.module, "vigem_target_x360_update");
+	impl.api.targetAllocDs4 = resolve<Api::TargetAlloc>(impl.module, "vigem_target_ds4_alloc");
+	impl.api.updateDs4 = resolve<Api::UpdateDs4>(impl.module, "vigem_target_ds4_update");
+
+	// Which devices to plug in. Presenting both is not the same as choosing one:
+	// an Xbox 360 pad answers XInput and nothing else, while a DualShock 4 is a
+	// HID gamepad — and a program builds its device list from one API or the
+	// other, so a single pad is missing from half of them.
+	std::vector<TargetType> wanted;
+	if (type == TargetType::Both)
 	{
-	case TargetType::DualShock4:
-		impl.api.targetAlloc = resolve<Api::TargetAlloc>(impl.module, "vigem_target_ds4_alloc");
-		impl.api.updateDs4 = resolve<Api::UpdateDs4>(impl.module, "vigem_target_ds4_update");
-		break;
-	case TargetType::Xbox360:
-	default:
-		impl.api.targetAlloc = resolve<Api::TargetAlloc>(impl.module, "vigem_target_x360_alloc");
-		impl.api.updateX360 = resolve<Api::UpdateX360>(impl.module, "vigem_target_x360_update");
-		break;
+		wanted.push_back(TargetType::Xbox360);
+		wanted.push_back(TargetType::DualShock4);
+	}
+	else
+	{
+		wanted.push_back(type);
 	}
 
-	const bool hasUpdate = (type == TargetType::DualShock4) ? (impl.api.updateDs4 != nullptr)
-														    : (impl.api.updateX360 != nullptr);
+	auto usable = [&impl](TargetType kind)
+	{
+		if (kind == TargetType::DualShock4)
+			return impl.api.targetAllocDs4 != nullptr && impl.api.updateDs4 != nullptr;
+		return impl.api.targetAllocX360 != nullptr && impl.api.updateX360 != nullptr;
+	};
+	wanted.erase(std::remove_if(wanted.begin(), wanted.end(), [&usable](TargetType kind)
+								{ return !usable(kind); }),
+				 wanted.end());
 
-	if (impl.api.alloc == nullptr || impl.api.freeClient == nullptr || impl.api.connect == nullptr ||
-		impl.api.disconnect == nullptr || impl.api.targetAlloc == nullptr ||
-		impl.api.targetFree == nullptr || impl.api.targetAdd == nullptr ||
-		impl.api.targetRemove == nullptr || !hasUpdate)
+	const bool commonResolved =
+		impl.api.alloc != nullptr && impl.api.freeClient != nullptr &&
+		impl.api.connect != nullptr && impl.api.disconnect != nullptr &&
+		impl.api.targetFree != nullptr && impl.api.targetAdd != nullptr &&
+		impl.api.targetRemove != nullptr;
+
+	if (!commonResolved || wanted.empty())
 	{
 		impl.error = QStringLiteral("the installed ViGEmClient.dll is not a version this app knows");
 		impl.teardown();
@@ -487,24 +519,40 @@ ViGEmGamepad::ViGEmGamepad(TargetType type) : m_impl(std::make_unique<Impl>())
 		return;
 	}
 
-	impl.target = impl.api.targetAlloc();
-	if (impl.target == nullptr)
+	for (const TargetType kind : wanted)
 	{
-		impl.error = QStringLiteral("the %1 could not be created").arg(nameFor(type));
-		impl.teardown();
-		return;
-	}
+		void *handle = (kind == TargetType::DualShock4) ? impl.api.targetAllocDs4()
+													 : impl.api.targetAllocX360();
+		if (handle == nullptr || impl.api.targetAdd(impl.client, handle) != kErrorNone)
+		{
+			if (handle != nullptr)
+				impl.api.targetFree(handle);
+			// The one device that is already plugged in is what the app works with,
+			// so a refused second one is reported and left out rather than taking the
+			// working pad down with it.
+			if (!impl.targets.empty())
+			{
+				qWarning() << "The" << nameFor(kind)
+						   << "was not accepted by the driver; keeping the pad already plugged in";
+				continue;
+			}
+			impl.error = QStringLiteral("the %1 could not be created. Close other controller tools "
+										"and try again, or reinstall ViGEmBus.")
+							 .arg(nameFor(kind));
+			impl.teardown();
+			return;
+		}
 
-	if (impl.api.targetAdd(impl.client, impl.target) != kErrorNone)
-	{
-		impl.error = QStringLiteral("the ViGEmBus driver refused a new virtual pad. "
-									"Close other controller tools and try again.");
-		impl.teardown();
-		return;
+		Impl::Target target;
+		target.handle = handle;
+		target.type = kind;
+		target.updateX360 = impl.api.updateX360;
+		target.updateDs4 = impl.api.updateDs4;
+		impl.targets.push_back(target);
+		qInfo() << nameFor(kind) << "plugged in";
 	}
 
 	impl.ready = true;
-	qInfo() << nameFor(type) << "plugged in";
 }
 
 ViGEmGamepad::~ViGEmGamepad()
@@ -536,46 +584,61 @@ void ViGEmGamepad::submit(const Report &report)
 	Impl &impl = *m_impl;
 	uint32_t result = kErrorNone;
 
-	if (impl.type == TargetType::DualShock4)
+	for (const Impl::Target &target : impl.targets)
 	{
-		Ds4Report ds4{};
-		ds4.bThumbLX = thumbToDs4X(report.leftX);
-		ds4.bThumbLY = thumbToDs4Y(report.leftY);
-		ds4.bThumbRX = thumbToDs4X(report.rightX);
-		ds4.bThumbRY = thumbToDs4Y(report.rightY);
-		ds4.bTriggerL = triggerToReport(report.leftTrigger);
-		ds4.bTriggerR = triggerToReport(report.rightTrigger);
-		ds4.wButtons = toDs4Buttons(report.buttons);
-		// Some games read only the digital trigger bits, so raise them too once
-		// the analog value is past halfway.
-		if (report.leftTrigger >= ds4::kDigitalTriggerThreshold)
-			ds4.wButtons |= ds4::kL2;
-		if (report.rightTrigger >= ds4::kDigitalTriggerThreshold)
-			ds4.wButtons |= ds4::kR2;
-		ds4.bSpecial = toDs4Special(report.buttons);
+		if (target.type == TargetType::DualShock4)
+		{
+			if (target.updateDs4 == nullptr)
+				continue;
 
-		result = impl.api.updateDs4(impl.client, impl.target, ds4);
-	}
-	else
-	{
-		XusbReport xusb{};
-		xusb.wButtons = report.buttons;
-		xusb.bLeftTrigger = triggerToReport(report.leftTrigger);
-		xusb.bRightTrigger = triggerToReport(report.rightTrigger);
-		xusb.sThumbLX = thumbToReport(report.leftX);
-		xusb.sThumbLY = thumbToReport(report.leftY);
-		xusb.sThumbRX = thumbToReport(report.rightX);
-		xusb.sThumbRY = thumbToReport(report.rightY);
+			Ds4Report ds4{};
+			ds4.bThumbLX = thumbToDs4X(report.leftX);
+			ds4.bThumbLY = thumbToDs4Y(report.leftY);
+			ds4.bThumbRX = thumbToDs4X(report.rightX);
+			ds4.bThumbRY = thumbToDs4Y(report.rightY);
+			ds4.bTriggerL = triggerToReport(report.leftTrigger);
+			ds4.bTriggerR = triggerToReport(report.rightTrigger);
+			ds4.wButtons = toDs4Buttons(report.buttons);
+			// Some games read only the digital trigger bits, so raise them too once
+			// the analog value is past halfway.
+			if (report.leftTrigger >= ds4::kDigitalTriggerThreshold)
+				ds4.wButtons |= ds4::kL2;
+			if (report.rightTrigger >= ds4::kDigitalTriggerThreshold)
+				ds4.wButtons |= ds4::kR2;
+			ds4.bSpecial = toDs4Special(report.buttons);
 
-		result = impl.api.updateX360(impl.client, impl.target, xusb);
-	}
+			result = target.updateDs4(impl.client, target.handle, ds4);
+		}
+		else
+		{
+			if (target.updateX360 == nullptr)
+				continue;
 
-	if (result != kErrorNone && !impl.reportedFailure)
-	{
-		// Once is enough: this runs for every packet, and the pad is gone.
-		impl.reportedFailure = true;
-		qWarning() << "ViGEmBus rejected a report; the virtual pad may have been removed";
-		impl.ready = false;
+			XusbReport xusb{};
+			xusb.wButtons = report.buttons;
+			xusb.bLeftTrigger = triggerToReport(report.leftTrigger);
+			xusb.bRightTrigger = triggerToReport(report.rightTrigger);
+			xusb.sThumbLX = thumbToReport(report.leftX);
+			xusb.sThumbLY = thumbToReport(report.leftY);
+			xusb.sThumbRX = thumbToReport(report.rightX);
+			xusb.sThumbRY = thumbToReport(report.rightY);
+
+			result = target.updateX360(impl.client, target.handle, xusb);
+		}
+
+		// Every device gets the report: one pad being refused must not stop the
+		// other from receiving input.
+		if (result != kErrorNone)
+		{
+			if (!impl.reportedFailure)
+			{
+				// Once is enough: this runs for every packet, and the pad is gone.
+				impl.reportedFailure = true;
+				qWarning() << "ViGEmBus rejected a report for the" << nameFor(target.type)
+						   << "; that pad may have been removed";
+			}
+			result = kErrorNone;
+		}
 	}
 }
 
@@ -589,20 +652,28 @@ QString ViGEmGamepad::systemReport() const
 	if (!isReady())
 		return QString();
 
-	if (m_impl->type == TargetType::DualShock4)
+	const QString reportedSlots = systemprobe::xinputSlots();
+	const QString xinputPart = reportedSlots.isEmpty()
+								   ? QStringLiteral("XInput does not report a controller")
+								   : QStringLiteral("XInput reports a controller in slot(s) %1")
+										 .arg(reportedSlots);
+
+	if (m_impl->type == TargetType::DualShock4 || m_impl->type == TargetType::Both)
 	{
 		const int listed = systemprobe::controllerListCount();
-		if (listed < 0)
-			return QStringLiteral("the system's controller list could not be read");
-		return QStringLiteral("the system's controller list shows %1 pad(s)").arg(listed);
+		const QString directInputPart =
+			listed < 0 ? QStringLiteral("the system's controller list could not be read")
+					   : QStringLiteral("the system's controller list shows %1 pad(s)").arg(listed);
+		if (m_impl->type == TargetType::DualShock4)
+			return directInputPart;
+		return QStringLiteral("%1; %2").arg(xinputPart, directInputPart);
 	}
 
-	const QString reportedSlots = systemprobe::xinputSlots();
 	if (reportedSlots.isEmpty())
 		return QStringLiteral("XInput does not report it, so XInput games will not find this pad");
-	return QStringLiteral("XInput reports a controller in slot(s) %1; the system's own controller "
-						  "list shows DirectInput pads only, so it will not appear there")
-		.arg(reportedSlots);
+	return QStringLiteral("%1; the system's own controller list shows DirectInput pads only, so "
+						  "it will not appear there")
+		.arg(xinputPart);
 }
 
 QString ViGEmGamepad::nameFor(TargetType type)
@@ -610,7 +681,9 @@ QString ViGEmGamepad::nameFor(TargetType type)
 	switch (type)
 	{
 	case TargetType::DualShock4:
-		return QStringLiteral("Virtual DualShock 4 (ViGEmBus)");
+		return QStringLiteral("Virtual DualShock 4 pad (ViGEmBus)");
+	case TargetType::Both:
+		return QStringLiteral("Virtual Xbox 360 and DualShock 4 pads (ViGEmBus)");
 	case TargetType::Xbox360:
 	default:
 		return QStringLiteral("Virtual Xbox 360 pad (ViGEmBus)");

@@ -18,6 +18,8 @@ ViGEmGamepad::TargetType toVigemTarget(VirtualGamepadType type)
 	{
 	case VirtualGamepadType::DualShock4:
 		return ViGEmGamepad::TargetType::DualShock4;
+	case VirtualGamepadType::Both:
+		return ViGEmGamepad::TargetType::Both;
 	case VirtualGamepadType::Xbox360:
 	default:
 		return ViGEmGamepad::TargetType::Xbox360;

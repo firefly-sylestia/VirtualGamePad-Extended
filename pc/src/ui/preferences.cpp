@@ -99,11 +99,13 @@ Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferen
 					executorType = ExecutorType::GamepadAndKeyboardMouse;
 				settings.setExecutorType(executorType);
 
-				// Save which virtual device the gamepad backend plugs in
-				// The combo lists the devices in the order they are declared in the .ui file.
-				const VirtualGamepadType virtualGamepadType =
-					ui->virtualGamepadComboBox->currentIndex() == 1 ? VirtualGamepadType::DualShock4
-																					: VirtualGamepadType::Xbox360;
+				// Save which virtual device the gamepad backend plugs in. The combo lists
+				// the devices in the order they are declared in the .ui file.
+				VirtualGamepadType virtualGamepadType = VirtualGamepadType::Xbox360;
+				if (ui->virtualGamepadComboBox->currentIndex() == 1)
+					virtualGamepadType = VirtualGamepadType::DualShock4;
+				else if (ui->virtualGamepadComboBox->currentIndex() == 2)
+					virtualGamepadType = VirtualGamepadType::Both;
 				settings.setVirtualGamepadType(virtualGamepadType);
 
 				// Update key mapping in the active profile
@@ -544,7 +546,19 @@ void Preferences::load_virtual_gamepad_type()
 {
 	const VirtualGamepadType type = SettingsSingleton::instance().virtualGamepadType();
 	// The combo's order is the order it is declared in the .ui file.
-	ui->virtualGamepadComboBox->setCurrentIndex(type == VirtualGamepadType::DualShock4 ? 1 : 0);
+	switch (type)
+	{
+	case VirtualGamepadType::DualShock4:
+		ui->virtualGamepadComboBox->setCurrentIndex(1);
+		break;
+	case VirtualGamepadType::Both:
+		ui->virtualGamepadComboBox->setCurrentIndex(2);
+		break;
+	case VirtualGamepadType::Xbox360:
+	default:
+		ui->virtualGamepadComboBox->setCurrentIndex(0);
+		break;
+	}
 	update_executor_notes();
 }
 
@@ -590,22 +604,30 @@ void Preferences::update_executor_notes()
 	{
 		// notes for GamepadExecutor
 #ifdef _WIN32
-		const bool dualShock = ui->virtualGamepadComboBox->currentIndex() == 1;
-		// Where the device shows up is what the user goes looking for, and the two
-		// targets are not listed in the same places, so both are spelled out.
-		notes = "- Games see this as real hardware through the ViGEmBus driver\n"
+		// Where a device shows up is what the user goes looking for, and the choices
+		// are not listed in the same places, so each one says where it is found.
+		const int deviceIndex = ui->virtualGamepadComboBox->currentIndex();
+		notes = "- Games see these as real hardware through the ViGEmBus driver\n"
 				"- No administrator privileges required\n"
 				"- Presenting: %1\n"
-				"- Xbox 360 pad: XInput only, which is what most modern games read. It is "
-				"a real device while this app runs, but Windows' own \"Set up USB game "
-				"controllers\" list shows DirectInput pads only, so it never appears "
-				"there. XInput-aware tools and games still find it\n"
-				"- DualShock 4 pad: also a HID gamepad, so it does appear in that list, "
-				"and in games and launchers that only read HID or DirectInput\n"
-				"- The pad is plugged in as soon as the app starts, and changing it here "
+				"- Xbox 360 pad: XInput only, which is what most modern games read. It "
+				"does not appear in a HID or DirectInput device list, which is what "
+				"emulators, launchers and Windows' own \"Set up USB game controllers\" "
+				"show\n"
+				"- DualShock 4 pad: a HID gamepad, so it does appear in those lists — and "
+				"it is not an XInput device, so XInput-only games miss it\n"
+				"- Both: one of each, so whichever list a program builds has a controller "
+				"in it. A program that merges both APIs itself may see a press twice; "
+				"choose a single device above if that happens\n"
+				"- Devices are plugged in as soon as the app starts, and a change here "
 				"takes effect at once";
-		notes = notes.arg(dualShock ? QStringLiteral("DualShock 4 pad")
-									 : QStringLiteral("Xbox 360 pad"));
+		const QString presented =
+			deviceIndex == 1
+				? QStringLiteral("DualShock 4 pad")
+				: deviceIndex == 2
+					  ? QStringLiteral("Xbox 360 pad + DualShock 4 pad")
+					  : QStringLiteral("Xbox 360 pad");
+		notes = notes.arg(presented);
 #elif defined(__linux__)
 #else
 		notes = "Platform-specific notes apply for virtual gamepad creation.";

@@ -46,7 +46,18 @@ enum class ExecutorType
 enum class VirtualGamepadType
 {
 	Xbox360,
-	DualShock4
+	DualShock4,
+	/**
+	 * Both devices at once, so every kind of program finds one.
+	 *
+	 * A program's input-device list comes from XInput or from HID/DirectInput,
+	 * and which one it uses is invisible to the user: emulators and launchers
+	 * list HID pads and show nothing for an XInput-only pad, while XInput-only
+	 * games show nothing for a HID one. Presenting both means whichever list is
+	 * open has a controller in it, and the user picks between two devices in that
+	 * program exactly as they would with two real pads plugged in.
+	 */
+	Both
 };
 
 class SettingsSingleton : public QObject
@@ -133,10 +144,13 @@ class SettingsSingleton : public QObject
 	static constexpr ExecutorType DEFAULT_EXECUTOR_TYPE = ExecutorType::GamepadAndKeyboardMouse;
 
 	/**
-	 * XInput is what modern games read, so the 360 pad is the default. The
-	 * DualShock 4 is opt-in for the older HID/DirectInput-only readers.
+	 * Both devices, because one alone is invisible to half the programs on a PC.
+	 * An Xbox 360 pad answers XInput and does not appear in a HID or DirectInput
+	 * device list — which is where emulators, launchers and older games look —
+	 * while a DualShock 4 answers those and is not an XInput device. The single
+	 * choices remain for anyone who wants exactly one of them.
 	 */
-	static constexpr VirtualGamepadType DEFAULT_VIRTUAL_GAMEPAD_TYPE = VirtualGamepadType::Xbox360;
+	static constexpr VirtualGamepadType DEFAULT_VIRTUAL_GAMEPAD_TYPE = VirtualGamepadType::Both;
 
   private:
 	SettingsSingleton();

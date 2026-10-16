@@ -22,6 +22,13 @@ namespace setting_keys
 const QString mouse_sensitivity = "mouse_setting/mouse_sensitivity";
 const QString executor_type = "server/executor_type";
 const QString virtual_gamepad_type = "server/virtual_gamepad_type";
+/**
+ * Set once the stored device choice has been carried over to "both pads".
+ *
+ * Written rather than read for its value: its presence is what stops the
+ * upgrade from repeating, so a device chosen after it is kept.
+ */
+const QString virtual_gamepad_type_both = "server/virtual_gamepad_type_both";
 const QString server_port = "server/port";
 
 enum button_keys

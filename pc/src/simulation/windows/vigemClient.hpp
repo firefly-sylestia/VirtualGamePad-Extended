@@ -39,13 +39,24 @@
 class ViGEmGamepad
 {
   public:
-	/** Which virtual device the driver plugs in. */
+	/** Which virtual device(s) the driver plugs in. */
 	enum class TargetType
 	{
 		/** Xbox 360 pad: XInput only, so DirectInput-only readers miss it. */
 		Xbox360,
 		/** DualShock 4 pad: also a HID gamepad, so DirectInput readers see it. */
-		DualShock4
+		DualShock4,
+		/**
+		 * Both, side by side.
+		 *
+		 * A program's own device list is built from one API or the other, and which
+		 * one it reads is not something the user can see: games that read XInput
+		 * find only the Xbox pad, while emulators, launchers and DirectInput readers
+		 * find only the DualShock. Presenting the pair means whichever list is open
+		 * has a pad in it, and the user picks between two devices exactly as they
+		 * would with two real controllers plugged in.
+		 */
+		Both
 	};
 
 	/**

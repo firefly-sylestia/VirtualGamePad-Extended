@@ -94,6 +94,26 @@ void SettingsSingleton::loadVirtualGamepadType()
 			.value(setting_keys::virtual_gamepad_type,
 				   static_cast<int>(DEFAULT_VIRTUAL_GAMEPAD_TYPE))
 			.toInt());
+
+	// One-time carry-over: a stored choice of a single device comes from the time
+	// only one could be plugged in, and a single device is exactly what leaves a
+	// controller missing from a program's input-device list — an Xbox 360 pad from
+	// a HID list, a DualShock 4 from an XInput one. The marker is written on the
+	// first run, so a device chosen in Preferences afterwards is kept as it is.
+	if (settings.value(setting_keys::virtual_gamepad_type_both).toBool())
+		return;
+
+	settings.setValue(setting_keys::virtual_gamepad_type_both, true);
+	settings.sync();
+
+	if (virtual_gamepad_type == VirtualGamepadType::Both)
+		return;
+
+	qInfo() << "Stored virtual device" << static_cast<int>(virtual_gamepad_type)
+			<< "is upgraded once to both pads, so every program's device list finds a "
+			   "controller; choose a device in Preferences to change it back";
+	virtual_gamepad_type = VirtualGamepadType::Both;
+	saveSetting(setting_keys::virtual_gamepad_type, static_cast<int>(virtual_gamepad_type));
 }
 
 void SettingsSingleton::loadAll()
