@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 #include <windows.h>
@@ -128,6 +130,19 @@ struct Api
 	/** `vigem_target_ds4_update`, the deprecated-but-simple DS4 entry point. */
 	using UpdateDs4 = uint32_t (*)(void *, void *, Ds4Report);
 
+	/**
+	 * The rumble notifications, which a game raises to make a real pad vibrate.
+	 *
+	 * Both run on a ViGEm worker thread, so a handler that touches sockets or UI
+	 * must hop threads itself.
+	 */
+	using X360Notification = void(CALLBACK *)(void *, void *, unsigned char, unsigned char,
+														 unsigned char, void *);
+	using Ds4Notification = void(CALLBACK *)(void *, void *, unsigned char, unsigned char,
+													 unsigned char, unsigned char, void *);
+	using RegisterX360 = uint32_t (*)(void *, void *, X360Notification, void *);
+	using RegisterDs4 = uint32_t (*)(void *, void *, Ds4Notification, void *);
+
 	Alloc alloc = nullptr;
 	Free freeClient = nullptr;
 	Connect connect = nullptr;
@@ -141,11 +156,44 @@ struct Api
 	/** One update entry point per kind, for the same reason. */
 	UpdateX360 updateX360 = nullptr;
 	UpdateDs4 updateDs4 = nullptr;
+	/** Rumble registration, optional: a DLL without it simply never vibrates. */
+	RegisterX360 registerX360 = nullptr;
+	RegisterDs4 registerDs4 = nullptr;
 };
 
 template <typename Fn> Fn resolve(HMODULE module, const char *name)
 {
 	return reinterpret_cast<Fn>(reinterpret_cast<void *>(GetProcAddress(module, name)));
+}
+
+/**
+ * The caller's rumble sink, kept alive as long as a notification is registered.
+ *
+ * ViGEm hands a `void*` back with each notification, and this is what it points
+ * to. The context outlives every registration because the target is unregistered
+ * and removed before the owning [ViGEmGamepad::Impl] lets go of it.
+ */
+struct RumbleContext
+{
+	std::function<void(uint8_t large, uint8_t small)> handler;
+};
+
+/** Xbox 360 rumble: large motor, small motor, and the LED number, which is unused. */
+void CALLBACK x360RumbleTrampoline(void *, void *, unsigned char large, unsigned char small,
+													   unsigned char, void *userData)
+{
+	auto *context = static_cast<RumbleContext *>(userData);
+	if (context != nullptr && context->handler)
+		context->handler(large, small);
+}
+
+/** DualShock 4 rumble: both motors, then the trigger rumble, which is unused here. */
+void CALLBACK ds4RumbleTrampoline(void *, void *, unsigned char large, unsigned char small,
+												  unsigned char, unsigned char, void *userData)
+{
+	auto *context = static_cast<RumbleContext *>(userData);
+	if (context != nullptr && context->handler)
+		context->handler(large, small);
 }
 
 int16_t thumbToReport(float value)
@@ -417,6 +465,13 @@ struct ViGEmGamepad::Impl
 	QString error;
 	bool reportedFailure = false;
 
+	/**
+	 * The rumble sink the notifications call into, kept here so it outlives the
+	 * registrations that point at it. Null until [ViGEmGamepad::setRumbleHandler]
+	 * arms it, which is also when the notifications are registered.
+	 */
+	std::unique_ptr<RumbleContext> rumbleContext;
+
 	/** Undo whatever half of the set-up succeeded, so nothing is left behind. */
 	void teardown()
 	{
@@ -430,6 +485,9 @@ struct ViGEmGamepad::Impl
 			target.handle = nullptr;
 		}
 		targets.clear();
+		// Targets are gone, so no rumble notification can fire: the context the
+		// registrations pointed at can be released safely now.
+		rumbleContext.reset();
 		if (client != nullptr)
 		{
 			api.disconnect(client);
@@ -486,6 +544,14 @@ ViGEmGamepad::ViGEmGamepad(TargetType type) : m_impl(std::make_unique<Impl>())
 	impl.api.updateX360 = resolve<Api::UpdateX360>(impl.module, "vigem_target_x360_update");
 	impl.api.targetAllocDs4 = resolve<Api::TargetAlloc>(impl.module, "vigem_target_ds4_alloc");
 	impl.api.updateDs4 = resolve<Api::UpdateDs4>(impl.module, "vigem_target_ds4_update");
+
+	// Rumble is optional: an older ViGEmClient.dll without these exports still
+	// drives the pad, it just cannot make a phone buzz. Both are resolved so
+	// either pad kind can raise a notification.
+	impl.api.registerX360 = resolve<Api::RegisterX360>(impl.module,
+															  "vigem_target_x360_register_notification");
+	impl.api.registerDs4 = resolve<Api::RegisterDs4>(impl.module,
+															 "vigem_target_ds4_register_notification");
 
 	// Which devices to plug in. Presenting both is not the same as choosing one:
 	// an Xbox 360 pad answers XInput and nothing else, while a DualShock 4 is a
@@ -668,6 +734,35 @@ void ViGEmGamepad::submit(const Report &report)
 QString ViGEmGamepad::backendName() const
 {
 	return nameFor(targetType());
+}
+
+void ViGEmGamepad::setRumbleHandler(std::function<void(uint8_t large, uint8_t small)> handler)
+{
+	if (!isReady() || handler == nullptr)
+		return;
+
+	Impl &impl = *m_impl;
+
+	// The registrations hand a raw pointer to this context, so it has to outlive
+	// them: it is kept on the Impl and only let go in teardown(), after every
+	// target has been removed and no notification can fire any more.
+	impl.rumbleContext = std::make_unique<RumbleContext>();
+	impl.rumbleContext->handler = std::move(handler);
+	void *userData = impl.rumbleContext.get();
+
+	for (const Impl::Target &target : impl.targets)
+	{
+		if (target.type == TargetType::DualShock4)
+		{
+			if (impl.api.registerDs4 != nullptr)
+				impl.api.registerDs4(impl.client, target.handle, ds4RumbleTrampoline, userData);
+		}
+		else
+		{
+			if (impl.api.registerX360 != nullptr)
+				impl.api.registerX360(impl.client, target.handle, x360RumbleTrampoline, userData);
+		}
+	}
 }
 
 QString ViGEmGamepad::systemReport() const

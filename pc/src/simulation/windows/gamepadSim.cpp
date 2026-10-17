@@ -267,3 +267,11 @@ QString GamepadInjector::systemReport() const
 	// device for anything to list, so there is nothing to report.
 	return QString();
 }
+
+void GamepadInjector::setRumbleHandler(std::function<void(uint8_t, uint8_t)> handler)
+{
+	// Only the ViGEmBus pad is a device a game can send rumble to. The injection
+	// fallback has nothing to report, so a handler is simply not armed there.
+	if (m_vigem != nullptr)
+		m_vigem->setRumbleHandler(std::move(handler));
+}

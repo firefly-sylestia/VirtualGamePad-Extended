@@ -3,6 +3,8 @@
 #include <QDebug>
 #include <QString>
 #include <cmath>
+#include <functional>
+#include <cstdint>
 
 #ifdef _WIN32
 // Windows Runtime includes for gamepad injection
@@ -129,6 +131,19 @@ class GamepadInjector
 	 * creates no device at all, and empty before a pad exists.
 	 */
 	QString systemReport() const;
+
+	/**
+	 * @brief Forward a game's rumble to a caller-supplied sink, when the backend
+	 * can capture it.
+	 *
+	 * Only the ViGEmBus pad on Windows reports rumble, because only a real (even
+	 * if virtual) device receives it from the game. Backends with nothing to
+	 * report — the Linux uinput pad and the Windows input-injection fallback —
+	 * ignore this, so it is safe to call on every platform. The sink may be
+	 * invoked from a driver worker thread, so a caller that touches sockets or UI
+	 * must hop threads itself.
+	 */
+	void setRumbleHandler(std::function<void(uint8_t large, uint8_t small)> handler);
 
 #ifdef _WIN32
 	/**

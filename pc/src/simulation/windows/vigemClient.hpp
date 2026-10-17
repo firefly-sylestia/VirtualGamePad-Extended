@@ -36,6 +36,7 @@
 
 #include <QString>
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 class ViGEmGamepad
@@ -132,6 +133,18 @@ class ViGEmGamepad
 
 	/** Sends one report to the virtual pad. */
 	void submit(const Report &report);
+
+	/**
+	 * Called when a game asks the pad to rumble, with the two motor strengths.
+	 *
+	 * `large` is the low-frequency (heavy) motor and `small` the high-frequency
+	 * (sharp) one, both 0..255, exactly as a physical pad reports them. The
+	 * callback runs on a ViGEm worker thread, not the GUI thread, so a caller that
+	 * touches sockets or UI must hop threads itself. Setting a handler is what
+	 * arms the rumble notifications; without one nothing is registered and a game
+	 * that rumbles has no effect.
+	 */
+	void setRumbleHandler(std::function<void(uint8_t large, uint8_t small)> handler);
 
 	/** Which device this instance is presenting. */
 	TargetType targetType() const;

@@ -258,7 +258,39 @@ void Server::buildExecutor()
 
 	m_executorType = static_cast<int>(type);
 	m_virtualGamepadType = static_cast<int>(SettingsSingleton::instance().virtualGamepadType());
+
+	// A game that asks the pad to rumble should make the phone buzz. The handler
+	// arrives on a ViGEm worker thread, so it bounces onto this page's thread
+	// before it touches the socket. Only a backend that can capture rumble calls
+	// back; the rest ignore the handler.
+	if (executor != nullptr)
+	{
+		executor->setRumbleHandler([this](uint8_t large, uint8_t small)
+		{
+			QMetaObject::invokeMethod(
+				this,
+				[this, large, small]() { sendRumbleToPhone(large, small); },
+				Qt::QueuedConnection);
+		});
+	}
+
 	refreshBackendStatus();
+}
+
+void Server::sendRumbleToPhone(quint8 large, quint8 small)
+{
+	// On this page's thread by the time it runs. A phone that is not connected, or
+	// one that never reads this direction, is simply not written to: the frame is
+	// buffered and dropped with the socket, which is harmless.
+	if (clientConnection == nullptr || !isGamepadConnected)
+		return;
+
+	// One self-delimiting line. The PC-to-phone direction carries no Colfer
+	// frames, so plain text cannot collide with anything, and a trailing newline
+	// lets the phone split frames without a length header.
+	const QByteArray frame = "RUMBLE|" + QByteArray::number(large) + '|' +
+		QByteArray::number(small) + '\n';
+	clientConnection->write(frame);
 }
 
 void Server::refreshBackendStatus()

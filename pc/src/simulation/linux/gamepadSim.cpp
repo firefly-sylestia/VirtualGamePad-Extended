@@ -253,3 +253,12 @@ QString GamepadInjector::systemReport() const
 	// SDL readers find it like any plugged-in controller.
 	return QStringLiteral("the kernel lists it as an input device");
 }
+
+void GamepadInjector::setRumbleHandler(std::function<void(uint8_t, uint8_t)> handler)
+{
+	// A uinput pad can be told to rumble, but nothing here receives the game's
+	// request for it: the kernel offers no rumble event to a virtual pad created
+	// this way. The handler is dropped so the caller's contract holds — rumble is
+	// simply never reported on this platform.
+	(void)handler;
+}
