@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.GamepadGeometry
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 
@@ -105,8 +107,10 @@ private fun ExtraButton(
     OutlinedButton(
         onClick = {},
         modifier = Modifier.size(width = metrics.width, height = metrics.height),
+        shape = RoundedCornerShape(LocalGamepadSkin.current.cornerRadius),
         border = BorderStroke(
-            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) LocalGamepadSkin.current.pressedBorderWidth
+            else LocalGamepadSkin.current.borderWidth,
             if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
         colors = ButtonDefaults.outlinedButtonColors(

@@ -6,6 +6,16 @@ val defaultGamepadBackground = GamepadBackground.SYSTEM
 val defaultCustomGamepadBackground = 0xFF1B2030.toInt() // ARGB
 const val defaultPollingDelay = 80 // in milliseconds
 const val defaultHapticFeedbackEnabled = false // vibrations
+
+/**
+ * Whether vibration the game asks for is played on the phone.
+ *
+ * On by default, and separate from [defaultHapticFeedbackEnabled]: game rumble is
+ * a feature of the game being played rather than feedback from touching a control,
+ * so a player who finds the button haptics noisy can still feel the game. The
+ * switch exists because the opposite is just as reasonable.
+ */
+const val defaultGameRumbleEnabled = true
 const val defaultSaveConnectionCredentials = false
 const val defaultFullScreenEnabled = false
 const val defaultKeepScreenOn = true

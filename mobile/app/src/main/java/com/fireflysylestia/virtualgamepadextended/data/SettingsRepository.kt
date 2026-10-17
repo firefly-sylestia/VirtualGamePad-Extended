@@ -143,6 +143,11 @@ class SettingsRepository(context: Context) {
         GamepadBackground.fromStored(preferences[GAMEPAD_BACKGROUND])
     }
 
+    /** Whether vibration a game asks for is played on the phone. */
+    val gameRumbleEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[GAME_RUMBLE_ENABLED] ?: defaultGameRumbleEnabled
+    }
+
     /** How the gamepad's controls are drawn. */
     val gamepadSkin: Flow<GamepadSkin> = dataStore.data.map { preferences ->
         GamepadSkin.fromStored(preferences[GAMEPAD_SKIN])
@@ -286,6 +291,12 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setGameRumbleEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[GAME_RUMBLE_ENABLED] = enabled
+        }
+    }
+
     suspend fun setGamepadSkin(skin: GamepadSkin) {
         dataStore.edit { preferences ->
             preferences[GAMEPAD_SKIN] = skin.name
@@ -352,6 +363,7 @@ class SettingsRepository(context: Context) {
             booleanPreferencesKey("right_stick_large_touch_area")
         private val TOUCH_SENSITIVITY = floatPreferencesKey("touch_sensitivity")
         private val GAMEPAD_SKIN = stringPreferencesKey("gamepad_skin")
+        private val GAME_RUMBLE_ENABLED = booleanPreferencesKey("game_rumble_enabled")
         private val GAMEPAD_BACKGROUND = stringPreferencesKey("gamepad_background")
         private val CUSTOM_GAMEPAD_BACKGROUND = intPreferencesKey("custom_gamepad_background")
     }

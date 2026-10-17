@@ -24,6 +24,7 @@ import com.fireflysylestia.virtualgamepadextended.data.SettingsRepository
 import com.fireflysylestia.virtualgamepadextended.data.defaultBaseColor
 import com.fireflysylestia.virtualgamepadextended.data.defaultColorScheme
 import com.fireflysylestia.virtualgamepadextended.data.defaultFullScreenEnabled
+import com.fireflysylestia.virtualgamepadextended.data.defaultGameRumbleEnabled
 import com.fireflysylestia.virtualgamepadextended.data.defaultHapticFeedbackEnabled
 import com.fireflysylestia.virtualgamepadextended.data.defaultKeepScreenOn
 import com.fireflysylestia.virtualgamepadextended.data.defaultSaveConnectionCredentials
@@ -38,6 +39,7 @@ import com.fireflysylestia.virtualgamepadextended.ui.screens.MainMenu
 import com.fireflysylestia.virtualgamepadextended.ui.screens.SettingsScreen
 import com.fireflysylestia.virtualgamepadextended.ui.theme.VirtualGamePadExtendedTheme
 import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
+import com.fireflysylestia.virtualgamepadextended.ui.utils.RumblePlayer
 import kotlinx.coroutines.flow.first
 import kotlin.system.exitProcess
 
@@ -78,6 +80,19 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(hapticEnabled.value) {
             HapticUtils.isEnabled = hapticEnabled.value
+        }
+
+        // Game rumble is its own switch: it is vibration the game asked for, not
+        // feedback from touching a control, so it does not follow the haptics
+        // toggle. Switching it off has to silence a rumble already in progress,
+        // which is why the running train is stopped rather than just ignored.
+        val gameRumbleEnabled = settingsRepository.gameRumbleEnabled.collectAsState(
+            initial = defaultGameRumbleEnabled
+        )
+
+        LaunchedEffect(gameRumbleEnabled.value) {
+            RumblePlayer.isEnabled = gameRumbleEnabled.value
+            if (!gameRumbleEnabled.value) RumblePlayer.stop()
         }
 
         val fullScreenEnabled = settingsRepository.fullScreenEnabled.collectAsState(

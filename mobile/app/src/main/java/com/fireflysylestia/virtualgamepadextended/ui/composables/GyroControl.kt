@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GyroResponse
@@ -208,7 +210,11 @@ fun GyroControl(
         onClick = { if (!unavailable) enabled = !enabled },
         enabled = !unavailable,
         modifier = modifier.size(width = metrics.width, height = metrics.height),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        shape = RoundedCornerShape(LocalGamepadSkin.current.cornerRadius),
+        border = BorderStroke(
+            LocalGamepadSkin.current.borderWidth,
+            MaterialTheme.colorScheme.outline,
+        ),
         contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
     ) {
         // Short labels: the button keeps a fixed, predictable footprint so the

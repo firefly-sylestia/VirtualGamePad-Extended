@@ -19,6 +19,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.MacroAction
 import com.fireflysylestia.virtualgamepadextended.data.MacroDefinition
 import com.fireflysylestia.virtualgamepadextended.data.MacroStep
@@ -51,8 +53,10 @@ private fun MacroButton(
         onClick = {},
         enabled = macro != null && macro.steps.isNotEmpty(),
         modifier = Modifier.size(width = metrics.width, height = metrics.height),
+        shape = RoundedCornerShape(LocalGamepadSkin.current.cornerRadius),
         border = BorderStroke(
-            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) LocalGamepadSkin.current.pressedBorderWidth
+            else LocalGamepadSkin.current.borderWidth,
             if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
         colors = ButtonDefaults.outlinedButtonColors(

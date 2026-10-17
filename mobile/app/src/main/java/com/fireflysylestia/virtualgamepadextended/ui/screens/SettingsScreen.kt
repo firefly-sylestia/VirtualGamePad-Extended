@@ -63,6 +63,7 @@ import com.fireflysylestia.virtualgamepadextended.data.gyroCalibrationMillis
 import com.fireflysylestia.virtualgamepadextended.data.gyroSensitivityRange
 import com.fireflysylestia.virtualgamepadextended.data.gyroSensitivityStep
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GyroBiasRecorder
+import com.fireflysylestia.virtualgamepadextended.data.defaultGameRumbleEnabled
 import com.fireflysylestia.virtualgamepadextended.data.defaultHapticFeedbackEnabled
 import com.fireflysylestia.virtualgamepadextended.data.defaultKeepScreenOn
 import com.fireflysylestia.virtualgamepadextended.data.defaultPollingDelay
@@ -92,6 +93,7 @@ private data class SettingsChanges(
     val baseColor: BaseColor? = null,
     val pollingDelay: Int? = null,
     val hapticFeedbackEnabled: Boolean? = null,
+    val gameRumbleEnabled: Boolean? = null,
     val saveConnectionCredentials: Boolean? = null,
     val fullScreenEnabled: Boolean? = null,
     val keepScreenOn: Boolean? = null,
@@ -144,6 +146,10 @@ fun SettingsScreen(
         val baseColor by settingsRepository.baseColor.collectAsState(initial = defaultBaseColor)
         val pollingDelay by settingsRepository.pollingDelay.collectAsState(initial = defaultPollingDelay)
         val hapticEnabled by settingsRepository.hapticFeedbackEnabled.collectAsState(initial = defaultHapticFeedbackEnabled)
+
+        val gameRumbleEnabled by settingsRepository.gameRumbleEnabled.collectAsState(
+            initial = defaultGameRumbleEnabled
+        )
         val saveCredentials by settingsRepository.saveConnectionCredentials.collectAsState(initial = defaultSaveConnectionCredentials)
         val fullScreenEnabled by settingsRepository.fullScreenEnabled.collectAsState(initial = defaultFullScreenEnabled)
         val keepScreenOn by settingsRepository.keepScreenOn.collectAsState(initial = defaultKeepScreenOn)
@@ -422,6 +428,16 @@ fun SettingsScreen(
                     }
                 )
 
+                // Vibration the game asks for is its own switch, because it is not
+                // feedback from touching a control.
+                SettingsSwitchRow(
+                    label = stringResource(R.string.settings_game_rumble),
+                    checked = settingsChanges.gameRumbleEnabled ?: gameRumbleEnabled,
+                    onCheckedChange = {
+                        settingsChanges = settingsChanges.copy(gameRumbleEnabled = it)
+                    }
+                )
+
                 SettingsSwitchRow(
                     label = stringResource(R.string.settings_full_screen),
                     checked = settingsChanges.fullScreenEnabled ?: fullScreenEnabled,
@@ -551,6 +567,11 @@ fun SettingsScreen(
                             settingsChanges.baseColor?.let { settingsRepository.setBaseColor(it); ++changesSaved }
                             settingsChanges.pollingDelay?.let {
                                 settingsRepository.setPollingDelay(
+                                    it
+                                ); ++changesSaved
+                            }
+                            settingsChanges.gameRumbleEnabled?.let {
+                                settingsRepository.setGameRumbleEnabled(
                                     it
                                 ); ++changesSaved
                             }

@@ -32,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.fireflysylestia.virtualgamepadextended.data.ButtonComponent
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.ButtonConfig
 import com.fireflysylestia.virtualgamepadextended.data.ControllerLayout
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
@@ -84,9 +86,12 @@ fun ShoulderButton(
             // The padding is small so a two-letter label still fits at the sizes
             // a phone ends up with.
             .widthIn(min = size * 1.5f),
+        // The skin owns the outline of every control, so the bumpers follow it too.
+        shape = RoundedCornerShape(LocalGamepadSkin.current.cornerRadius),
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
         border = BorderStroke(
-            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) LocalGamepadSkin.current.pressedBorderWidth
+            else LocalGamepadSkin.current.borderWidth,
             if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
         colors = ButtonDefaults.buttonColors(
@@ -141,6 +146,7 @@ fun MenuButton(
 
     OutlinedIconButton(
         modifier = modifier.size(size),
+        shape = RoundedCornerShape(LocalGamepadSkin.current.cornerRadius),
         colors = IconButtonDefaults.outlinedIconButtonColors(
             containerColor = if (isPressed) {
                 MaterialTheme.colorScheme.primaryContainer
@@ -154,7 +160,8 @@ fun MenuButton(
             },
         ),
         border = BorderStroke(
-            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) LocalGamepadSkin.current.pressedBorderWidth
+            else LocalGamepadSkin.current.borderWidth,
             if (isPressed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         ),
         onClick = { },

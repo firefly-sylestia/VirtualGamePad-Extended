@@ -31,6 +31,7 @@
     <string name="settings_right_stick_large_touch_area">Large Right Stick Area</string>
     <string name="settings_touch_sensitivity">Touch Surface Sensitivity</string>
     <string name="settings_gamepad_skin">Controller Skin</string>
+    <string name="settings_game_rumble">Game Rumble</string>
     <string name="gamepad_skin_default">Default</string>
     <string name="gamepad_skin_minecraft">Minecraft (blocks)</string>
     <string name="gamepad_skin_pixel">Pixel</string>
