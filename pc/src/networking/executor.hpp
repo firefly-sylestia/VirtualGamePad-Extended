@@ -9,6 +9,7 @@
 #include <QString>
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -72,6 +73,20 @@ class ExecutorInterface
 	 * nothing is held.
 	 */
 	virtual void releaseAll() = 0;
+
+	/**
+	 * @brief Subscribe to rumble a game asks the virtual pad for, when the
+	 * backend can capture it.
+	 *
+	 * Only a ViGEmBus pad receives rumble from a game, so backends that cannot
+	 * report it ignore this. The default does nothing, so a backend never has to
+	 * implement it. The sink may be called from a driver worker thread, so the
+	 * caller must hop to its own thread before touching sockets or UI.
+	 */
+	virtual void setRumbleHandler(std::function<void(uint8_t large, uint8_t small)> handler)
+	{
+		(void)handler;
+	}
 };
 
 class GamepadExecutor : public ExecutorInterface
@@ -94,6 +109,10 @@ class GamepadExecutor : public ExecutorInterface
 	QString backendName() const override { return m_backendName; }
 	QString backendDetail() const override { return m_backendDetail; }
 	void releaseAll() override;
+	void setRumbleHandler(std::function<void(uint8_t large, uint8_t small)> handler) override
+	{
+		m_injector.setRumbleHandler(std::move(handler));
+	}
 
   private:
 	GamepadInjector m_injector;

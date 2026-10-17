@@ -135,4 +135,16 @@ class Server : public QWidget
 
 	/** Reply to one discovery probe with this server's name and port. */
 	void answerDiscoveryProbe();
+
+	/**
+	 * Send one rumble to the connected phone.
+	 *
+	 * Runs on the server's own thread: a game's rumble arrives on a ViGEm worker
+	 * thread, which must not touch the socket, so it is bounced here through a
+	 * queued call. Writes a single self-delimiting line, because the PC-to-phone
+	 * direction carries no Colfer frames and this is all it carries today. A
+	 * phone that never reads it is unaffected — the write is simply buffered and
+	 * dropped with the socket.
+	 */
+	void sendRumbleToPhone(quint8 large, quint8 small);
 };

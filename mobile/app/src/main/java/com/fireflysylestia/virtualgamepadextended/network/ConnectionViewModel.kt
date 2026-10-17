@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
+import com.fireflysylestia.virtualgamepadextended.ui.utils.RumblePlayer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,6 +27,23 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
 
     private val tag = this::class.java.simpleName
     private var clientSocket: Socket? = null // Internal storage for the socket
+
+    /**
+     * Application context, used only to reach the vibrator for game rumble.
+     *
+     * Set once from the activity; the reader that watches for rumble frames is
+     * the only thing that uses it, and it holds the application context, never an
+     * activity, so it cannot leak one.
+     */
+    private var appContext: Context? = null
+
+    /** The coroutine reading rumble frames, kept so it can be stopped on disconnect. */
+    private var rumbleReaderJob: Job? = null
+
+    /** Give the ViewModel the context it needs to vibrate on a game's rumble. */
+    fun setApplicationContext(context: Context) {
+        appContext = context.applicationContext
+    }
 
     /** The endpoint of the last successful connect, used to reconnect after a drop. */
     private var lastEndpoint: NetworkCommand.Connect? = null
@@ -214,6 +232,10 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
                 )
                 clientSocket = socket // Store the connected socket
 
+                // A game can ask the pad to rumble; watch for those frames on a
+                // background thread so the send path is never blocked by reads.
+                startRumbleReader(socket)
+
                 _uiState.update {
                     it.copy(
                         connected = true,
@@ -260,6 +282,36 @@ class ConnectionViewModel(private val onConnectionSuccess: suspend (String, Int)
                 isConnecting = false,
                 error = lastError ?: "Unknown connection error"
             )
+        }
+    }
+
+    /**
+     * Watch the socket for rumble frames and turn them into vibration.
+     *
+     * The PC writes one self-delimiting line per rumble, `RUMBLE|<large>|<small>`,
+     * and this direction carries nothing else, so a line that does not match is
+     * skipped rather than desynchronising anything. The read blocks, so it runs
+     * off the main thread; it ends when the socket closes or the job is cancelled.
+     */
+    private fun startRumbleReader(socket: Socket) {
+        rumbleReaderJob?.cancel()
+        val context = appContext ?: return
+        rumbleReaderJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val reader = socket.getInputStream().bufferedReader()
+                while (isActive) {
+                    val line = reader.readLine() ?: break // socket closed
+                    val parts = line.split('|')
+                    if (parts.size != 3 || parts[0] != "RUMBLE") continue
+                    val large = parts[1].toIntOrNull() ?: continue
+                    val small = parts[2].toIntOrNull() ?: continue
+                    RumblePlayer.rumble(context, large, small)
+                }
+            } catch (e: CancellationException) {
+                // The job was stopped on purpose; nothing to report.
+            } catch (e: Exception) {
+                Log.d(tag, "Rumble reader ended: ${e.message}")
+            }
         }
     }
 
