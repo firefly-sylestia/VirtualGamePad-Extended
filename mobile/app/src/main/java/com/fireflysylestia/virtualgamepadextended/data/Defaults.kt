@@ -33,6 +33,16 @@ const val defaultSlideBetweenButtons = true
  */
 const val defaultRightStickLargeTouchArea = false
 
+/**
+ * The same wide target for the left stick.
+ *
+ * The left stick is steered rather than aimed, so a thumb can usually find it,
+ * but on a layout where it sits close to the D-pad the wider target is what lets
+ * a player pick the stick up without looking. Off by default for the same reason
+ * as the right one: the padding can overlap a neighbouring control.
+ */
+const val defaultLeftStickLargeTouchArea = false
+
 /** 1.0 is the travel the response curve was designed around. */
 const val defaultStickSensitivity = 1.0f
 
@@ -259,6 +269,18 @@ val defaultButtonConfigs = mapOf(
         scale = 1.0f,
         offsetX = 0f,
         offsetY = 0.45f,
+        anchor = ButtonAnchor.TOP_CENTER
+    ),
+
+    // --- Top centre, right end of the first row: the phone-only HOLD button.
+    // It is visible on every preset because it is a feature of the phone, not of
+    // the controller family being imitated, and it sends nothing to the PC.
+    ButtonComponent.HOLD to ButtonConfig(
+        component = ButtonComponent.HOLD,
+        visible = true,
+        scale = 1.0f,
+        offsetX = 0.65f,
+        offsetY = 0f,
         anchor = ButtonAnchor.TOP_CENTER
     )
 )

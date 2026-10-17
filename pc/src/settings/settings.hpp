@@ -30,6 +30,21 @@ const QString virtual_gamepad_type = "server/virtual_gamepad_type";
  */
 const QString virtual_gamepad_type_both = "server/virtual_gamepad_type_both";
 const QString server_port = "server/port";
+/**
+ * Whether keyboard and mouse input is locked to one window.
+ *
+ * Off by default, which is the original behaviour: follow whichever window has
+ * focus. Only turning it on makes a chosen program the sole destination.
+ */
+const QString target_window_configured = "server/target_window_configured";
+/**
+ * The chosen window's title and process, used to find it again after a restart.
+ *
+ * The native handle is deliberately not saved: Windows reuses handles, and a
+ * restored one could belong to a completely different program.
+ */
+const QString target_window_title = "server/target_window_title";
+const QString target_window_process = "server/target_window_process";
 
 enum button_keys
 {

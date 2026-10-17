@@ -129,6 +129,7 @@ void KeymapProfile::initializeDefaultMappings()
 
 bool KeymapProfile::load(const QString &profilePath) noexcept
 {
+	m_migratedBackKey = false;
 	if (!QFile::exists(profilePath))
 	{
 		qInfo() << tr("Profile file %1 does not exist. Loading defaults.").arg(profilePath);
@@ -139,6 +140,15 @@ bool KeymapProfile::load(const QString &profilePath) noexcept
 	{
 		QSettings settings(profilePath, QSettings::IniFormat);
 		loadFromSettings(settings);
+		if (m_migratedBackKey)
+		{
+			// Write the migrated value back, so the next run starts from it too.
+			QSettings writeBack(profilePath, QSettings::IniFormat);
+			saveToSettings(writeBack);
+			writeBack.sync();
+			qInfo() << "Migrated B from Escape to Backspace in profile" << profilePath;
+			m_migratedBackKey = false;
+		}
 	}
 	catch (...)
 	{
@@ -266,11 +276,12 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	// Clear existing mappings
 	buttonMappings.clear();
 	buttonDisplayNames.clear();
+	m_migratedBackKey = false;
 
 	// Load with platform-specific defaults
 #ifdef WIN32
 	buttonMappings[GamepadButtons_A] = settings.value("buttons/A", VK_RETURN).toUInt();
-	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", VK_ESCAPE).toUInt();
+	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", VK_BACK).toUInt();
 	buttonMappings[GamepadButtons_X] = settings.value("buttons/X", VK_SHIFT).toUInt();
 	buttonMappings[GamepadButtons_Y] = settings.value("buttons/Y", VK_CONTROL).toUInt();
 	buttonMappings[GamepadButtons_RightShoulder] = settings.value("buttons/RS", VK_RBUTTON).toUInt();
@@ -295,7 +306,7 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	buttonMappings[GamepadButtons_Paddle4] = settings.value("buttons/P4", '4').toUInt();
 #elif defined(__linux__)
 	buttonMappings[GamepadButtons_A] = settings.value("buttons/A", KEY_ENTER).toUInt();
-	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", KEY_ESC).toUInt();
+	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", KEY_BACKSPACE).toUInt();
 	buttonMappings[GamepadButtons_X] = settings.value("buttons/X", KEY_LEFTSHIFT).toUInt();
 	buttonMappings[GamepadButtons_Y] = settings.value("buttons/Y", KEY_LEFTCTRL).toUInt();
 	buttonMappings[GamepadButtons_RightShoulder] = settings.value("buttons/RS", BTN_RIGHT).toUInt();
@@ -353,6 +364,26 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	buttonDisplayNames[GamepadButtons_Paddle2] = settings.value("button_display_names/P2", "2").toString();
 	buttonDisplayNames[GamepadButtons_Paddle3] = settings.value("button_display_names/P3", "3").toString();
 	buttonDisplayNames[GamepadButtons_Paddle4] = settings.value("button_display_names/P4", "4").toString();
+
+	// A profile saved before the default changed still carries B as Escape: the
+	// value came from the old default, not from a choice, so it is migrated to
+	// Backspace. A hand-picked Escape has that word as its display name and is
+	// left exactly as it was.
+#ifdef _WIN32
+	const InputKeyCode legacyBackKey = VK_ESCAPE;
+	const InputKeyCode backspaceKey = VK_BACK;
+#elif defined(__linux__)
+	const InputKeyCode legacyBackKey = KEY_ESC;
+	const InputKeyCode backspaceKey = KEY_BACKSPACE;
+#endif
+	if (buttonMappings[GamepadButtons_B] == legacyBackKey &&
+		(buttonDisplayNames[GamepadButtons_B].isEmpty() ||
+		 buttonDisplayNames[GamepadButtons_B] == QStringLiteral("Backspace")))
+	{
+		buttonMappings[GamepadButtons_B] = backspaceKey;
+		buttonDisplayNames[GamepadButtons_B] = QStringLiteral("Backspace");
+		m_migratedBackKey = true;
+	}
 
 	// Log mappings for debugging
 	qDebug() << "Loaded mappings:"

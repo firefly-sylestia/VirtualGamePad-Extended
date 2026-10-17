@@ -68,6 +68,7 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultHapticFeedbackEnab
 import com.fireflysylestia.virtualgamepadextended.data.defaultKeepScreenOn
 import com.fireflysylestia.virtualgamepadextended.data.defaultPollingDelay
 import com.fireflysylestia.virtualgamepadextended.data.defaultSaveConnectionCredentials
+import com.fireflysylestia.virtualgamepadextended.data.defaultLeftStickLargeTouchArea
 import com.fireflysylestia.virtualgamepadextended.data.defaultRightStickLargeTouchArea
 import com.fireflysylestia.virtualgamepadextended.data.defaultSlideBetweenButtons
 import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
@@ -103,6 +104,7 @@ private data class SettingsChanges(
     val fullScreenCameraEnabled: Boolean? = null,
     val slideBetweenButtons: Boolean? = null,
     val rightStickLargeTouchArea: Boolean? = null,
+    val leftStickLargeTouchArea: Boolean? = null,
     val gamepadSkin: GamepadSkin? = null,
     val gamepadBackground: GamepadBackground? = null,
     val customGamepadBackground: Int? = null
@@ -164,6 +166,9 @@ fun SettingsScreen(
 
         val rightStickLargeTouchArea by settingsRepository.rightStickLargeTouchArea.collectAsState(
             initial = defaultRightStickLargeTouchArea
+        )
+        val leftStickLargeTouchArea by settingsRepository.leftStickLargeTouchArea.collectAsState(
+            initial = defaultLeftStickLargeTouchArea
         )
         val gamepadBackground by settingsRepository.gamepadBackground.collectAsState(initial = defaultGamepadBackground)
 
@@ -480,6 +485,15 @@ fun SettingsScreen(
                 )
 
                 SettingsSwitchRow(
+                    label = stringResource(R.string.settings_left_stick_large_touch_area),
+                    checked = settingsChanges.leftStickLargeTouchArea
+                        ?: leftStickLargeTouchArea,
+                    onCheckedChange = {
+                        settingsChanges = settingsChanges.copy(leftStickLargeTouchArea = it)
+                    }
+                )
+
+                SettingsSwitchRow(
                     label = stringResource(R.string.settings_save_connection_credentials),
                     checked = settingsChanges.saveConnectionCredentials ?: saveCredentials,
                     onCheckedChange = {
@@ -622,6 +636,11 @@ fun SettingsScreen(
                             }
                             settingsChanges.rightStickLargeTouchArea?.let {
                                 settingsRepository.setRightStickLargeTouchArea(
+                                    it
+                                ); ++changesSaved
+                            }
+                            settingsChanges.leftStickLargeTouchArea?.let {
+                                settingsRepository.setLeftStickLargeTouchArea(
                                     it
                                 ); ++changesSaved
                             }

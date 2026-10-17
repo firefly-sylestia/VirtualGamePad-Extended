@@ -29,6 +29,7 @@ import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
 import com.fireflysylestia.virtualgamepadextended.data.defaultFullScreenCameraEnabled
+import com.fireflysylestia.virtualgamepadextended.data.defaultLeftStickLargeTouchArea
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.defaultPollingDelay
@@ -39,6 +40,7 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultTouchSensitivity
 import com.fireflysylestia.virtualgamepadextended.network.ConnectionViewModel
 import com.fireflysylestia.virtualgamepadextended.ui.composables.DrawGamepad
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
+import com.fireflysylestia.virtualgamepadextended.ui.utils.InputHold
 import com.fireflysylestia.virtualgamepadextended.ui.utils.findActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -81,6 +83,9 @@ fun GamePad(
     val rightStickLargeTouchArea = settingsRepository.rightStickLargeTouchArea
         .collectAsState(defaultRightStickLargeTouchArea).value
 
+    val leftStickLargeTouchArea = settingsRepository.leftStickLargeTouchArea
+        .collectAsState(defaultLeftStickLargeTouchArea).value
+
     val touchSensitivity = settingsRepository.touchSensitivity
         .collectAsState(defaultTouchSensitivity).value
     val gamepadSkin = settingsRepository.gamepadSkin.collectAsState(GamepadSkin.DEFAULT).value
@@ -91,6 +96,11 @@ fun GamePad(
     val screenWidth = configuration.screenWidthDp
 
     val isStopping = remember { mutableStateOf(false) }
+
+    // Holds the controls that were down when the HOLD button was tapped. Kept
+    // here, above the renderer, so the send loop can re-apply the snapshot to
+    // every packet rather than only to the one the tap happened on.
+    val inputHold = remember { InputHold() }
 
     // The skin decides how the controls are drawn; the field behind them stays
     // black, so the two no longer compete.
@@ -110,6 +120,8 @@ fun GamePad(
             fullScreenCamera = fullScreenCamera,
             slideBetweenButtons = slideBetweenButtons,
             rightStickLargeTouchArea = rightStickLargeTouchArea,
+            leftStickLargeTouchArea = leftStickLargeTouchArea,
+            hold = inputHold,
             touchSensitivity = touchSensitivity,
         )
     }
@@ -121,6 +133,9 @@ fun GamePad(
             if (event == androidx.lifecycle.Lifecycle.Event.ON_DESTROY
                 && activity?.isChangingConfigurations != true // ignore screen rotation
             ) {
+                // Released on the main thread, where the hold's Compose state is
+                // allowed to change.
+                inputHold.clear()
                 if (connectionViewModel != null) {
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
@@ -171,6 +186,10 @@ fun GamePad(
 
         // Start sending updates
         while (connectionViewModel != null && !isStopping.value) {
+            // Re-apply a latched hold just before the snapshot is taken, so a
+            // control released while the hold is on still reaches the PC down.
+            inputHold.applyTo(gamepadState)
+
             // Queue the update in the ViewModel
             connectionViewModel.enqueueGamepadState(gamepadState)
 

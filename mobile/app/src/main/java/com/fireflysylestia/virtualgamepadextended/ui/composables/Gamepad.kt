@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -20,12 +21,14 @@ import com.fireflysylestia.virtualgamepadextended.data.FaceButtonStyle
 import com.fireflysylestia.virtualgamepadextended.data.GamepadGeometry
 import com.fireflysylestia.virtualgamepadextended.data.MacroDefinition
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
+import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.defaultTouchSensitivity
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
+import com.fireflysylestia.virtualgamepadextended.ui.utils.InputHold
 
 /** How far the background is pushed toward the accent colour in camera mode. */
 private const val CAMERA_TINT = 0.35f
@@ -59,11 +62,20 @@ fun DrawGamepad(
     slideBetweenButtons: Boolean = false,
     // The right stick answers a touch around its knob, not only on it.
     rightStickLargeTouchArea: Boolean = false,
+    // The same wide target for the left stick.
+    leftStickLargeTouchArea: Boolean = false,
+    // Keeps whatever is down when the HOLD button is tapped held.
+    hold: InputHold? = null,
     // How far a touch on the surface is amplified before it drives the pointer.
     touchSensitivity: Float = defaultTouchSensitivity,
 ) {
+    val activeHold = hold ?: remember { InputHold() }
+
     DisposableEffect(gamepadState) {
         onDispose {
+            // A hold must not outlive the gamepad, or the next visit would start
+            // with the previous session's controls pressed.
+            activeHold.clear()
             GamepadButtonDispatcher.releaseAll(gamepadState)
             gamepadState.LeftTrigger = 0f
             gamepadState.RightTrigger = 0f
@@ -81,8 +93,13 @@ fun DrawGamepad(
     val deadZonePadding = GamepadGeometry.deadZoneDp(widthDp, heightDp)
 
     // Helper function to get config for a component
+    // A configuration saved before a control existed does not contain it. Falling
+    // back to its designed default (not a bare ButtonConfig) keeps the control
+    // where the layout puts it instead of stacking it on the centre of the screen.
     fun getConfig(component: ButtonComponent) =
-        buttonConfigs[component] ?: ButtonConfig.default(component)
+        buttonConfigs[component]
+            ?: defaultButtonConfigs[component]
+            ?: ButtonConfig.default(component)
 
     // Helper function to render a button component
     @Composable
@@ -139,6 +156,7 @@ fun DrawGamepad(
                     type = AnalogStickType.LEFT,
                     clickButtonMask = bindings["left_stick_click"]?.mask,
                     sensitivity = stickSensitivity,
+                    largeTouchArea = leftStickLargeTouchArea,
                 )
             }
 
@@ -281,6 +299,19 @@ fun DrawGamepad(
                         y = (config.offsetY * baseDp).dp
                     ),
                     bindings = bindings,
+                )
+            }
+
+            // Phone-only latch: holds the inputs that were down at the tap.
+            RenderComponent(ButtonComponent.HOLD) { config ->
+                HoldButton(
+                    gamepadState = gamepadState,
+                    hold = activeHold,
+                    metrics = AuxiliaryButtonMetrics.of(baseDp, 1, config.scale),
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    ),
                 )
             }
 

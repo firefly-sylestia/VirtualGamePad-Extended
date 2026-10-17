@@ -32,9 +32,15 @@ Settings also cover how the controller itself behaves:
   controls, so every button keeps working, and the background takes the accent
   colour while it is on. The background itself is selectable — matching the theme,
   the five dark presets, or a colour picked with red/green/blue sliders.
+- **HOLD** is a phone-only button. Tapping it while controls are down keeps
+  exactly those controls held — a stick pushed forward, a trigger half-pulled —
+  so the finger can be lifted; tapping it again releases everything it captured.
+  It is not sent to the PC and does not appear as a controller button there.
 - **Slide Between Buttons** turns the D-pad and the A/B/X/Y cluster into one
   surface each: the direction or button follows the finger, so a press rolls from
   one into the next without lifting it, and a diagonal is the finger between two.
+- **Large Left/Right Stick Area** widens what catches a thumb around each stick
+  without changing how far the stick has to be pushed.
 - **Keep Screen On** holds the display awake for the whole session.
 - The **trigger buttons** are pulled, not positioned: a touch is a full pull and
   sliding down from where the finger landed eases it off, so a tap always
@@ -46,6 +52,21 @@ Settings also cover how the controller itself behaves:
 - Plus/Minus, Home/Capture, side buttons, and paddles have distinct mobile/protocol flags. The PC keyboard/mouse executor maps these flags to default key actions; exposing the new actions in the PC keymap editor for user remapping remains planned. The native virtual-gamepad executor maps them onto standard buttons supported by the target backend, using aliases (for example, Plus/Home to Menu and Minus/Capture to View). A standard Xbox-style virtual gamepad cannot expose every Nintendo or PlayStation-specific system control as a distinct native hardware button.
 - On Windows the virtual gamepad can present an Xbox 360 pad, a DualShock 4 pad, or both, chosen in Preferences. Both is the default: a program builds its input-device list from either XInput or HID/DirectInput, and a single pad is missing from one of those lists — an Xbox 360 pad never appears in a HID/DirectInput list (emulators and launchers), and a DualShock 4 is not an XInput device. Presenting one of each means whichever list is open has a controller in it, and the user picks between two devices there as they would with two real pads. A program that merges both APIs itself may see a press twice; the single-device choices are there for that case. Both are created through the ViGEmBus driver, whose installer ships with the PC application and can be run from the app when the driver is missing.
 - The PC app has three input backends, chosen in Preferences: the virtual gamepad alone, keyboard/mouse simulation alone, or both at once. The default is both, because a single one is invisible to half the programs on a PC — a pad does nothing on the desktop and in programs that only read keys, while keys and pointer are ignored by anything that reads a controller. A program that reads both may see one press twice; the single modes are there for that case.
+- Preferences has an **Input target** picker. Choosing a window makes keyboard and
+  mouse injection go only to that program, and only while its window is in front;
+  choosing “Any program” follows whichever window has focus. This closes the gap
+  where a connected phone could type into a browser or chat window. The virtual
+  gamepad is a system device and cannot be locked to a window. With no target
+  selected the old behaviour is kept: input follows whichever window is focused.
+  The choice is remembered by window title and process rather than by a raw
+  window handle, so a recycled handle cannot aim input at another program; if the
+  chosen program is not running, input is paused instead of being sent elsewhere.
+  The list is built from the top-level windows open on Windows; other platforms
+  do not offer the lock. Press **Refresh** after starting or restarting the game.
+- B (the back/cancel button) defaults to Backspace, not Escape: Escape drops most
+  full-screen games out of full screen. Profiles saved with the old default are
+  migrated when they are loaded; a B the user deliberately bound to Escape is
+  kept.
 - The virtual pad is plugged in as soon as the PC application starts and the device chosen in Preferences is applied immediately, so the controller is registered with the system without the user having to open the server page first. The server page states which device is presenting and what the system itself reports for it (the XInput slot it answers on, or how many controllers the system's DirectInput list shows), because an Xbox 360 pad is XInput-class and therefore never appears in Windows' own "Set up USB game controllers" list, while a DualShock 4 does.
 - The mobile editor supports per-control digital action remapping, and the existing component groups can be shown/hidden/repositioned/resized. Arbitrary duplicate instances and a fully dynamic control library remain planned. The PC keymap UI has not been redesigned to expose the new default keyboard mappings.
 - Macros are local to the mobile app and support sequential button, trigger, and axis steps with bounded durations. Simultaneous/chord steps and macro inclusion in the controller-layout JSON export are not implemented yet.

@@ -1,5 +1,7 @@
 #include "../keyboardSim.hpp"
 
+#include "../input_target.hpp"
+
 #include <QKeySequence>
 #include <unordered_set>
 
@@ -37,13 +39,10 @@ static const std::unordered_set<WORD> extendedKeys = {VK_RMENU,
  */
 static bool targetAcceptsInput()
 {
-	const HWND foreground = GetForegroundWindow();
-	if (foreground == nullptr)
-		return true; // Nothing is focused, so nothing can be typed into.
-
-	DWORD ownerPid = 0;
-	GetWindowThreadProcessId(foreground, &ownerPid);
-	return ownerPid != GetCurrentProcessId();
+	// Shared with the mouse injector: it both keeps events out of this
+	// application's own shell and honours a window the player has locked input
+	// to in Preferences, so a connected phone cannot type into another program.
+	return input_target::acceptsInjection();
 }
 
 KeyboardInjector::KeyboardInjector()

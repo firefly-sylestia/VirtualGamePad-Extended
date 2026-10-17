@@ -1,6 +1,7 @@
 #include "settings_singleton.hpp"
 
 #include "../appdir.hpp"
+#include "../simulation/input_target.hpp"
 #include "settings.hpp"
 
 #include <QApplication>
@@ -36,6 +37,43 @@ void SettingsSingleton::setPort(quint16 value)
 {
 	port_number = value;
 	saveSetting(setting_keys::server_port, port_number);
+}
+
+void SettingsSingleton::setTargetWindow(quintptr handle)
+{
+	if (handle == 0)
+	{
+		// "Any program": the original behaviour, following the focused window.
+		target_window = 0;
+		target_window_configured = false;
+		target_window_title.clear();
+		target_window_process.clear();
+		saveSetting(setting_keys::target_window_configured, false);
+		saveSetting(setting_keys::target_window_title, QString());
+		saveSetting(setting_keys::target_window_process, QString());
+		input_target::setLockedWindow(0, false);
+		return;
+	}
+
+	const input_target::WindowInfo info = input_target::describeWindow(handle);
+	if (info.handle == 0)
+	{
+		// The window closed between being listed and the dialog being accepted.
+		// Keep the previous choice rather than silently unlocking input.
+		return;
+	}
+
+	target_window = info.handle;
+	target_window_configured = true;
+	target_window_title = info.title;
+	target_window_process = info.process;
+	saveSetting(setting_keys::target_window_configured, true);
+	saveSetting(setting_keys::target_window_title, target_window_title);
+	saveSetting(setting_keys::target_window_process, target_window_process);
+
+	// The injectors consult this on every event, so a changed choice applies to
+	// the very next press instead of after a restart.
+	input_target::setLockedWindow(target_window, true);
 }
 
 void SettingsSingleton::setExecutorType(ExecutorType type)
@@ -81,6 +119,31 @@ void SettingsSingleton::loadPort()
 		static_cast<quint16>(settings.value(setting_keys::server_port, DEFAULT_PORT_NUMBER).toUInt());
 }
 
+void SettingsSingleton::loadTargetWindow()
+{
+	target_window_title = settings.value(setting_keys::target_window_title).toString();
+	target_window_process = settings.value(setting_keys::target_window_process).toString();
+	target_window_configured =
+		settings.value(setting_keys::target_window_configured, false).toBool();
+
+	if (!target_window_configured)
+	{
+		// The default: no lock, keyboard and mouse follow the focused window.
+		target_window = 0;
+		input_target::setLockedWindow(0, false);
+		return;
+	}
+
+	// Resolve by title and process, never by the handle from last time: handles
+	// are reused by the system and an old one could now be another program.
+	target_window = input_target::findWindow(target_window_title, target_window_process);
+	input_target::setLockedWindow(target_window, true);
+
+	if (target_window == 0)
+		qInfo() << "Input is locked to a program that is not running; keyboard and mouse "
+				   "input will stay paused until it starts or another target is chosen";
+}
+
 void SettingsSingleton::loadExecutorType()
 {
 	executor_type = static_cast<ExecutorType>(
@@ -124,6 +187,7 @@ void SettingsSingleton::loadAll()
 		loadPort();
 		loadExecutorType();
 		loadVirtualGamepadType();
+		loadTargetWindow();
 	}
 	catch (const std::exception &e)
 	{
@@ -336,6 +400,10 @@ void SettingsSingleton::resetToDefaults()
 
 	// Reset which virtual device the gamepad backend plugs in
 	setVirtualGamepadType(DEFAULT_VIRTUAL_GAMEPAD_TYPE);
+
+	// Reset the input target lock: the default is to follow the focused window
+	// again, exactly as it was before a program was chosen.
+	setTargetWindow(0);
 
 	// Reset keymapping in active profile to defaults
 	m_activeKeymapProfile.initializeDefaultMappings();

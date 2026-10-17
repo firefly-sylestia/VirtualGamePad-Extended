@@ -3,20 +3,40 @@
 #include "../settings/input_types.hpp"
 #include "../settings/settings.hpp"
 #include "../settings/settings_singleton.hpp"
+#include "../simulation/input_target.hpp"
 #include "buttoninputbox.hpp"
 #include "ui_preferences.h"
 
+#include <QComboBox>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QGroupBox>
+#include <QHBoxLayout>
 #include <QInputDialog>
+#include <QLabel>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QStandardPaths>
+#include <QVBoxLayout>
 
 #if defined(__linux__) || defined(__unix__)
 #include <unistd.h>
 #endif
+
+namespace
+{
+/**
+ * Combo data for "the chosen program is not running".
+ *
+ * Real handles are never all bits set, so it cannot be mistaken for a window;
+ * it only exists to show the configured choice instead of quietly showing
+ * "Any program" and unlocking on OK.
+ */
+constexpr quintptr MISSING_TARGET = ~static_cast<quintptr>(0);
+} // namespace
 
 Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferences)
 {
@@ -58,6 +78,7 @@ Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferen
 	load_port();
 	load_executor_type();
 	load_virtual_gamepad_type();
+	setup_target_window();
 
 	// Connect executor type radio buttons
 	connect(ui->gamepadExecutorRadio, &QRadioButton::toggled, this, &Preferences::executor_type_changed);
@@ -108,6 +129,17 @@ Preferences::Preferences(QWidget *parent) : QWidget(parent), ui(new Ui::Preferen
 					virtualGamepadType = VirtualGamepadType::Both;
 				settings.setVirtualGamepadType(virtualGamepadType);
 
+				// Save the window keyboard/mouse input is locked to. Zero ("Any
+				// program") restores following the focused window. The placeholder
+				// for a program that is not running keeps the existing choice.
+				if (targetWindowCombo != nullptr)
+				{
+					const auto chosen = static_cast<quintptr>(
+						targetWindowCombo->currentData().toULongLong());
+					if (chosen != MISSING_TARGET)
+						settings.setTargetWindow(chosen);
+				}
+
 				// Update key mapping in the active profile
 				change_key_inputs();
 
@@ -129,6 +161,110 @@ Preferences::~Preferences()
 void Preferences::setupKeymapTabs()
 {
 	// This function can be used to connect signals/slots for the new tab structure if needed.
+}
+
+/**
+ * Builds the "input target" section.
+ *
+ * It is created here rather than in preferences.ui because the window list is
+ * dynamic: it is filled from the windows that exist when the dialog opens, and
+ * a fixed combo in the .ui file would need to be populated anyway.
+ */
+void Preferences::setup_target_window()
+{
+	auto *group = new QGroupBox(tr("Input target"), this);
+	auto *layout = new QVBoxLayout(group);
+
+	auto *row = new QHBoxLayout();
+	row->addWidget(new QLabel(tr("Send keyboard/mouse to:"), group));
+	targetWindowCombo = new QComboBox(group);
+	row->addWidget(targetWindowCombo, 1);
+
+	auto *refresh = new QPushButton(tr("Refresh"), group);
+	row->addWidget(refresh);
+	layout->addLayout(row);
+
+	auto *note = new QLabel(
+		input_target::isSupported()
+			? tr("While a program is chosen, keys and mouse buttons are only sent "
+				 "when its window is in front, so a connected phone cannot type into "
+				 "another program. If it is not running at all, input is paused "
+				 "rather than sent somewhere else. The virtual gamepad is a device "
+				 "and cannot be locked to a window. Choose \"Any program\" to follow "
+				 "whichever window is focused.")
+			: tr("Locking input to a window is only available on Windows."),
+		group);
+	note->setWordWrap(true);
+	layout->addWidget(note);
+
+	targetWindowCombo->setEnabled(input_target::isSupported());
+	refresh->setEnabled(input_target::isSupported());
+
+	connect(refresh, &QPushButton::clicked, this, &Preferences::refresh_target_windows);
+	refresh_target_windows();
+
+	ui->generalTabLayout->addWidget(group);
+}
+
+/** Fills the target combo with the windows that exist right now. */
+void Preferences::refresh_target_windows()
+{
+	if (targetWindowCombo == nullptr)
+		return;
+
+	// Keep what is selected now, not only what is saved: pressing Refresh while
+	// the dialog is open must not throw an unsaved choice away.
+	const auto &settings = SettingsSingleton::instance();
+	quintptr selected = settings.targetWindow();
+	bool showMissing =
+		settings.targetWindowConfigured() && settings.targetWindow() == 0;
+	if (targetWindowCombo->count() > 0)
+	{
+		const auto current =
+			static_cast<quintptr>(targetWindowCombo->currentData().toULongLong());
+		showMissing = current == MISSING_TARGET;
+		selected = showMissing ? 0 : current;
+	}
+
+	const QSignalBlocker blocker(targetWindowCombo);
+	targetWindowCombo->clear();
+	targetWindowCombo->addItem(tr("Any program (follow focus)"),
+							   QVariant::fromValue<qulonglong>(0));
+
+	for (const input_target::WindowInfo &window : input_target::listWindows())
+	{
+		QString label = window.title;
+		if (!window.process.isEmpty())
+			label += QStringLiteral(" - ") + window.process;
+		targetWindowCombo->addItem(
+			label, QVariant::fromValue<qulonglong>(static_cast<qulonglong>(window.handle)));
+	}
+
+	int index = -1;
+	for (int i = 0; i < targetWindowCombo->count(); ++i)
+	{
+		if (static_cast<quintptr>(targetWindowCombo->itemData(i).toULongLong()) == selected)
+		{
+			index = i;
+			break;
+		}
+	}
+
+	if (showMissing)
+	{
+		// The chosen program is not running. Keeping the choice means the lock
+		// stays on when it comes back, instead of silently widening to every
+		// program the moment the dialog is opened.
+		targetWindowCombo->addItem(tr("Chosen program (not running)"),
+								   QVariant::fromValue<qulonglong>(
+									   static_cast<qulonglong>(MISSING_TARGET)));
+		index = targetWindowCombo->count() - 1;
+	}
+
+	if (index < 0)
+		index = 0; // Nothing matched (or no windows at all): any program.
+
+	targetWindowCombo->setCurrentIndex(index);
 }
 
 void Preferences::setup_profile_management()
@@ -514,6 +650,10 @@ void Preferences::restore_defaults()
 	load_keys();
 	load_port();
 	load_executor_type();
+
+	// Restoring defaults clears the input lock too ("Any program").
+	if (targetWindowCombo != nullptr)
+		targetWindowCombo->setCurrentIndex(0);
 
 	QMessageBox::information(this,
 							 "Defaults Restored",

@@ -1,5 +1,7 @@
 #include "../mouseSim.hpp"
 
+#include "../input_target.hpp"
+
 /**
  * Whether a mouse event has anywhere useful to go.
  *
@@ -11,13 +13,10 @@
  */
 static bool targetAcceptsInput()
 {
-	const HWND foreground = GetForegroundWindow();
-	if (foreground == nullptr)
-		return true; // Nothing is focused, so nothing can be clicked.
-
-	DWORD ownerPid = 0;
-	GetWindowThreadProcessId(foreground, &ownerPid);
-	return ownerPid != GetCurrentProcessId();
+	// Shared with the keyboard injector: it both keeps events out of this
+	// application's own shell and honours a window the player has locked input
+	// to in Preferences, so a connected phone cannot click in another program.
+	return input_target::acceptsInjection();
 }
 
 MouseInjector::MouseInjector()

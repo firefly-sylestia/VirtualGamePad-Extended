@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-set(APP_VERSION 0.5.1)
+set(APP_VERSION 0.5.2)
 add_definitions(-DAPP_VERSION="${APP_VERSION}")
 
 project("VirtualGamePad Extended" VERSION ${APP_VERSION} LANGUAGES CXX C)
@@ -289,6 +289,8 @@ set(PROJECT_SOURCES
     src/settings/keymap_profile.hpp
     src/settings/keymap_profile.cpp
     src/simulation/gamepadSim.hpp
+    src/simulation/input_target.cpp
+    src/simulation/input_target.hpp
     src/simulation/keyboardSim.hpp
     src/simulation/mouseSim.hpp
     src/update/update_checker.cpp

@@ -8,6 +8,7 @@ namespace Ui
 {
 class Preferences;
 }
+class QComboBox;
 QT_END_NAMESPACE
 
 class Preferences : public QWidget
@@ -41,6 +42,8 @@ class Preferences : public QWidget
 	void change_thumbstick_inputs();
 	void change_trigger_inputs();
 	void change_mouse_sensitivity(int value);
+	void setup_target_window();
+	void refresh_target_windows();
 	void setup_profile_management();
 	void refresh_profile_list();
 	void setupKeymapTabs();
@@ -48,4 +51,10 @@ class Preferences : public QWidget
 
 	Ui::Preferences *ui;
 	QString currentProfile;
+
+	/**
+	 * The program input can be locked to, built in code rather than in the .ui
+	 * file so the window list can be rebuilt whenever the dialog opens.
+	 */
+	QComboBox *targetWindowCombo = nullptr;
 };

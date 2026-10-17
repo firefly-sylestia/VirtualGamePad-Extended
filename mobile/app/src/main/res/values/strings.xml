@@ -29,6 +29,7 @@
     <string name="settings_full_screen_camera">Whole Screen Camera</string>
     <string name="settings_slide_between_buttons">Slide Between Buttons</string>
     <string name="settings_right_stick_large_touch_area">Large Right Stick Area</string>
+    <string name="settings_left_stick_large_touch_area">Large Left Stick Area</string>
     <string name="settings_touch_sensitivity">Touch Surface Sensitivity</string>
     <string name="settings_gamepad_skin">Controller Skin</string>
     <string name="settings_game_rumble">Game Rumble</string>
@@ -178,6 +179,7 @@
     <string name="component_touch_surface">Touch Surface</string>
     <string name="component_gyro_toggle">Gyroscope Aim Toggle</string>
     <string name="component_stick_clicks">Stick Clicks (L3 / R3)</string>
+    <string name="component_hold">Hold (latch inputs)</string>
     <string name="component_macro_buttons">Macro Triggers (M1–M4)</string>
 
     <!-- Color Schemes -->

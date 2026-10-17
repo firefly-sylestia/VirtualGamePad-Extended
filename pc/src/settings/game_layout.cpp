@@ -300,7 +300,9 @@ const QVector<GameLayout> &allGameLayouts()
 			l.accent = "#f472b6";
 			l.buttons = {
 				bind(GamepadButtons_A, "Enter", "Select"),
-				bind(GamepadButtons_B, "Escape", "Back"),
+				// Backspace reads as "back" without Escape's habit of dropping a
+				// full-screen player out of full screen.
+				bind(GamepadButtons_B, "Backspace", "Back"),
 				bind(GamepadButtons_X, "Space", "Play / pause"),
 				bind(GamepadButtons_Y, "F", "Fullscreen"),
 				bind(GamepadButtons_DPadUp, "Up", "Up"),

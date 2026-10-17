@@ -104,6 +104,26 @@ class SettingsSingleton : public QObject
 	}
 	void setExecutorType(ExecutorType type);
 
+	/** The window keyboard/mouse input is locked to; 0 when none is resolved. */
+	quintptr targetWindow() const
+	{
+		return target_window;
+	}
+
+	/**
+	 * Whether a window lock is configured, even if that window is not running.
+	 *
+	 * Off by default, so a fresh install follows the focused window exactly as
+	 * before. Choosing "Any program" in Preferences turns it off again.
+	 */
+	bool targetWindowConfigured() const
+	{
+		return target_window_configured;
+	}
+
+	/** Chooses a window to lock to, or 0 to go back to following focus. */
+	void setTargetWindow(quintptr handle);
+
 	VirtualGamepadType virtualGamepadType() const
 	{
 		return virtual_gamepad_type;
@@ -163,6 +183,10 @@ class SettingsSingleton : public QObject
 	quint16 port_number;
 	ExecutorType executor_type;
 	VirtualGamepadType virtual_gamepad_type;
+	quintptr target_window = 0;
+	bool target_window_configured = false;
+	QString target_window_title;
+	QString target_window_process;
 
 	QString m_activeProfileName;
 	KeymapProfile m_activeKeymapProfile;
@@ -171,4 +195,5 @@ class SettingsSingleton : public QObject
 	void loadPort();
 	void loadExecutorType();
 	void loadVirtualGamepadType();
+	void loadTargetWindow();
 };

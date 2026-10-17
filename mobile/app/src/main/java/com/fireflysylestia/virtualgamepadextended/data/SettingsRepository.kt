@@ -138,6 +138,11 @@ class SettingsRepository(context: Context) {
         preferences[RIGHT_STICK_LARGE_TOUCH_AREA] ?: defaultRightStickLargeTouchArea
     }
 
+    /** The same wide target for the left stick. */
+    val leftStickLargeTouchArea: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[LEFT_STICK_LARGE_TOUCH_AREA] ?: defaultLeftStickLargeTouchArea
+    }
+
     /** The background the live gamepad paints itself with. */
     val gamepadBackground: Flow<GamepadBackground> = dataStore.data.map { preferences ->
         GamepadBackground.fromStored(preferences[GAMEPAD_BACKGROUND])
@@ -285,6 +290,12 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setLeftStickLargeTouchArea(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[LEFT_STICK_LARGE_TOUCH_AREA] = enabled
+        }
+    }
+
     suspend fun setGamepadBackground(background: GamepadBackground) {
         dataStore.edit { preferences ->
             preferences[GAMEPAD_BACKGROUND] = background.name
@@ -361,6 +372,8 @@ class SettingsRepository(context: Context) {
         private val SLIDE_BETWEEN_BUTTONS = booleanPreferencesKey("slide_between_buttons")
         private val RIGHT_STICK_LARGE_TOUCH_AREA =
             booleanPreferencesKey("right_stick_large_touch_area")
+        private val LEFT_STICK_LARGE_TOUCH_AREA =
+            booleanPreferencesKey("left_stick_large_touch_area")
         private val TOUCH_SENSITIVITY = floatPreferencesKey("touch_sensitivity")
         private val GAMEPAD_SKIN = stringPreferencesKey("gamepad_skin")
         private val GAME_RUMBLE_ENABLED = booleanPreferencesKey("game_rumble_enabled")

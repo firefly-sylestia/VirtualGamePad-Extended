@@ -96,7 +96,9 @@ private const val logTag = "GamepadCustomization"
  */
 private fun sanitizeButtonConfigs(configs: Map<ButtonComponent, ButtonConfig>): Map<ButtonComponent, ButtonConfig> {
     return ButtonComponent.entries.associateWith { component ->
-        configs[component] ?: ButtonConfig.default(component)
+        // A control added after these configs were saved is missing from them:
+        // take its designed default so it lands where the layout expects it.
+        configs[component] ?: defaultButtonConfigs[component] ?: ButtonConfig.default(component)
     }
 }
 
@@ -391,7 +393,9 @@ fun GamepadCustomizationScreen(
     fun enableAllControls() {
         val base = currentConfigs.toMutableMap()
         ButtonComponent.entries.forEach { component ->
-            val config = base[component] ?: ButtonConfig.default(component)
+            val config = base[component]
+                ?: defaultButtonConfigs[component]
+                ?: ButtonConfig.default(component)
             base[component] = config.copy(visible = true)
         }
         modifiedConfigs = base

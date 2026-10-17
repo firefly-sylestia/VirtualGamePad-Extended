@@ -88,6 +88,15 @@ enum class ButtonComponent(
     MACRO_BUTTONS(R.string.component_macro_buttons, "Macro Triggers (M1–M4)", ButtonAnchor.BOTTOM_CENTER),
 
     /**
+     * A phone-only latch: tapping it keeps whatever is down at that moment down.
+     *
+     * It is not a controller button and sends no event of its own; it exists
+     * because a phone cannot hold two controls at once the way ten fingers on a
+     * keyboard can.
+     */
+    HOLD(R.string.component_hold, "Hold (latch inputs)", ButtonAnchor.TOP_CENTER),
+
+    /**
      * A pair of buttons for L3/R3, which are the stick clicks.
      *
      * The sticks still send a click on a deliberate tap, but a stick click is
