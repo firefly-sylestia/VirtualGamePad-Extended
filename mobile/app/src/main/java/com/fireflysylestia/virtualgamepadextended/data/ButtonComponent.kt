@@ -14,13 +14,17 @@ val SCALE_VALUE_RANGE = 0.5f..2f
 /**
  * How far a control may be nudged from its anchor, in layout units (× baseDp).
  *
- * A centre-anchored control has to be able to reach either edge of the screen,
- * which is a full half-width either side — so ±1, not the old ±0.5. The old
- * range clipped the built-in centre-column defaults (Select/Start sit at −0.65),
- * which made those controls jump back to the clamp the moment they were dragged
- * instead of following the finger to anywhere on screen.
+ * The range has to let *any* control reach *any* edge, not just the one its anchor
+ * sits on. A layout unit is the screen height (capped), while the screen is up to
+ * [GamepadGeometry.MAX_ASPECT] times wider than that, so an edge-anchored control
+ * needs more than one unit of travel to cross the middle: at ±1 a control anchored
+ * to the right could not be dragged past the centre of the screen, which is
+ * exactly the "stuck in the middle" a player runs into when moving a shoulder
+ * button to the other side. ±3 covers the widest supported screen with room for a
+ * control's own width, and leaves existing saved offsets valid because the old
+ * range is a subset of it.
  */
-val OFFSET_VALUE_RANGE = -1f..1f
+val OFFSET_VALUE_RANGE = -3f..3f
 
 /**
  * Anchor point for button positioning

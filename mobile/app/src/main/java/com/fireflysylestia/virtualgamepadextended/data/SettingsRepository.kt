@@ -104,6 +104,11 @@ class SettingsRepository(context: Context) {
         preferences[GYRO_SENSITIVITY] ?: defaultGyroSensitivity
     }
 
+    /** How far a touch on the surface is amplified before it reaches the pointer. */
+    val touchSensitivity: Flow<Float> = dataStore.data.map { preferences ->
+        preferences[TOUCH_SENSITIVITY] ?: defaultTouchSensitivity
+    }
+
     /** The measured resting bias of the gyroscope, in radians per second. */
     val gyroCalibration: Flow<Pair<Float, Float>> = dataStore.data.map { preferences ->
         (preferences[GYRO_BIAS_X] ?: defaultGyroBias) to
@@ -128,9 +133,19 @@ class SettingsRepository(context: Context) {
         preferences[SLIDE_BETWEEN_BUTTONS] ?: defaultSlideBetweenButtons
     }
 
+    /** Whether the right stick answers a touch around its knob, not just on it. */
+    val rightStickLargeTouchArea: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[RIGHT_STICK_LARGE_TOUCH_AREA] ?: defaultRightStickLargeTouchArea
+    }
+
     /** The background the live gamepad paints itself with. */
     val gamepadBackground: Flow<GamepadBackground> = dataStore.data.map { preferences ->
         GamepadBackground.fromStored(preferences[GAMEPAD_BACKGROUND])
+    }
+
+    /** How the gamepad's controls are drawn. */
+    val gamepadSkin: Flow<GamepadSkin> = dataStore.data.map { preferences ->
+        GamepadSkin.fromStored(preferences[GAMEPAD_SKIN])
     }
 
     /** The colour [GamepadBackground.CUSTOM] stands for, as ARGB. */
@@ -253,9 +268,27 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setTouchSensitivity(sensitivity: Float) {
+        dataStore.edit { preferences ->
+            preferences[TOUCH_SENSITIVITY] = sensitivity
+        }
+    }
+
+    suspend fun setRightStickLargeTouchArea(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[RIGHT_STICK_LARGE_TOUCH_AREA] = enabled
+        }
+    }
+
     suspend fun setGamepadBackground(background: GamepadBackground) {
         dataStore.edit { preferences ->
             preferences[GAMEPAD_BACKGROUND] = background.name
+        }
+    }
+
+    suspend fun setGamepadSkin(skin: GamepadSkin) {
+        dataStore.edit { preferences ->
+            preferences[GAMEPAD_SKIN] = skin.name
         }
     }
 
@@ -315,6 +348,10 @@ class SettingsRepository(context: Context) {
         private val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         private val FULL_SCREEN_CAMERA = booleanPreferencesKey("full_screen_camera")
         private val SLIDE_BETWEEN_BUTTONS = booleanPreferencesKey("slide_between_buttons")
+        private val RIGHT_STICK_LARGE_TOUCH_AREA =
+            booleanPreferencesKey("right_stick_large_touch_area")
+        private val TOUCH_SENSITIVITY = floatPreferencesKey("touch_sensitivity")
+        private val GAMEPAD_SKIN = stringPreferencesKey("gamepad_skin")
         private val GAMEPAD_BACKGROUND = stringPreferencesKey("gamepad_background")
         private val CUSTOM_GAMEPAD_BACKGROUND = intPreferencesKey("custom_gamepad_background")
     }

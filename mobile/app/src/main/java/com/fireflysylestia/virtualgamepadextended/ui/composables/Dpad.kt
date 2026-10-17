@@ -34,7 +34,9 @@ import androidx.compose.ui.unit.times
 import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
@@ -121,18 +123,23 @@ fun DpadButton(
         )
     }
 
+    // The skin decides the outline here too, so the pad and the face buttons stay
+    // in the same style whatever is chosen.
+    val skin = LocalGamepadSkin.current
+
     OutlinedIconButton(
         modifier = modifier
             .size(size)
             .padding(0.dp),
         onClick = {},
+        shape = RoundedCornerShape(skin.cornerRadius),
         colors = IconButtonDefaults.outlinedIconButtonColors(
             // Lit up while held, so the press is visible on screen too.
             containerColor = if (isPressed) pressedBackground else backgroundColour,
             contentColor = if (isPressed) pressedForeground else foregroundColour,
         ),
         border = BorderStroke(
-            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) skin.pressedBorderWidth else skin.borderWidth,
             if (isPressed) pressedForeground else MaterialTheme.colorScheme.outline,
         ),
         interactionSource = interactionSource,

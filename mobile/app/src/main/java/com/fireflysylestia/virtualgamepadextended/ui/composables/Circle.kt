@@ -4,7 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,8 +22,11 @@ fun Circle(
     content: @Composable (BoxScope.() -> Unit)
 ) {
     Box(
+        // The stick rings and knobs are drawn with this, so the skin's corner
+        // radius reaches them here: a large radius is the circle they have always
+        // been, and a small one squares the sticks off for blockier skins.
         modifier = modifier
-            .clip(shape = CircleShape)
+            .clip(shape = RoundedCornerShape(LocalGamepadSkin.current.cornerRadius))
             .background(Color.Transparent),
         contentAlignment = contentAlignment
     ) {

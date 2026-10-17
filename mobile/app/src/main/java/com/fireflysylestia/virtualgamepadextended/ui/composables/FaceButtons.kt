@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.times
 import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.PreviewBase
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
@@ -196,11 +198,16 @@ fun FaceButton(
         )
     }
 
+    // The skin only decides the outline: a face button keeps its own colour for
+    // each letter, so a skin can square a button off without recolouring it.
+    val skin = LocalGamepadSkin.current
+
     OutlinedButton(
         modifier = modifier
             .size(size)
             .padding(0.dp),
         onClick = {},
+        shape = RoundedCornerShape(skin.cornerRadius),
         colors = ButtonDefaults.outlinedButtonColors(
             // Brighter while held, so the press is visible on screen too.
             containerColor = if (isPressed) lighten(backgroundColour, 0.45f) else backgroundColour,
@@ -208,7 +215,7 @@ fun FaceButton(
         ),
         interactionSource = interactionSource,
         border = BorderStroke(
-            if (isPressed) 3.dp else 2.dp,
+            if (isPressed) skin.pressedBorderWidth else skin.borderWidth,
             if (isPressed) foregroundColour else MaterialTheme.colorScheme.outline,
         ),
     ) {

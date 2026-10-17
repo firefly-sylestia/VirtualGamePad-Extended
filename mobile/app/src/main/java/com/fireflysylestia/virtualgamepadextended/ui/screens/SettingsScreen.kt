@@ -56,6 +56,7 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultColorScheme
 import com.fireflysylestia.virtualgamepadextended.data.defaultCustomGamepadBackground
 import com.fireflysylestia.virtualgamepadextended.data.defaultFullScreenCameraEnabled
 import com.fireflysylestia.virtualgamepadextended.data.defaultFullScreenEnabled
+import com.fireflysylestia.virtualgamepadextended.data.GamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.defaultGamepadBackground
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.gyroCalibrationMillis
@@ -66,10 +67,14 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultHapticFeedbackEnab
 import com.fireflysylestia.virtualgamepadextended.data.defaultKeepScreenOn
 import com.fireflysylestia.virtualgamepadextended.data.defaultPollingDelay
 import com.fireflysylestia.virtualgamepadextended.data.defaultSaveConnectionCredentials
+import com.fireflysylestia.virtualgamepadextended.data.defaultRightStickLargeTouchArea
 import com.fireflysylestia.virtualgamepadextended.data.defaultSlideBetweenButtons
 import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
+import com.fireflysylestia.virtualgamepadextended.data.defaultTouchSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.stickSensitivityRange
 import com.fireflysylestia.virtualgamepadextended.data.stickSensitivityStep
+import com.fireflysylestia.virtualgamepadextended.data.touchSensitivityRange
+import com.fireflysylestia.virtualgamepadextended.data.touchSensitivityStep
 import com.fireflysylestia.virtualgamepadextended.ui.composables.ColorChannelSliders
 import com.fireflysylestia.virtualgamepadextended.ui.composables.ColorSchemePicker
 import com.fireflysylestia.virtualgamepadextended.ui.composables.ListItemPicker
@@ -91,9 +96,12 @@ private data class SettingsChanges(
     val fullScreenEnabled: Boolean? = null,
     val keepScreenOn: Boolean? = null,
     val stickSensitivity: Float? = null,
+    val touchSensitivity: Float? = null,
     val gyroSensitivity: Float? = null,
     val fullScreenCameraEnabled: Boolean? = null,
     val slideBetweenButtons: Boolean? = null,
+    val rightStickLargeTouchArea: Boolean? = null,
+    val gamepadSkin: GamepadSkin? = null,
     val gamepadBackground: GamepadBackground? = null,
     val customGamepadBackground: Int? = null
 ) : Parcelable
@@ -140,10 +148,22 @@ fun SettingsScreen(
         val fullScreenEnabled by settingsRepository.fullScreenEnabled.collectAsState(initial = defaultFullScreenEnabled)
         val keepScreenOn by settingsRepository.keepScreenOn.collectAsState(initial = defaultKeepScreenOn)
         val stickSensitivity by settingsRepository.stickSensitivity.collectAsState(initial = defaultStickSensitivity)
+
+        val touchSensitivity by settingsRepository.touchSensitivity.collectAsState(
+            initial = defaultTouchSensitivity
+        )
         val gyroSensitivity by settingsRepository.gyroSensitivity.collectAsState(initial = defaultGyroSensitivity)
         val fullScreenCamera by settingsRepository.fullScreenCameraEnabled.collectAsState(initial = defaultFullScreenCameraEnabled)
         val slideBetweenButtons by settingsRepository.slideBetweenButtons.collectAsState(initial = defaultSlideBetweenButtons)
+
+        val rightStickLargeTouchArea by settingsRepository.rightStickLargeTouchArea.collectAsState(
+            initial = defaultRightStickLargeTouchArea
+        )
         val gamepadBackground by settingsRepository.gamepadBackground.collectAsState(initial = defaultGamepadBackground)
+
+        val gamepadSkin by settingsRepository.gamepadSkin.collectAsState(
+            initial = GamepadSkin.DEFAULT
+        )
         val customGamepadBackground by settingsRepository.customGamepadBackground.collectAsState(initial = defaultCustomGamepadBackground)
 
         // Calibration needs the gyroscope itself, and the button that runs it has
@@ -287,6 +307,26 @@ fun SettingsScreen(
                     }
                 }
 
+                // The touch surface drives the pointer rather than a stick, so how
+                // far a drag moves the cursor is its own setting: the same gain on
+                // a small pad and a thumbstick does not feel the same at all.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    SpinBox(
+                        value = settingsChanges.touchSensitivity ?: touchSensitivity,
+                        onValueChange = {
+                            settingsChanges = settingsChanges.copy(touchSensitivity = it)
+                        },
+                        label = stringResource(R.string.settings_touch_sensitivity),
+                        minValue = touchSensitivityRange.start,
+                        maxValue = touchSensitivityRange.endInclusive,
+                        step = touchSensitivityStep,
+                        formatValue = { "%.1fx".format(it) }
+                    )
+                }
+
                 // Gyro aiming is a matter of taste in the same way, and it is only
                 // usable once the phone's own resting reading has been taken off
                 // it, so the two sit together.
@@ -415,6 +455,15 @@ fun SettingsScreen(
                 )
 
                 SettingsSwitchRow(
+                    label = stringResource(R.string.settings_right_stick_large_touch_area),
+                    checked = settingsChanges.rightStickLargeTouchArea
+                        ?: rightStickLargeTouchArea,
+                    onCheckedChange = {
+                        settingsChanges = settingsChanges.copy(rightStickLargeTouchArea = it)
+                    }
+                )
+
+                SettingsSwitchRow(
                     label = stringResource(R.string.settings_save_connection_credentials),
                     checked = settingsChanges.saveConnectionCredentials ?: saveCredentials,
                     onCheckedChange = {
@@ -431,6 +480,19 @@ fun SettingsScreen(
                     },
                     onItemSelected = {
                         settingsChanges = settingsChanges.copy(gamepadBackground = it)
+                    })
+
+                // The skin is the part a player means by "theme": how the controls
+                // themselves are drawn, on a background that stays black.
+                ListItemPicker(
+                    list = GamepadSkin.entries.asIterable(),
+                    selectedItem = settingsChanges.gamepadSkin ?: gamepadSkin,
+                    label = stringResource(R.string.settings_gamepad_skin),
+                    formattedDisplay = { item ->
+                        Text(text = stringResource(item.nameRes))
+                    },
+                    onItemSelected = {
+                        settingsChanges = settingsChanges.copy(gamepadSkin = it)
                     })
 
                 // The custom colour only matters once it has been chosen, so it is
@@ -529,6 +591,21 @@ fun SettingsScreen(
                             }
                             settingsChanges.slideBetweenButtons?.let {
                                 settingsRepository.setSlideBetweenButtons(
+                                    it
+                                ); ++changesSaved
+                            }
+                            settingsChanges.touchSensitivity?.let {
+                                settingsRepository.setTouchSensitivity(
+                                    it
+                                ); ++changesSaved
+                            }
+                            settingsChanges.rightStickLargeTouchArea?.let {
+                                settingsRepository.setRightStickLargeTouchArea(
+                                    it
+                                ); ++changesSaved
+                            }
+                            settingsChanges.gamepadSkin?.let {
+                                settingsRepository.setGamepadSkin(
                                     it
                                 ); ++changesSaved
                             }

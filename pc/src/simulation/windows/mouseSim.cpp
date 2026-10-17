@@ -1,5 +1,25 @@
 #include "../mouseSim.hpp"
 
+/**
+ * Whether a mouse event has anywhere useful to go.
+ *
+ * The same reasoning as the keyboard injector: SendInput delivers to whatever
+ * window has focus, and when that window is this application's own shell the
+ * event lands in the layout editor instead of the game - a stray click on the
+ * settings page, or the camera spinning a slider. Dropping it is the only safe
+ * outcome, because there is no other window to aim at.
+ */
+static bool targetAcceptsInput()
+{
+	const HWND foreground = GetForegroundWindow();
+	if (foreground == nullptr)
+		return true; // Nothing is focused, so nothing can be clicked.
+
+	DWORD ownerPid = 0;
+	GetWindowThreadProcessId(foreground, &ownerPid);
+	return ownerPid != GetCurrentProcessId();
+}
+
 MouseInjector::MouseInjector()
 {
 	// No initialization needed for Windows
@@ -12,6 +32,9 @@ MouseInjector::~MouseInjector()
 
 void MouseInjector::moveMouseToPosition(int x, int y)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	// Get the screen resolution
 	int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 	int screenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -31,6 +54,9 @@ void MouseInjector::moveMouseToPosition(int x, int y)
 
 void MouseInjector::moveMouseByOffset(int x, int y)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	// Move the mouse
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
@@ -42,6 +68,9 @@ void MouseInjector::moveMouseByOffset(int x, int y)
 
 void MouseInjector::leftClick()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
@@ -57,12 +86,18 @@ void MouseInjector::leftClick()
 
 void MouseInjector::singleClick()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	leftClick();
 	Sleep(GetDoubleClickTime()); // Sleep for the double click time
 }
 
 void MouseInjector::leftDown()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
@@ -71,6 +106,9 @@ void MouseInjector::leftDown()
 
 void MouseInjector::leftUp()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
@@ -79,12 +117,18 @@ void MouseInjector::leftUp()
 
 void MouseInjector::doubleClick()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	leftClick();
 	leftClick();
 }
 
 void MouseInjector::rightClick()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
@@ -100,6 +144,9 @@ void MouseInjector::rightClick()
 
 void MouseInjector::rightDown()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
@@ -108,6 +155,9 @@ void MouseInjector::rightDown()
 
 void MouseInjector::rightUp()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
@@ -116,6 +166,9 @@ void MouseInjector::rightUp()
 
 void MouseInjector::middleClick()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
@@ -129,6 +182,9 @@ void MouseInjector::middleClick()
 
 void MouseInjector::middleDown()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
@@ -137,6 +193,9 @@ void MouseInjector::middleDown()
 
 void MouseInjector::middleUp()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
@@ -145,6 +204,9 @@ void MouseInjector::middleUp()
 
 void MouseInjector::scrollUp()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_WHEEL;
@@ -154,6 +216,9 @@ void MouseInjector::scrollUp()
 
 void MouseInjector::scrollDown()
 {
+	if (!targetAcceptsInput())
+		return;
+
 	INPUT input = {};
 	input.type = INPUT_MOUSE;
 	input.mi.dwFlags = MOUSEEVENTF_WHEEL;

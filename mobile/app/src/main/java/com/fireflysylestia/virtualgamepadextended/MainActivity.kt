@@ -1,11 +1,13 @@
 package com.fireflysylestia.virtualgamepadextended
 
 import android.os.Bundle
+import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -82,16 +84,42 @@ class MainActivity : ComponentActivity() {
             initial = defaultFullScreenEnabled
         )
 
-        LaunchedEffect(fullScreenEnabled.value) {
+        // Immersive mode is not a one-shot switch: the bars come back for a swipe,
+        // a dialog or the back gesture, and hiding them only when the setting
+        // changed left the gamepad sitting with the navigation bar on screen until
+        // the app was restarted. So the bars are re-hidden whenever they reappear,
+        // and whenever the window regains focus after the notification shade or
+        // another app had it. Hiding from inside the visibility callback has to be
+        // posted, or the controller would re-enter itself synchronously.
+        DisposableEffect(fullScreenEnabled.value, window) {
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-            if (fullScreenEnabled.value) {
-                WindowCompat.setDecorFitsSystemWindows(window, false)
-                insetsController.systemBarsBehavior =
-                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                insetsController.hide(WindowInsetsCompat.Type.systemBars())
-            } else {
+            if (!fullScreenEnabled.value) {
                 WindowCompat.setDecorFitsSystemWindows(window, true)
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
+                return@DisposableEffect onDispose { }
+            }
+
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            insetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+            val decorView = window.decorView
+            val hideBars = { insetsController.hide(WindowInsetsCompat.Type.systemBars()) }
+            hideBars()
+
+            val focusListener = View.OnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) hideBars()
+            }
+            decorView.setOnFocusChangeListener(focusListener)
+
+            val visibilityListener = View.OnSystemUiVisibilityChangeListener {
+                decorView.post { hideBars() }
+            }
+            decorView.setOnSystemUiVisibilityChangeListener(visibilityListener)
+
+            onDispose {
+                decorView.setOnFocusChangeListener(null)
+                decorView.setOnSystemUiVisibilityChangeListener(null)
             }
         }
 

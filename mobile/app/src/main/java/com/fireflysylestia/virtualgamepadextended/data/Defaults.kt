@@ -12,12 +12,36 @@ const val defaultKeepScreenOn = true
 const val defaultFullScreenCameraEnabled = false
 const val defaultSlideBetweenButtons = true
 
+/**
+ * Whether the right stick answers a touch anywhere around its knob, rather than
+ * only on the knob itself.
+ *
+ * The camera stick is the one the aiming thumb reaches for without looking, so a
+ * target the size of the drawn knob is the one that gets missed; a wider area
+ * catches the thumb that lands beside it. It is off by default because the same
+ * padding overlaps whatever sits next to the stick on a crowded layout.
+ */
+const val defaultRightStickLargeTouchArea = false
+
 /** 1.0 is the travel the response curve was designed around. */
 const val defaultStickSensitivity = 1.0f
 
 /** Below and above [defaultStickSensitivity]: a full push arrives sooner or later. */
 val stickSensitivityRange = 0.5f..2.0f
 const val stickSensitivityStep = 0.1f
+
+/**
+ * 1.0 is the travel the touch surface was mapped with.
+ *
+ * The surface is the one control that drives the mouse directly, so its gain is a
+ * separate taste from the sticks': a small pad under the thumb needs a different
+ * amount of movement per millimetre than a thumbstick with travel.
+ */
+const val defaultTouchSensitivity = 1.0f
+
+/** Below and above [defaultTouchSensitivity]: the pointer moves less or more per touch. */
+val touchSensitivityRange = 0.3f..3.0f
+const val touchSensitivityStep = 0.1f
 
 /** 1.0 is the turn rate the gyro curve was designed around. */
 const val defaultGyroSensitivity = 1.0f

@@ -20,7 +20,7 @@ void KeymapProfile::initializeDefaultMappings()
 	buttonDisplayNames = {{GamepadButtons::GamepadButtons_Menu, "Menu"},
 						  {GamepadButtons::GamepadButtons_View, "Tab"},
 						  {GamepadButtons::GamepadButtons_A, "Enter"},
-						  {GamepadButtons::GamepadButtons_B, "Escape"},
+						  {GamepadButtons::GamepadButtons_B, "Backspace"},
 						  {GamepadButtons::GamepadButtons_X, "Shift"},
 						  {GamepadButtons::GamepadButtons_Y, "Ctrl"},
 						  {GamepadButtons::GamepadButtons_DPadUp, "Up"},
@@ -46,7 +46,11 @@ void KeymapProfile::initializeDefaultMappings()
 	buttonMappings = {{GamepadButtons::GamepadButtons_Menu, VK_MENU},
 					  {GamepadButtons::GamepadButtons_View, VK_TAB},
 					  {GamepadButtons::GamepadButtons_A, VK_RETURN},
-					  {GamepadButtons::GamepadButtons_B, VK_ESCAPE},
+					  // B is the button a player reaches for to cancel, so it must not be
+					  // Escape: in nearly every full-screen game that drops out of the game
+					  // or opens the menu, and a stray B press throws the session away.
+					  // Backspace still reads as "back" without that side effect.
+					  {GamepadButtons::GamepadButtons_B, VK_BACK},
 					  {GamepadButtons::GamepadButtons_X, VK_SHIFT},
 					  {GamepadButtons::GamepadButtons_Y, VK_CONTROL},
 					  {GamepadButtons::GamepadButtons_DPadUp, VK_UP},
@@ -84,7 +88,9 @@ void KeymapProfile::initializeDefaultMappings()
 	buttonMappings = {{GamepadButtons::GamepadButtons_Menu, KEY_MENU},
 					  {GamepadButtons::GamepadButtons_View, KEY_TAB},
 					  {GamepadButtons::GamepadButtons_A, KEY_ENTER},
-					  {GamepadButtons::GamepadButtons_B, KEY_ESC},
+					  // See the Windows mapping above: B as Escape drops full-screen games
+					  // out of full screen, so it maps to Backspace instead.
+					  {GamepadButtons::GamepadButtons_B, KEY_BACKSPACE},
 					  {GamepadButtons::GamepadButtons_X, KEY_LEFTSHIFT},
 					  {GamepadButtons::GamepadButtons_Y, KEY_LEFTCTRL},
 					  {GamepadButtons::GamepadButtons_DPadUp, KEY_UP},

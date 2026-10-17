@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,19 +24,21 @@ import com.fireflysylestia.virtualgamepadextended.data.PreviewHeightDp
 import com.fireflysylestia.virtualgamepadextended.data.PreviewWidthDp
 import com.fireflysylestia.virtualgamepadextended.data.SettingsRepository
 import com.fireflysylestia.virtualgamepadextended.data.ControllerLayout
+import com.fireflysylestia.virtualgamepadextended.data.GamepadSkin
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
-import com.fireflysylestia.virtualgamepadextended.data.defaultCustomGamepadBackground
 import com.fireflysylestia.virtualgamepadextended.data.defaultFullScreenCameraEnabled
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
-import com.fireflysylestia.virtualgamepadextended.data.defaultGamepadBackground
 import com.fireflysylestia.virtualgamepadextended.data.defaultPollingDelay
+import com.fireflysylestia.virtualgamepadextended.data.defaultRightStickLargeTouchArea
 import com.fireflysylestia.virtualgamepadextended.data.defaultSlideBetweenButtons
 import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
-import com.fireflysylestia.virtualgamepadextended.data.gamepadBackgroundColor
+import com.fireflysylestia.virtualgamepadextended.data.defaultTouchSensitivity
 import com.fireflysylestia.virtualgamepadextended.network.ConnectionViewModel
 import com.fireflysylestia.virtualgamepadextended.ui.composables.DrawGamepad
+import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.utils.findActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,10 +77,13 @@ fun GamePad(
         settingsRepository.fullScreenCameraEnabled.collectAsState(defaultFullScreenCameraEnabled).value
     val slideBetweenButtons =
         settingsRepository.slideBetweenButtons.collectAsState(defaultSlideBetweenButtons).value
-    val gamepadBackground =
-        settingsRepository.gamepadBackground.collectAsState(defaultGamepadBackground).value
-    val customGamepadBackground =
-        settingsRepository.customGamepadBackground.collectAsState(defaultCustomGamepadBackground).value
+
+    val rightStickLargeTouchArea = settingsRepository.rightStickLargeTouchArea
+        .collectAsState(defaultRightStickLargeTouchArea).value
+
+    val touchSensitivity = settingsRepository.touchSensitivity
+        .collectAsState(defaultTouchSensitivity).value
+    val gamepadSkin = settingsRepository.gamepadSkin.collectAsState(GamepadSkin.DEFAULT).value
 
     val configuration = LocalConfiguration.current
 
@@ -86,22 +92,27 @@ fun GamePad(
 
     val isStopping = remember { mutableStateOf(false) }
 
-    DrawGamepad(
-        widthDp = screenWidth,
-        heightDp = screenHeight,
-        gamepadState = gamepadState,
-        buttonConfigs = buttonConfigs,
-        controllerLayout = controllerLayout,
-        macros = macros,
-        bindings = bindings,
-        stickSensitivity = stickSensitivity,
-        gyroSensitivity = gyroSensitivity,
-        gyroBiasX = gyroCalibration.first,
-        gyroBiasY = gyroCalibration.second,
-        fullScreenCamera = fullScreenCamera,
-        slideBetweenButtons = slideBetweenButtons,
-        background = gamepadBackgroundColor(gamepadBackground, customGamepadBackground),
-    )
+    // The skin decides how the controls are drawn; the field behind them stays
+    // black, so the two no longer compete.
+    CompositionLocalProvider(LocalGamepadSkin provides gamepadSkin) {
+        DrawGamepad(
+            widthDp = screenWidth,
+            heightDp = screenHeight,
+            gamepadState = gamepadState,
+            buttonConfigs = buttonConfigs,
+            controllerLayout = controllerLayout,
+            macros = macros,
+            bindings = bindings,
+            stickSensitivity = stickSensitivity,
+            gyroSensitivity = gyroSensitivity,
+            gyroBiasX = gyroCalibration.first,
+            gyroBiasY = gyroCalibration.second,
+            fullScreenCamera = fullScreenCamera,
+            slideBetweenButtons = slideBetweenButtons,
+            rightStickLargeTouchArea = rightStickLargeTouchArea,
+            touchSensitivity = touchSensitivity,
+        )
+    }
 
     val activity = LocalContext.current.findActivity()
     // disconnect on back press
@@ -163,8 +174,10 @@ fun GamePad(
             // Queue the update in the ViewModel
             connectionViewModel.enqueueGamepadState(gamepadState)
 
-            // Reset ButtonsUp after each update
-            gamepadState.ButtonsUp = 0
+            // The packet above carried whatever was pressed before it, so any
+            // release that was waiting for it can go out now. This also clears
+            // ButtonsUp, and only after the edges have been transmitted.
+            GamepadButtonDispatcher.afterSend(gamepadState)
 
             // Wait before next update
             delay(pollingDelay)

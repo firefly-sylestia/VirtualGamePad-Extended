@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
 
 enum class TriggerType {
@@ -55,9 +56,18 @@ fun Trigger(
         }
     }
 
-    val triggerShape = when (type) {
-        TriggerType.LEFT -> AbsoluteCutCornerShape(topRight = size * 0.4f)
-        TriggerType.RIGHT -> AbsoluteCutCornerShape(topLeft = size * 0.4f)
+    // The cut corner is part of what makes a trigger look like a trigger, so a skin
+    // only decides the case where it wants the whole controller squared off. Any
+    // softer skin keeps the cut, which is why the shape is not simply the skin's
+    // corner radius.
+    val skin = LocalGamepadSkin.current
+    val triggerShape = when {
+        skin.cornerRadius < 3.dp -> AbsoluteCutCornerShape(0.dp)
+
+        else -> when (type) {
+            TriggerType.LEFT -> AbsoluteCutCornerShape(topRight = size * 0.4f)
+            TriggerType.RIGHT -> AbsoluteCutCornerShape(topLeft = size * 0.4f)
+        }
     }
 
     Box(
@@ -106,7 +116,7 @@ fun Trigger(
                     }
                 },
             shape = triggerShape,
-            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+            border = BorderStroke(skin.borderWidth, MaterialTheme.colorScheme.outline),
         ) {
             Text(triggerLabel)
         }

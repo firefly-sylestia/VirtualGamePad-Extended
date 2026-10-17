@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,21 +26,29 @@ fun TouchSurface(
     gamepadState: GamepadReading,
     size: Dp,
     modifier: Modifier = Modifier,
+    sensitivity: Float = 1f,
 ) {
-    val shape = RoundedCornerShape(18.dp)
+    // A skin may square the pad off, but it is never rounded further than the
+    // surface has always been: a fully round radius would turn it into a pill.
+    val skin = LocalGamepadSkin.current
+    val shape = RoundedCornerShape(minOf(18.dp, skin.cornerRadius))
     Box(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surfaceVariant, shape)
             .border(2.dp, MaterialTheme.colorScheme.outline, shape)
             .size(size)
-            .pointerInput(Unit) {
+            .pointerInput(sensitivity) {
                 val surfaceWidth = this.size.width.coerceAtLeast(1)
                 val surfaceHeight = this.size.height.coerceAtLeast(1)
+
+                // The surface drives the pointer through the right stick, so its
+                // gain is applied here, at the source: above 1.0 a short drag covers
+                // more screen, below it the pointer is steadier for small targets.
                 fun update(x: Float, y: Float) {
                     gamepadState.RightThumbstickX =
-                        ((x / surfaceWidth) * 2f - 1f).coerceIn(-1f, 1f)
+                        (((x / surfaceWidth) * 2f - 1f) * sensitivity).coerceIn(-1f, 1f)
                     gamepadState.RightThumbstickY =
-                        ((y / surfaceHeight) * 2f - 1f).coerceIn(-1f, 1f)
+                        (((y / surfaceHeight) * 2f - 1f) * sensitivity).coerceIn(-1f, 1f)
                 }
                 detectDragGestures(
                     onDragStart = { offset -> update(offset.x, offset.y) },

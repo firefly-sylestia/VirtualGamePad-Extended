@@ -6,30 +6,26 @@ import kotlin.math.pow
 import kotlin.math.sign
 
 /**
- * Shapes raw gyroscope readings into the right-stick axes.
+ * Shapes the phone's tilt into the right-stick axes.
  *
- * A gyroscope hands over angular velocity, not an aimed direction, and a raw
- * sample is neither smooth nor still:
+ * This used to be fed angular velocity from the gyroscope, which made the phone a
+ * rate control: holding a tilt kept turning the camera for as long as it was held,
+ * so the view spun past 360 degrees and never settled. What a player expects from
+ * a stick is a position, not a rate: tilt the phone and the camera holds that
+ * offset, bring it back level and the camera centres. So the input is now an angle
+ * measured against the pose the controller was switched on in, and this class only
+ * has to make that angle feel like a stick:
  *
- * - **Filtering.** Each sample is mixed into the previous one, so the noise a
- *   gyroscope carries at its sample rate stops reaching the camera as a shake.
- *   Without this the aim visibly trembles, because the sensor's own noise is
- *   larger than the smallest useful turn. The mix is worked out from how long
- *   the sample took rather than being a fixed share of each sample: a device
- *   that hands over its readings twice as often must smooth each one the same
- *   amount in *time*, or the filter all but disappears on a fast sensor and the
- *   shake comes straight back.
- * - **A dead zone.** A resting phone does not read exactly zero, and that bias
- *   has no direction the player asked for: without a dead zone the camera creeps
- *   while the phone is held still.
- * - **A curve.** Past the dead zone the remaining rate is rescaled so full travel
- *   is still reachable, then raised to [GAMMA]. Below one it lifts the slow, small
- *   turns that aiming is actually made of, so a gentle correction moves the view
- *   instead of nothing happening until the phone is swung.
+ * - **Filtering.** Each sample is mixed into the previous one by elapsed time, so
+ *   the hand's tremor and the sensor's noise do not reach the camera as a shake.
+ * - **A dead zone.** Nobody holds a phone perfectly still, and a couple of degrees
+ *   of drift should not move the view.
+ * - **A curve.** Past the dead zone the remaining travel is rescaled so full
+ *   deflection is still reachable, then raised to [GAMMA], which lifts the small
+ *   tilts that aiming is actually made of.
  *
- * The rate is measured in radians per second, which is what
- * `Sensor.TYPE_GYROSCOPE` reports, so [FULL_TRAVEL] is a real turn rate a hand can
- * produce rather than an arbitrary number.
+ * Angles are in degrees and are signed deltas from the neutral pose, so this class
+ * neither knows nor cares which way round the phone is being held.
  */
 class GyroResponse {
 
@@ -47,18 +43,18 @@ class GyroResponse {
     }
 
     /**
-     * @param rawX turn rate around the vertical axis, radians per second
-     * @param rawY turn rate around the horizontal axis, radians per second
+     * @param rollDegrees tilt to the left or right, in degrees, from the neutral pose
+     * @param pitchDegrees tilt up or down, in degrees, from the neutral pose
      * @param sampleNanos when the reading was taken, as `SensorEvent.timestamp`
      *        reports it; 0 when the caller has no timestamp, which then uses the
      *        rate the sensor was asked for
      * @return the right-stick value to send, each axis in -1..1
      */
-    fun apply(rawX: Float, rawY: Float, sampleNanos: Long = 0L): Pair<Float, Float> {
+    fun apply(rollDegrees: Float, pitchDegrees: Float, sampleNanos: Long = 0L): Pair<Float, Float> {
         val step = stepSeconds(sampleNanos)
 
-        filteredX = smooth(filteredX, rawX, step)
-        filteredY = smooth(filteredY, rawY, step)
+        filteredX = smooth(filteredX, rollDegrees, step)
+        filteredY = smooth(filteredY, pitchDegrees, step)
         return shaped(filteredX) to shaped(filteredY)
     }
 
@@ -68,8 +64,7 @@ class GyroResponse {
      * The first sample has nothing to measure against, so it counts as one
      * [NOMINAL_STEP_SECONDS]; a gap outside [MIN_STEP_SECONDS]..[MAX_STEP_SECONDS]
      * is brought back into it, which is what a sensor that stalls and then
-     * delivers everything at once would otherwise throw at the filter — either
-     * smoothing nothing, or a step so large that the value jumps to the reading.
+     * delivers everything at once would otherwise throw at the filter.
      */
     private fun stepSeconds(sampleNanos: Long): Float {
         if (sampleNanos <= 0L)
@@ -96,33 +91,31 @@ class GyroResponse {
         return previous + (sample - previous) * share
     }
 
-    private fun shaped(rate: Float): Float {
-        val magnitude = abs(rate)
-        if (magnitude <= DEAD_ZONE) return 0f
+    private fun shaped(degrees: Float): Float {
+        val magnitude = abs(degrees)
+        if (magnitude <= DEAD_ZONE_DEGREES) return 0f
 
-        val travel = ((magnitude - DEAD_ZONE) / (FULL_TRAVEL - DEAD_ZONE)).coerceIn(0f, 1f)
-        return (sign(rate) * travel.pow(GAMMA)).coerceIn(-1f, 1f)
+        val travel = ((magnitude - DEAD_ZONE_DEGREES) /
+                (FULL_TRAVEL_DEGREES - DEAD_ZONE_DEGREES)).coerceIn(0f, 1f)
+        return (sign(degrees) * travel.pow(GAMMA)).coerceIn(-1f, 1f)
     }
 
     companion object {
-        /** Turn rate, in radians per second, that is treated as staying still. */
-        const val DEAD_ZONE = 0.06f
+        /** Tilt, in degrees, that is treated as still holding the phone level. */
+        const val DEAD_ZONE_DEGREES = 2.5f
 
-        /** Turn rate, in radians per second, that means full deflection. */
-        const val FULL_TRAVEL = 1.6f
+        /** Tilt, in degrees, that means full stick deflection. */
+        const val FULL_TRAVEL_DEGREES = 28f
 
-        /** Below one lifts the slow, small turns that aiming is made of. */
+        /** Below one lifts the small tilts that aiming is made of. */
         const val GAMMA = 0.8f
 
         /**
          * How long the filter takes to cover about two thirds of the way to a new
-         * reading, in seconds.
-         *
-         * This is the share of each sample the filter used to apply, expressed as
-         * a length of time: at the 50 Hz a game-rate sensor asks for it works out
-         * to the same smoothing as before, and it holds at any other rate.
+         * reading, in seconds. Long enough to swallow hand tremor, short enough
+         * that the camera does not lag behind a deliberate movement.
          */
-        const val TIME_CONSTANT_SECONDS = 0.055f
+        const val TIME_CONSTANT_SECONDS = 0.045f
 
         /** The sample rate the filter falls back to when it is given no timing. */
         const val NOMINAL_STEP_SECONDS = 0.02f

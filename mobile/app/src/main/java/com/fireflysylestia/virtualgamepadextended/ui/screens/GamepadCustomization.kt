@@ -41,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,6 +67,8 @@ import com.fireflysylestia.virtualgamepadextended.data.ButtonComponent
 import com.fireflysylestia.virtualgamepadextended.data.ButtonConfig
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.ControllerLayout
+import com.fireflysylestia.virtualgamepadextended.data.GamepadSkin
+import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.MacroAction
 import com.fireflysylestia.virtualgamepadextended.data.MacroDefinition
 import com.fireflysylestia.virtualgamepadextended.data.GamepadGeometry
@@ -107,6 +110,7 @@ fun GamepadPreview(
     controllerLayout: ControllerLayout,
     macros: List<MacroDefinition>,
     bindings: Map<String, ControllerAction>,
+    skin: GamepadSkin = GamepadSkin.DEFAULT,
 ) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp
@@ -114,15 +118,19 @@ fun GamepadPreview(
 
     val gamepadState = remember { GamepadReading() }
 
-    DrawGamepad(
-        widthDp = screenWidth,
-        heightDp = screenHeight,
-        gamepadState = gamepadState,
-        buttonConfigs = buttonConfigs,
-        controllerLayout = controllerLayout,
-        macros = macros,
-        bindings = bindings
-    )
+    // The preview has to wear the same skin as the live gamepad, or the player is
+    // editing a controller that does not exist.
+    CompositionLocalProvider(LocalGamepadSkin provides skin) {
+        DrawGamepad(
+            widthDp = screenWidth,
+            heightDp = screenHeight,
+            gamepadState = gamepadState,
+            buttonConfigs = buttonConfigs,
+            controllerLayout = controllerLayout,
+            macros = macros,
+            bindings = bindings
+        )
+    }
 }
 
 /**
@@ -148,6 +156,7 @@ private fun GamepadEditorPreview(
     onSelect: (ButtonComponent) -> Unit,
     onConfigChange: (ButtonComponent, ButtonConfig) -> Unit,
     modifier: Modifier = Modifier,
+    skin: GamepadSkin = GamepadSkin.DEFAULT,
 ) {
     val gamepadState = remember { GamepadReading() }
     val density = LocalDensity.current
@@ -158,15 +167,19 @@ private fun GamepadEditorPreview(
         val baseDp = GamepadGeometry.baseDp(widthDp.coerceAtLeast(1), heightDp.coerceAtLeast(1))
         val basePx = with(density) { baseDp.dp.toPx() }
 
-        DrawGamepad(
-            widthDp = widthDp,
-            heightDp = heightDp,
-            gamepadState = gamepadState,
-            buttonConfigs = buttonConfigs,
-            controllerLayout = controllerLayout,
-            macros = macros,
-            bindings = bindings,
-        )
+        // Same skin as the live gamepad, so the handles sit on the controls the
+        // player actually gets.
+        CompositionLocalProvider(LocalGamepadSkin provides skin) {
+            DrawGamepad(
+                widthDp = widthDp,
+                heightDp = heightDp,
+                gamepadState = gamepadState,
+                buttonConfigs = buttonConfigs,
+                controllerLayout = controllerLayout,
+                macros = macros,
+                bindings = bindings,
+            )
+        }
 
         ButtonComponent.entries.forEach { component ->
             val config = buttonConfigs[component] ?: ButtonConfig.default(component)
@@ -206,21 +219,44 @@ private fun GamepadEditorPreview(
                         // the instant the finger moved, so a control could never be
                         // dragged. A tap (handled by the clickable above) opens the
                         // editor; a drag only moves.
-                        detectDragGestures { change, drag ->
-                            change.consume()
-                            // Both axes move with the finger, so a control can be put
-                            // anywhere on the screen by dragging it there instead of
-                            // by pushing two sliders until it looks right.
-                            val current = draggedConfig
-                            val nx = (current.offsetX + drag.x / basePx)
-                                .coerceIn(OFFSET_VALUE_RANGE)
-                            val ny = (current.offsetY + drag.y / basePx)
-                                .coerceIn(OFFSET_VALUE_RANGE)
-                            onConfigChange(
-                                component,
-                                current.copy(offsetX = nx, offsetY = ny)
-                            )
-                        }
+                        //
+                        // Travel is measured from the config the drag started on, and
+                        // each event adds to a running total, rather than adding to
+                        // whatever config is newest. Adding to the newest one meant
+                        // every event depended on the previous move having made it
+                        // back through the state round trip: the events that arrived
+                        // before it did all started from the same old value, so the
+                        // control crept along and then stalled, which is what made it
+                        // feel stuck part-way across the screen.
+                        var startConfig: ButtonConfig? = null
+                        var travelledX = 0f
+                        var travelledY = 0f
+                        detectDragGestures(
+                            onDragStart = {
+                                startConfig = draggedConfig
+                                travelledX = 0f
+                                travelledY = 0f
+                            },
+                            onDrag = { change, drag ->
+                                change.consume()
+                                travelledX += drag.x
+                                travelledY += drag.y
+                                val base = startConfig ?: draggedConfig
+                                // Both axes follow the finger, so a control can be
+                                // put anywhere on screen by dragging it there
+                                // instead of pushing two sliders until it looks right.
+                                val nx = (base.offsetX + travelledX / basePx)
+                                    .coerceIn(OFFSET_VALUE_RANGE)
+                                val ny = (base.offsetY + travelledY / basePx)
+                                    .coerceIn(OFFSET_VALUE_RANGE)
+                                onConfigChange(
+                                    component,
+                                    base.copy(offsetX = nx, offsetY = ny)
+                                )
+                            },
+                            onDragEnd = { startConfig = null },
+                            onDragCancel = { startConfig = null },
+                        )
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -392,6 +428,9 @@ fun GamepadCustomizationScreen(
         modifiedLayout = ControllerLayout.CUSTOM
     }
 
+    val gamepadSkin =
+        settingsRepository.gamepadSkin.collectAsState(initial = GamepadSkin.DEFAULT).value
+
     BackHandler(enabled = showPlayPreview) { showPlayPreview = false }
 
     if (showPlayPreview) {
@@ -399,7 +438,8 @@ fun GamepadCustomizationScreen(
             buttonConfigs = currentConfigs,
             controllerLayout = currentLayout,
             macros = macros,
-            bindings = bindings
+            bindings = bindings,
+            skin = gamepadSkin,
         )
         return
     }
@@ -488,6 +528,7 @@ fun GamepadCustomizationScreen(
             ) {
                 GamepadEditorPreview(
                     modifier = Modifier.fillMaxSize(),
+                    skin = gamepadSkin,
                     buttonConfigs = currentConfigs,
                     controllerLayout = currentLayout,
                     macros = macros,

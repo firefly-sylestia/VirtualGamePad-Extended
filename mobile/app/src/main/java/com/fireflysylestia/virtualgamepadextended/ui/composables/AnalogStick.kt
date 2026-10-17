@@ -44,6 +44,14 @@ enum class AnalogStickType {
 private val STICK_CLICK_SLOP = 16.dp
 
 /**
+ * Extra radius, per side, that the touch box gains when the wide target is on.
+ *
+ * The knob is drawn at its own radius either way; this only widens what catches
+ * the finger, so the stick looks the same and is easier to find without looking.
+ */
+private val LARGE_TOUCH_PADDING = 24.dp
+
+/**
  * How long the click is held down.
  *
  * A click is generated after the finger has gone, so it has to outlive at least
@@ -170,6 +178,7 @@ fun AnalogStick(
     type: AnalogStickType,
     clickButtonMask: Int? = null,
     sensitivity: Float = 1f,
+    largeTouchArea: Boolean = false,
 ) {
     val density = LocalDensity.current
     val view = LocalView.current
@@ -224,22 +233,48 @@ fun AnalogStick(
                     (innerCircleRadius + outerCircleWidth).toPx()
                 }
 
-                // Then draw the inner circle
-                Circle(
-                    colour = if (clickHeld) lighten(innerCircleColor, 0.45f) else innerCircleColor,
+                // The knob is drawn at its own size inside a touch box that can be
+                // wider. Both are centred in the ring, so growing the box moves
+                // nothing on screen; it only widens what catches the finger, which
+                // is the difference between aiming the thumb and hunting for the
+                // stick. Travel is still measured from the knob's own radius, so
+                // how far the stick has to be pushed does not change.
+                val touchRadius =
+                    if (largeTouchArea) innerCircleRadius + LARGE_TOUCH_PADDING
+                    else innerCircleRadius
+
+                Box(
                     modifier = Modifier
-                        .testTag("AnalogStick_${type.name}_Handle")
-                        .size(innerCircleRadius * 2)
+                        .size(touchRadius * 2)
                         .offset {
                             IntOffset(
                                 state.visualX.roundToInt(),
                                 state.visualY.roundToInt()
                             )
                         }
-                        .pointerInput(Unit) {
+                        .pointerInput(largeTouchArea, touchRadius) {
                             detectDragGestures(
-                                onDragStart = { _ ->
+                                onDragStart = { start ->
                                     HapticUtils.performGestureStartFeedback(view)
+                                    // With the wide target the finger usually lands
+                                    // beside the knob rather than on it. Moving the
+                                    // knob to the finger and measuring travel from
+                                    // there is what keeps the stick from lurching:
+                                    // touching the area picks the stick up, it does
+                                    // not push it.
+                                    if (largeTouchArea) {
+                                        val centre = with(density) { touchRadius.toPx() }
+                                        handleAnalogDrag(
+                                            state = state,
+                                            dragX = start.x - centre,
+                                            dragY = start.y - centre,
+                                            maxOffset = maxOffset,
+                                            type = type,
+                                            gamepadState = gamepadState,
+                                            view = view,
+                                            sensitivity = sensitivity,
+                                        )
+                                    }
                                 },
                                 onDragEnd = {
                                     resetAnalogStick(state, type, gamepadState)
@@ -291,8 +326,17 @@ fun AnalogStick(
                                 // next finger; the hold is the effect's job.
                                 taps++
                             }
-                        }
-                ) {}
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Circle(
+                        colour = if (clickHeld) lighten(innerCircleColor, 0.45f)
+                        else innerCircleColor,
+                        modifier = Modifier
+                            .testTag("AnalogStick_${type.name}_Handle")
+                            .size(innerCircleRadius * 2),
+                    ) {}
+                }
             }
         }
     }

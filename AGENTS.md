@@ -20,3 +20,9 @@ Both projects are vendored as real source trees (not submodules). Upstream workf
 - Do not edit `mobile/VGP_Data_Exchange` or `pc/VGP_Data_Exchange` generated protocol artifacts by hand unless the change is explicitly about the protocol definition.
 - The mobile and PC protocol copies of `GameButtons` (C header and Java enum) must stay in sync; the root CI workflow guards against drift.
 - Do not modify `pc/third-party-libs` or `pc/doxygen-awesome-css`.
+
+## Working directory
+
+1. **Stay inside this directory.** Treat the repository root as the only workspace. Do not `cd` to, read from, or write to any path outside it - no parent directories, no other checkouts, no absolute-path edits elsewhere, and no system-wide installs or configuration changes.
+2. If a task appears to require anything outside this tree, stop and ask instead of reaching for it.
+3. Keep every generated artifact, build output and scratch file inside this directory too.

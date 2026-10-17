@@ -25,6 +25,27 @@ static const std::unordered_set<WORD> extendedKeys = {VK_RMENU,
 													  VK_SNAPSHOT,
 													  VK_DIVIDE};
 
+/**
+ * Whether a keystroke has anywhere useful to go.
+ *
+ * SendInput delivers to whichever window currently has focus, which is what the
+ * player wants - the game they are playing. The exception is this application's
+ * own shell: if it holds focus, the keystrokes land in the layout editor, typing
+ * into whichever field or button happens to be selected, and the game never sees
+ * them. There is no other window to aim at in that case, so the press is dropped
+ * rather than being allowed to disturb the settings screen.
+ */
+static bool targetAcceptsInput()
+{
+	const HWND foreground = GetForegroundWindow();
+	if (foreground == nullptr)
+		return true; // Nothing is focused, so nothing can be typed into.
+
+	DWORD ownerPid = 0;
+	GetWindowThreadProcessId(foreground, &ownerPid);
+	return ownerPid != GetCurrentProcessId();
+}
+
 KeyboardInjector::KeyboardInjector()
 {
 	// No initialization needed for Windows
@@ -55,6 +76,9 @@ void KeyboardInjector::addScanCode(INPUT &input, WORD key)
 
 void KeyboardInjector::pressKey(quint32 nativeKeyCode)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	WORD key = static_cast<WORD>(nativeKeyCode);
 	INPUT input = {};
 	input.type = INPUT_KEYBOARD;
@@ -70,6 +94,9 @@ void KeyboardInjector::pressKey(quint32 nativeKeyCode)
 
 void KeyboardInjector::pressKeyCombo(std::vector<quint32> nativeKeys)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	std::vector<INPUT> inputs(nativeKeys.size() * 2);
 	for (size_t i = 0; i < nativeKeys.size(); i++)
 	{
@@ -91,6 +118,9 @@ void KeyboardInjector::pressKeyCombo(std::vector<quint32> nativeKeys)
 
 void KeyboardInjector::keyDown(quint32 nativeKeyCode)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	WORD key = static_cast<WORD>(nativeKeyCode);
 	INPUT input = {};
 	input.type = INPUT_KEYBOARD;
@@ -101,6 +131,9 @@ void KeyboardInjector::keyDown(quint32 nativeKeyCode)
 
 void KeyboardInjector::keyUp(quint32 nativeKeyCode)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	WORD key = static_cast<WORD>(nativeKeyCode);
 	INPUT input = {};
 	input.type = INPUT_KEYBOARD;
@@ -112,6 +145,9 @@ void KeyboardInjector::keyUp(quint32 nativeKeyCode)
 
 void KeyboardInjector::keyComboUp(std::vector<quint32> nativeKeys)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	std::vector<INPUT> inputs(nativeKeys.size());
 	for (size_t i = 0; i < nativeKeys.size(); i++)
 	{
@@ -125,6 +161,9 @@ void KeyboardInjector::keyComboUp(std::vector<quint32> nativeKeys)
 
 void KeyboardInjector::keyComboDown(std::vector<quint32> nativeKeys)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	std::vector<INPUT> inputs(nativeKeys.size());
 	for (size_t i = 0; i < nativeKeys.size(); i++)
 	{
@@ -137,6 +176,9 @@ void KeyboardInjector::keyComboDown(std::vector<quint32> nativeKeys)
 
 void KeyboardInjector::typeUnicodeString(const QString &str)
 {
+	if (!targetAcceptsInput())
+		return;
+
 	std::wstring wstr = str.toStdWString();
 	std::vector<INPUT> inputs(wstr.size() * 2);
 	for (size_t i = 0; i < wstr.size(); i++)

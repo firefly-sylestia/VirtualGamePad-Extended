@@ -28,6 +28,14 @@
     <string name="settings_gyro_calibrating">Hold Still…</string>
     <string name="settings_full_screen_camera">Whole Screen Camera</string>
     <string name="settings_slide_between_buttons">Slide Between Buttons</string>
+    <string name="settings_right_stick_large_touch_area">Large Right Stick Area</string>
+    <string name="settings_touch_sensitivity">Touch Surface Sensitivity</string>
+    <string name="settings_gamepad_skin">Controller Skin</string>
+    <string name="gamepad_skin_default">Default</string>
+    <string name="gamepad_skin_minecraft">Minecraft (blocks)</string>
+    <string name="gamepad_skin_pixel">Pixel</string>
+    <string name="gamepad_skin_neon">Neon</string>
+    <string name="gamepad_skin_arcade">Arcade</string>
     <string name="settings_gamepad_background">Controller Background</string>
     <string name="settings_custom_background_color">Custom Background Colour</string>
     <string name="settings_customize_layout">Customize Gamepad Layout</string>

@@ -24,6 +24,7 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
+import com.fireflysylestia.virtualgamepadextended.data.defaultTouchSensitivity
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 
 /** How far the background is pushed toward the accent colour in camera mode. */
@@ -56,8 +57,10 @@ fun DrawGamepad(
     fullScreenCamera: Boolean = false,
     // A D-pad or face cluster follows a finger slid across it.
     slideBetweenButtons: Boolean = false,
-    // The background the player chose, or `null` for the theme's surface.
-    background: Color? = null,
+    // The right stick answers a touch around its knob, not only on it.
+    rightStickLargeTouchArea: Boolean = false,
+    // How far a touch on the surface is amplified before it drives the pointer.
+    touchSensitivity: Float = defaultTouchSensitivity,
 ) {
     DisposableEffect(gamepadState) {
         onDispose {
@@ -95,13 +98,16 @@ fun DrawGamepad(
         }
     }
 
-    // The background is the player's choice, and it says when the whole screen has
-    // become a camera control: the surface takes the accent colour, so the change
-    // is visible without a label sitting on top of the controls.
-    val chosenSurface = background ?: MaterialTheme.colorScheme.surface
+    // The controller sits on black. A tinted background used to be the only thing a
+    // "theme" changed, which is not what the word means to a player and competed
+    // with the control styling that does mean it. Black also keeps the controls
+    // legible whatever accent colour the app is set to.
+    //
+    // The one exception is the whole-screen camera, which still takes a hint of the
+    // accent colour: that is a state of the controls, not decoration.
     val surfaceColour =
-        if (fullScreenCamera) lerp(chosenSurface, MaterialTheme.colorScheme.primary, CAMERA_TINT)
-        else chosenSurface
+        if (fullScreenCamera) lerp(Color.Black, MaterialTheme.colorScheme.primary, CAMERA_TINT)
+        else Color.Black
 
     Surface(color = surfaceColour) {
         // Declared before the controls, so it sits behind them: a touch that lands
@@ -149,6 +155,7 @@ fun DrawGamepad(
                     type = AnalogStickType.RIGHT,
                     clickButtonMask = bindings["right_stick_click"]?.mask,
                     sensitivity = stickSensitivity,
+                    largeTouchArea = rightStickLargeTouchArea,
                 )
             }
 
@@ -295,6 +302,7 @@ fun DrawGamepad(
                 TouchSurface(
                     gamepadState = gamepadState,
                     size = (baseDp / 3 * config.scale).dp,
+                    sensitivity = touchSensitivity,
                     modifier = Modifier.offset(
                         x = (config.offsetX * baseDp).dp,
                         y = (config.offsetY * baseDp).dp
