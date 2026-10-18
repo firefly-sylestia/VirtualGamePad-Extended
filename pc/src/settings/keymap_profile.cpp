@@ -20,7 +20,7 @@ void KeymapProfile::initializeDefaultMappings()
 	buttonDisplayNames = {{GamepadButtons::GamepadButtons_Menu, "Menu"},
 						  {GamepadButtons::GamepadButtons_View, "Tab"},
 						  {GamepadButtons::GamepadButtons_A, "Enter"},
-						  {GamepadButtons::GamepadButtons_B, "Backspace"},
+						  {GamepadButtons::GamepadButtons_B, "B"},
 						  {GamepadButtons::GamepadButtons_X, "Shift"},
 						  {GamepadButtons::GamepadButtons_Y, "Ctrl"},
 						  {GamepadButtons::GamepadButtons_DPadUp, "Up"},
@@ -46,11 +46,13 @@ void KeymapProfile::initializeDefaultMappings()
 	buttonMappings = {{GamepadButtons::GamepadButtons_Menu, VK_MENU},
 					  {GamepadButtons::GamepadButtons_View, VK_TAB},
 					  {GamepadButtons::GamepadButtons_A, VK_RETURN},
-					  // B is the button a player reaches for to cancel, so it must not be
-					  // Escape: in nearly every full-screen game that drops out of the game
-					  // or opens the menu, and a stray B press throws the session away.
-					  // Backspace still reads as "back" without that side effect.
-					  {GamepadButtons::GamepadButtons_B, VK_BACK},
+					  // B sends the letter B. Escape was the old default and had to go: in
+					  // nearly every full-screen game it drops out of the game or opens the
+					  // menu, so a stray press threw the session away. Backspace replaced it
+					  // for the same reason, and the letter is what a game that names a key
+					  // "B" actually reads. A player who wants cancel can bind it by hand,
+					  // and the phone can send Escape from a custom key button.
+					  {GamepadButtons::GamepadButtons_B, 'B'},
 					  {GamepadButtons::GamepadButtons_X, VK_SHIFT},
 					  {GamepadButtons::GamepadButtons_Y, VK_CONTROL},
 					  {GamepadButtons::GamepadButtons_DPadUp, VK_UP},
@@ -88,9 +90,9 @@ void KeymapProfile::initializeDefaultMappings()
 	buttonMappings = {{GamepadButtons::GamepadButtons_Menu, KEY_MENU},
 					  {GamepadButtons::GamepadButtons_View, KEY_TAB},
 					  {GamepadButtons::GamepadButtons_A, KEY_ENTER},
-					  // See the Windows mapping above: B as Escape drops full-screen games
-					  // out of full screen, so it maps to Backspace instead.
-					  {GamepadButtons::GamepadButtons_B, KEY_BACKSPACE},
+					  // See the Windows mapping above: B is the letter, not Escape, which
+					  // drops full-screen games out of full screen.
+					  {GamepadButtons::GamepadButtons_B, KEY_B},
 					  {GamepadButtons::GamepadButtons_X, KEY_LEFTSHIFT},
 					  {GamepadButtons::GamepadButtons_Y, KEY_LEFTCTRL},
 					  {GamepadButtons::GamepadButtons_DPadUp, KEY_UP},
@@ -285,7 +287,7 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	// Load with platform-specific defaults
 #ifdef WIN32
 	buttonMappings[GamepadButtons_A] = settings.value("buttons/A", VK_RETURN).toUInt();
-	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", VK_BACK).toUInt();
+	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", 'B').toUInt();
 	buttonMappings[GamepadButtons_X] = settings.value("buttons/X", VK_SHIFT).toUInt();
 	buttonMappings[GamepadButtons_Y] = settings.value("buttons/Y", VK_CONTROL).toUInt();
 	buttonMappings[GamepadButtons_RightShoulder] = settings.value("buttons/RS", VK_RBUTTON).toUInt();
@@ -310,7 +312,7 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	buttonMappings[GamepadButtons_Paddle4] = settings.value("buttons/P4", '4').toUInt();
 #elif defined(__linux__)
 	buttonMappings[GamepadButtons_A] = settings.value("buttons/A", KEY_ENTER).toUInt();
-	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", KEY_BACKSPACE).toUInt();
+	buttonMappings[GamepadButtons_B] = settings.value("buttons/B", KEY_B).toUInt();
 	buttonMappings[GamepadButtons_X] = settings.value("buttons/X", KEY_LEFTSHIFT).toUInt();
 	buttonMappings[GamepadButtons_Y] = settings.value("buttons/Y", KEY_LEFTCTRL).toUInt();
 	buttonMappings[GamepadButtons_RightShoulder] = settings.value("buttons/RS", BTN_RIGHT).toUInt();
@@ -369,23 +371,30 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	buttonDisplayNames[GamepadButtons_Paddle3] = settings.value("button_display_names/P3", "3").toString();
 	buttonDisplayNames[GamepadButtons_Paddle4] = settings.value("button_display_names/P4", "4").toString();
 
-	// A profile saved before the default changed still carries B as Escape: the
-	// value came from the old default, not from a choice, so it is migrated to
-	// Backspace. A hand-picked Escape has that word as its display name and is
-	// left exactly as it was.
+	// A profile saved before the default changed carries the old one — Escape
+	// first, then Backspace — as the value of B. Neither came from a choice, so
+	// both are migrated to the letter B. A hand-picked key keeps its own display
+	// name and is left exactly as it was.
 #ifdef _WIN32
 	const InputKeyCode legacyBackKey = VK_ESCAPE;
-	const InputKeyCode backspaceKey = VK_BACK;
+	const InputKeyCode previousBackKey = VK_BACK;
+	const InputKeyCode backKey = 'B';
 #elif defined(__linux__)
 	const InputKeyCode legacyBackKey = KEY_ESC;
-	const InputKeyCode backspaceKey = KEY_BACKSPACE;
+	const InputKeyCode previousBackKey = KEY_BACKSPACE;
+	const InputKeyCode backKey = KEY_B;
 #endif
-	if (buttonMappings[GamepadButtons_B] == legacyBackKey &&
-		(buttonDisplayNames[GamepadButtons_B].isEmpty() ||
-		 buttonDisplayNames[GamepadButtons_B] == QStringLiteral("Backspace")))
+	const InputKeyCode currentBackKey = buttonMappings[GamepadButtons_B];
+	const QString backName = buttonDisplayNames[GamepadButtons_B];
+	const bool wasDefaultEscape = currentBackKey == legacyBackKey &&
+			(backName.isEmpty() || backName == QStringLiteral("Escape") ||
+			 backName == QStringLiteral("Backspace"));
+	const bool wasDefaultBackspace = currentBackKey == previousBackKey &&
+			(backName.isEmpty() || backName == QStringLiteral("Backspace"));
+	if (wasDefaultEscape || wasDefaultBackspace)
 	{
-		buttonMappings[GamepadButtons_B] = backspaceKey;
-		buttonDisplayNames[GamepadButtons_B] = QStringLiteral("Backspace");
+		buttonMappings[GamepadButtons_B] = backKey;
+		buttonDisplayNames[GamepadButtons_B] = QStringLiteral("B");
 		m_migratedBackKey = true;
 	}
 

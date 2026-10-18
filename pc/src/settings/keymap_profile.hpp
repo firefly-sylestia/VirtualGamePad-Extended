@@ -81,12 +81,13 @@ class KeymapProfile : public QObject
 	std::vector<CustomBinding> m_customBindings;
 
 	/**
-	 * Whether the loaded profile still had the old default that sent B as Escape.
+	 * Whether the loaded profile still had one of the old defaults for B.
 	 *
-	 * Escape drops most full-screen games out of full screen, which is why the
-	 * default was changed to Backspace. Profiles saved before that change kept the
-	 * old value, so loading one migrates it and writes it back; a B the user chose
-	 * to bind to Escape by hand keeps its "Escape" display name and is left alone.
+	 * Escape drops most full-screen games out of full screen and was replaced by
+	 * Backspace, which in turn gave way to the letter B — the key a game that
+	 * names one "B" actually reads. A profile saved before either change kept the
+	 * old value, so loading one migrates it and writes it back; a key the user
+	 * chose by hand carries its own display name and is left alone.
 	 */
 	bool m_migratedBackKey = false;
 
