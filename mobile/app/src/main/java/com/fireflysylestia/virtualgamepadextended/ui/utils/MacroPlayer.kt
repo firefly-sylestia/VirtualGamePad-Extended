@@ -52,10 +52,6 @@ class MacroPlayer {
     /** The last recording played, which the panel plays again on demand. */
     val lastRecording: RecordedMacro? get() = recording
 
-    fun setRepeating(value: Boolean) {
-        isRepeating = value
-    }
-
     fun toggleRepeating() {
         isRepeating = !isRepeating
     }
