@@ -174,19 +174,15 @@ fun GamePad(
                 recorded = recordedMacros,
                 gamepadState = gamepadState,
                 modifier = Modifier
-                    .align(Alignment.TopStart)
+                    // Middle of the top edge: a pill in the corners hid the
+                    // controls sat there, this keeps clear of them.
+                    .align(Alignment.TopCenter)
                     .padding(12.dp),
                 onSave = { take ->
                     scope.launch {
                         settingsRepository.setRecordedMacros(
                             (recordedMacros + take).takeLast(RECORDED_MACRO_LIMIT)
                         )
-                    }
-                },
-                onDelete = { take ->
-                    player.stop()
-                    scope.launch {
-                        settingsRepository.setRecordedMacros(recordedMacros - take)
                     }
                 },
                 onDismiss = { showRecorder = false },

@@ -2,17 +2,13 @@ package com.fireflysylestia.virtualgamepadextended.ui.composables
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -25,11 +21,9 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -102,13 +96,15 @@ fun RecorderButton(
 }
 
 /**
- * The recorder, as a card the pad stays usable behind.
+ * The recorder as a slim pill across the middle of the pad's top edge.
  *
  * It is deliberately not a dialog: the whole point is to perform a combination
  * *on the pad* while the recorder watches, so a modal one would block the very
- * controls being recorded. Every button here is an icon with a description, the
- * record button doubles as the stop that saves, and the take is replayed from
- * the list below once it has been saved.
+ * controls being recorded. It is a row of icons — record/stop, repeat, play —
+ * and a chevron that puts it away, with no labels to read: the pill stays
+ * compact so it hides as little of the pad as possible, and the REC control on
+ * the pad (or the chevron) brings it back. The take that plays is the last one
+ * saved; takes live on the phone and nothing about them reaches the PC.
  */
 @Composable
 fun MacroRecorderPanel(
@@ -117,179 +113,112 @@ fun MacroRecorderPanel(
     recorded: List<RecordedMacro>,
     gamepadState: GamepadReading,
     onSave: (RecordedMacro) -> Unit,
-    onDelete: (RecordedMacro) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.width(236.dp),
-        shape = RoundedCornerShape(14.dp),
+        modifier = modifier,
+        shape = RoundedCornerShape(percent = 50),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
         tonalElevation = 4.dp,
     ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Recorder",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
+            FilledIconButton(
+                onClick = {
+                    if (recorder.isRecording) {
+                        recorder.stop(nextRecordingName(recorded))?.let(onSave)
+                    } else {
+                        player.stop()
+                        recorder.start(gamepadState)
+                    }
+                },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (recorder.isRecording) {
+                        MaterialTheme.colorScheme.errorContainer
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    },
+                    contentColor = if (recorder.isRecording) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    },
+                ),
+            ) {
+                Icon(
+                    imageVector = if (recorder.isRecording) {
+                        Icons.Filled.Stop
+                    } else {
+                        Icons.Filled.FiberManualRecord
+                    },
+                    contentDescription = if (recorder.isRecording) {
+                        "Stop recording and save"
+                    } else {
+                        "Start recording"
+                    },
                 )
-                IconButton(onClick = {
+            }
+
+            FilledIconButton(
+                onClick = { player.toggleRepeating() },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (player.isRepeating) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    contentColor = if (player.isRepeating) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                ),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Repeat,
+                    contentDescription = if (player.isRepeating) {
+                        "Repeat: on, playback starts over"
+                    } else {
+                        "Repeat: off"
+                    },
+                )
+            }
+
+            val latest = player.lastRecording
+            FilledIconButton(
+                onClick = { if (player.isPlaying) player.stop() else latest?.let(player::play) },
+                enabled = latest != null,
+            ) {
+                Icon(
+                    imageVector = if (player.isPlaying) {
+                        Icons.Filled.Stop
+                    } else {
+                        Icons.Filled.PlayArrow
+                    },
+                    contentDescription = if (player.isPlaying) {
+                        "Stop playback"
+                    } else {
+                        "Play the last take"
+                    },
+                )
+            }
+
+            IconButton(
+                onClick = {
                     player.stop()
                     recorder.cancel()
                     onDismiss()
-                }) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close the recorder")
-                }
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                },
             ) {
-                FilledIconButton(
-                    onClick = {
-                        if (recorder.isRecording) {
-                            recorder.stop(nextRecordingName(recorded))?.let(onSave)
-                        } else {
-                            player.stop()
-                            recorder.start(gamepadState)
-                        }
-                    },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = if (recorder.isRecording) {
-                            MaterialTheme.colorScheme.errorContainer
-                        } else {
-                            MaterialTheme.colorScheme.primaryContainer
-                        },
-                        contentColor = if (recorder.isRecording) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        },
-                    ),
-                ) {
-                    Icon(
-                        imageVector = if (recorder.isRecording) {
-                            Icons.Filled.Stop
-                        } else {
-                            Icons.Filled.FiberManualRecord
-                        },
-                        contentDescription = if (recorder.isRecording) {
-                            "Stop recording and save"
-                        } else {
-                            "Start recording"
-                        },
-                    )
-                }
-
-                FilledIconButton(
-                    onClick = { player.toggleRepeating() },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = if (player.isRepeating) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.surface
-                        },
-                        contentColor = if (player.isRepeating) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    ),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Repeat,
-                        contentDescription = if (player.isRepeating) {
-                            "Repeat: on, playback starts over"
-                        } else {
-                            "Repeat: off"
-                        },
-                    )
-                }
-
-                val latest = player.lastRecording
-                FilledIconButton(
-                    onClick = { if (player.isPlaying) player.stop() else latest?.let(player::play) },
-                    enabled = latest != null,
-                ) {
-                    Icon(
-                        imageVector = if (player.isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = if (player.isPlaying) "Stop playback" else "Play the last take",
-                    )
-                }
-
-                Text(
-                    when {
-                        recorder.isFull -> "Full: the tail is not kept"
-                        recorder.isRecording -> "Recording ${recorder.elapsedMillis / 1000f}s"
-                        player.isPlaying -> "Playing ${player.playingName}"
-                        else -> "Tap the dot, then perform"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Icon(
+                    imageVector = Icons.Filled.ExpandLess,
+                    contentDescription = "Collapse the recorder",
                 )
             }
-
-            if (recorded.isEmpty()) {
-                Text(
-                    "Nothing saved yet. A take is saved whole — the buttons, the sticks, the " +
-                        "triggers and the pauses between them — and plays back exactly as it was " +
-                        "performed.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                recorded.forEach { macro ->
-                    SavedRecordingRow(
-                        macro = macro,
-                        playing = player.isPlaying && player.playingName == macro.name,
-                        onPlay = { if (player.isPlaying) player.stop() else player.play(macro) },
-                        onDelete = { onDelete(macro) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SavedRecordingRow(
-    macro: RecordedMacro,
-    playing: Boolean,
-    onPlay: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            macro.name,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            "${macro.durationLabel} · ${macro.stepCount} steps",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(end = 4.dp),
-        )
-        IconButton(onClick = onPlay) {
-            Icon(
-                imageVector = if (playing) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                contentDescription = if (playing) "Stop ${macro.name}" else "Play ${macro.name}",
-            )
-        }
-        IconButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Filled.Delete,
-                contentDescription = "Delete ${macro.name}",
-                tint = Color.Unspecified,
-            )
         }
     }
 }
