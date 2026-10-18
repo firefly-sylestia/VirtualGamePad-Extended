@@ -53,6 +53,7 @@ import com.fireflysylestia.virtualgamepadextended.ui.composables.DrawGamepad
 import com.fireflysylestia.virtualgamepadextended.ui.composables.MacroRecorderPanel
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.utils.InputHold
+import com.fireflysylestia.virtualgamepadextended.ui.utils.KeyButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.utils.MacroPlayer
 import com.fireflysylestia.virtualgamepadextended.ui.utils.MacroRecorder
 import com.fireflysylestia.virtualgamepadextended.ui.utils.findActivity
