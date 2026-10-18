@@ -83,14 +83,16 @@ private fun CustomKeyButton(
 
     // The press is announced while the finger is down and taken back when it is
     // not, including when the key is edited mid-press or the control disappears.
+    // A binding may hold two keys (a chord): both go down together, in the picked
+    // order, and both come off together when the finger lifts.
     DisposableEffect(isPressed, binding.key) {
         if (isPressed) {
-            KeyButtonDispatcher.press(gamepadState, source, binding.key)
+            KeyButtonDispatcher.pressKeys(gamepadState, source, binding.key)
             HapticUtils.performButtonPressFeedback(view)
         }
         onDispose {
             if (isPressed) {
-                KeyButtonDispatcher.release(gamepadState, source)
+                KeyButtonDispatcher.releaseKeys(gamepadState, source)
                 HapticUtils.performButtonReleaseFeedback(view)
             }
         }

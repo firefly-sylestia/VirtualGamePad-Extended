@@ -96,8 +96,24 @@ nothing about them reaches the PC.
   a key field next to its gamepad action (type one, or pick one from the same list
   the custom-key buttons use). A control with a key sends that key and not its
   button, which is how a pad's A becomes Space in a game that reads no controller.
-  Analog sticks and triggers keep their axes; clearing the field hands the control
-  back to its gamepad action.
+  Analog sticks keep their axis; a trigger with a key bound sends it on a pull
+  past half instead of its pressure. Clearing the field hands the control back to
+  its gamepad action.
+- **Remapping is per key, on the screen the key is.** Tapping a control on the
+  customisation screen opens that control's editor with a *Sends* row per button
+  the tapped component stands for — A, B, X, Y individually, each D-pad
+  direction, both triggers, every custom-key button, and the rest — so a remap
+  happens where the key is instead of only through the whole-pad Remap table
+  (which stays, for editing everything at once).
+- **Two keys can be bound together (a chord).** Next to the key field sits an
+  optional 2nd key field: both names go down in the picked order in one packet,
+  stay down while the control is held — at least one send interval even for a
+  tap faster than the phone's poll rate — and come off together, which is how
+  Shift+C has to be pressed for a game to read it as one chord. The same `+`
+  syntax works everywhere a key can be bound (per-control fields, the whole-pad
+  remap editor, the custom-key editor): type `LeftShift+C` and each name is
+  resolved on its own by the PC, with an unknown one ignored rather than
+  guessed.
 
 See [`plan.md`](plan.md) for the detailed checklist, compatibility notes, and remaining work.
 

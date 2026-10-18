@@ -239,6 +239,8 @@ fun DrawGamepad(
                     size = (baseDp / 6 * config.scale).dp,
                     gamepadState = gamepadState,
                     labelOverride = controllerLayout.leftTriggerLabel,
+                    controlId = "left_trigger",
+                    controlKey = controlKeyBindings["left_trigger"],
                 )
             }
 
@@ -253,6 +255,8 @@ fun DrawGamepad(
                     size = (baseDp / 6 * config.scale).dp,
                     gamepadState = gamepadState,
                     labelOverride = controllerLayout.rightTriggerLabel,
+                    controlId = "right_trigger",
+                    controlKey = controlKeyBindings["right_trigger"],
                 )
             }
 

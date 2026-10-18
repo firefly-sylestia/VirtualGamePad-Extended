@@ -8,10 +8,16 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
  * A phone has no keyboard, and some games only listen to one: a control bound to
  * a key is how a pad's A becomes Space, or its X becomes the sneak key, without
  * changing anything about the button itself. The choice is per control and lives
- * in the remap editor, next to the gamepad action each control already sends.
+ * in the remap editor next to the gamepad action each control already sends, on
+ * the customize screen itself: tapping a control opens its editor with a remap
+ * row per button it stands for.
  *
- * The key travels by name, through [KeyButtonDispatcher], exactly like a
- * custom-key button: the PC resolves it with its own table and ignores one it
+ * A bound value may be one key or the two keys of a chord (`LeftShift+C`). A
+ * chord goes down in the order the player picked it — both names in the same
+ * packet, first name first — stays down while the control is held, and both
+ * come off together, which is what players expect from a two-key bind.
+ * Keys travel by name, through [KeyButtonDispatcher], exactly like a
+ * custom-key button: the PC resolves them with its own table and ignores one it
  * does not know. A bound control sends *only* the key — the point of binding one
  * is to replace what the button sends, not to add to it — and controls that have
  * no binding are untouched.
@@ -22,7 +28,8 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 object ControlPress {
 
     /**
-     * Control id (the same ids the remap editor lists) to PC key name.
+     * Control id (the same ids the remap editor lists) to bound value: one PC key
+     * name, or two joined with `+` for a chord.
      *
      * Set by the pad from the saved settings; empty means every control still
      * sends its gamepad button.
@@ -30,13 +37,13 @@ object ControlPress {
     @Volatile
     var keyBindings: Map<String, String> = emptyMap()
 
-    /** The key [controlId] sends, or `null` when it still sends its own button. */
+    /** The bound value [controlId] sends, or `null` when it still sends its own button. */
     fun keyFor(controlId: String?): String? {
         val id = controlId ?: return null
         return keyBindings[id]?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    /** Presses [mask], or the key [controlId] is bound to when it has one. */
+    /** Presses [mask], or the key (or two-key chord) [controlId] is bound to. */
     fun press(
         state: GamepadReading,
         source: String,
@@ -45,7 +52,7 @@ object ControlPress {
     ) {
         val key = keyFor(controlId)
         if (key != null) {
-            KeyButtonDispatcher.press(state, source, key)
+            KeyButtonDispatcher.pressKeys(state, source, key)
         } else {
             GamepadButtonDispatcher.press(state, source, mask)
         }
@@ -57,10 +64,12 @@ object ControlPress {
      * Both dispatchers are asked, because a control that was pressed as a key and
      * is released after its binding was cleared — or the other way round — still
      * has its press where it was made. An output the source never held is not
-     * touched by the dispatcher that did not see the press.
+     * touched by the dispatcher that did not see the press. The key dispatcher is
+     * asked to let go of the chord spellings too, so a pair releases together
+     * even when the binding was shortened to one key while it was held.
      */
     fun release(state: GamepadReading, source: String) {
         GamepadButtonDispatcher.release(state, source)
-        KeyButtonDispatcher.release(state, source)
+        KeyButtonDispatcher.releaseKeys(state, source)
     }
 }

@@ -14,6 +14,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -25,6 +30,7 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.R
 import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
+import com.fireflysylestia.virtualgamepadextended.ui.utils.KeyButtonDispatcher
 
 enum class TriggerType {
     LEFT, RIGHT
@@ -37,6 +43,11 @@ fun Trigger(
     size: Dp = 64.dp,
     gamepadState: GamepadReading,
     labelOverride: String? = null,
+    // The control's id plus the key (or two-key chord) bound to it. A trigger
+    // with a key bound sends that instead of its axis: a key has no pressure, so
+    // it answers a pull the way a button answers a press — past half the travel.
+    controlId: String? = null,
+    controlKey: String? = null,
 ) {
     val view = LocalView.current
 
@@ -48,11 +59,37 @@ fun Trigger(
         TriggerType.RIGHT -> stringResource(R.string.button_rt)
     }
 
+    // How far the trigger currently hangs, kept even while it is remapped so the
+    // half-pull threshold has something to read. Written from the gesture below
+    // (pointer input runs on the main thread), so its change recomposes and the
+    // effect underneath can press or release.
+    var pull by remember { mutableStateOf(0f) }
+    val pulledToKey = controlKey != null && pull >= 0.5f
+
     fun setTriggerValue(value: Float) {
         val clamped = value.coerceIn(0f, 1f)
-        when (type) {
-            TriggerType.LEFT -> gamepadState.LeftTrigger = clamped
-            TriggerType.RIGHT -> gamepadState.RightTrigger = clamped
+        if (controlKey == null) {
+            when (type) {
+                TriggerType.LEFT -> gamepadState.LeftTrigger = clamped
+                TriggerType.RIGHT -> gamepadState.RightTrigger = clamped
+            }
+        }
+        pull = clamped
+    }
+
+    // The bound key, or the chord, is held for as long as the trigger hangs past
+    // half. Release happens through this effect's disposal: pulling back, lifting
+    // the finger (the gesture's finally sets the value to zero) and leaving the
+    // screen all dispose it, and a binding cleared mid-pull releases the key the
+    // same way.
+    DisposableEffect(controlKey, pulledToKey, gamepadState) {
+        if (controlKey != null && pulledToKey && controlId != null) {
+            KeyButtonDispatcher.pressKeys(gamepadState, controlId, controlKey)
+        }
+        onDispose {
+            if (controlId != null) {
+                KeyButtonDispatcher.releaseKeys(gamepadState, controlId)
+            }
         }
     }
 
@@ -80,7 +117,11 @@ fun Trigger(
             onClick = {},
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(type, size) {
+                // Keyed on the binding too: the gesture below captures
+                // setTriggerValue, and a pointerInput block keyed only on type
+                // and size would keep running against the binding it was created
+                // with after the player rebinds the trigger.
+                .pointerInput(type, size, controlKey) {
                     val travel = this.size.height.toFloat().coerceAtLeast(1f)
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)

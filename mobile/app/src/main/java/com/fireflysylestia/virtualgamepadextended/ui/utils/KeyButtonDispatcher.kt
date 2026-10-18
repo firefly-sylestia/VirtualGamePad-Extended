@@ -1,5 +1,6 @@
 package com.fireflysylestia.virtualgamepadextended.ui.utils
 
+import com.fireflysylestia.virtualgamepadextended.data.keyChordParts
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import java.util.IdentityHashMap
 
@@ -121,6 +122,47 @@ object KeyButtonDispatcher {
         bookkeeping?.pendingPress?.clear()
         bookkeeping?.pendingRelease?.clear()
         state.KeysDown = emptyArray()
+    }
+
+    /**
+     * Presses everything a bound value holds: one key, or the two keys of a
+     * chord, in the order the player picked them.
+     *
+     * A chord is sent as both names in the same packet, first the key picked
+     * first: both land inside one send interval, stay down together for as long
+     * as the press is held (the latch above guarantees at least one packet), and
+     * come off together when [releaseKeys] lets go. Each key rides its own
+     * source (`name@0`, `name@1`) so both are counted independently: a second
+     * control holding the first key cannot cut the pair short, and remapping one
+     * half mid-press only swaps that half.
+     */
+    @Synchronized
+    fun pressKeys(state: GamepadReading, source: String, value: String) {
+        val parts = keyChordParts(value)
+        when {
+            parts.isEmpty() -> Unit
+            parts.size == 1 -> press(state, source, parts[0])
+            // Indexed sources keep the picked order visible in KeysDown, first
+            // name first, which is the order the PC walks the array in.
+            else -> parts.forEachIndexed { index, key ->
+                press(state, "$source@$index", key)
+            }
+        }
+    }
+
+    /**
+     * Lets go of a press made by [pressKeys].
+     *
+     * All the spellings are released unconditionally — a source that never held
+     * one is a no-op in [release] — so the caller does not have to remember
+     * whether the value was one key or a chord, and a binding shortened from a
+     * chord to a single mid-press still releases the second half.
+     */
+    @Synchronized
+    fun releaseKeys(state: GamepadReading, source: String) {
+        release(state, source)
+        release(state, "$source@0")
+        release(state, "$source@1")
     }
 
     /**

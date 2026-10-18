@@ -83,8 +83,12 @@ import com.fireflysylestia.virtualgamepadextended.data.CustomKeyOption
 import com.fireflysylestia.virtualgamepadextended.data.controlLabel
 import com.fireflysylestia.virtualgamepadextended.data.defaultControlKeyBindings
 import com.fireflysylestia.virtualgamepadextended.data.normaliseControlKeyBindings
+import com.fireflysylestia.virtualgamepadextended.data.canonicalKeyChord
 import com.fireflysylestia.virtualgamepadextended.data.canonicalKeyName
+import com.fireflysylestia.virtualgamepadextended.data.controlsForComponent
 import com.fireflysylestia.virtualgamepadextended.data.customKeyOptionGroups
+import com.fireflysylestia.virtualgamepadextended.data.keyChordParts
+import com.fireflysylestia.virtualgamepadextended.data.keyChordValue
 import com.fireflysylestia.virtualgamepadextended.data.knownCustomKeyNames
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
@@ -167,6 +171,10 @@ private fun GamepadEditorPreview(
     modifier: Modifier = Modifier,
     skin: GamepadSkin = GamepadSkin.DEFAULT,
     customKeyBindings: List<CustomKeyBinding> = defaultCustomKeyBindings,
+    controlKeyBindings: Map<String, String> = emptyMap(),
+    onActionChange: (String, ControllerAction) -> Unit = { _, _ -> },
+    onControlKeyChange: (String, String) -> Unit = { _, _ -> },
+    onCustomKeyChange: (Int, CustomKeyBinding) -> Unit = { _, _ -> },
 ) {
     val gamepadState = remember { GamepadReading() }
     val density = LocalDensity.current
@@ -299,6 +307,12 @@ private fun FloatingControlEditor(
     onConfigChange: (ButtonConfig) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    bindings: Map<String, ControllerAction> = emptyMap(),
+    controlKeyBindings: Map<String, String> = emptyMap(),
+    customKeyBindings: List<CustomKeyBinding> = defaultCustomKeyBindings,
+    onActionChange: (String, ControllerAction) -> Unit = { _, _ -> },
+    onControlKeyChange: (String, String) -> Unit = { _, _ -> },
+    onCustomKeyChange: (Int, CustomKeyBinding) -> Unit = { _, _ -> },
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -345,6 +359,19 @@ private fun FloatingControlEditor(
                         )
                     }
                 }
+                // Remap first: the reason most taps open this editor at all is
+                // "what does this button send?", and the answer is per key — each
+                // button the component stands for gets its own row below.
+                ControlRemapSection(
+                    component = component,
+                    bindings = bindings,
+                    controlKeyBindings = controlKeyBindings,
+                    customKeyBindings = customKeyBindings,
+                    onActionChange = onActionChange,
+                    onControlKeyChange = onControlKeyChange,
+                    onCustomKeyChange = onCustomKeyChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 ButtonConfigEditor(
                     component = component,
                     config = config,
@@ -357,6 +384,199 @@ private fun FloatingControlEditor(
 }
 
 
+
+/**
+ * The "Sends" block of the per-control editor: one remap row per button the
+ * tapped component stands for, so remapping happens per key on the screen the
+ * player is already looking at, instead of only through the whole-pad table.
+ *
+ * A component with no digital output of its own (the analog sticks, the
+ * phone-only controls) renders nothing and leaves its editor as it was.
+ */
+@Composable
+private fun ControlRemapSection(
+    component: ButtonComponent,
+    bindings: Map<String, ControllerAction>,
+    controlKeyBindings: Map<String, String>,
+    customKeyBindings: List<CustomKeyBinding>,
+    onActionChange: (String, ControllerAction) -> Unit,
+    onControlKeyChange: (String, String) -> Unit,
+    onCustomKeyChange: (Int, CustomKeyBinding) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val isCustomKeys = component == ButtonComponent.CUSTOM_KEYS
+    val controlIds = controlsForComponent(component)
+    if (!isCustomKeys && controlIds.isEmpty()) return
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Sends", style = MaterialTheme.typography.titleSmall)
+        Text(
+            "What each button sends. A bound key replaces the gamepad action. Two " +
+                "keys make a chord: pick a key, then a 2nd key — on a tap both go down " +
+                "in that order and release together.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (isCustomKeys) {
+            customKeyBindings.forEachIndexed { index, binding ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        binding.label.ifBlank { "Key ${index + 1}" },
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    KeyChordEditor(
+                        value = binding.key,
+                        onCommit = { value ->
+                            onCustomKeyChange(index, binding.copy(key = value))
+                        },
+                        blankHint = "No key: this button sends nothing.",
+                    )
+                }
+            }
+        } else {
+            controlIds.forEach { id ->
+                val hasAction = id in defaultControllerBindings
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(controlLabel(id), style = MaterialTheme.typography.labelMedium)
+                    if (hasAction) {
+                        ListItemPicker(
+                            modifier = Modifier.fillMaxWidth(),
+                            list = ControllerAction.entries.asIterable(),
+                            selectedItem = bindings[id]
+                                ?: defaultControllerBindings.getValue(id),
+                            label = "Gamepad action",
+                            formattedDisplay = { action ->
+                                Text(action.name.replace('_', ' '))
+                            },
+                            onItemSelected = { action -> onActionChange(id, action) },
+                        )
+                    }
+                    KeyChordEditor(
+                        value = controlKeyBindings[id].orEmpty(),
+                        onCommit = { value -> onControlKeyChange(id, value) },
+                        blankHint = if (hasAction) {
+                            "Sends its gamepad action."
+                        } else {
+                            "Sends its trigger pressure; a key replaces it and goes " +
+                                "down on a pull past half."
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The key fields of one remap row: the key, and an optional second key that
+ * turns the pair into a chord.
+ *
+ * Edits commit as they are typed, because the editor is not a dialog with a
+ * Save button — the value is stored raw and canonicalised only for the hint, so
+ * typing "1" stays "1" under the finger even though the PC resolves it as
+ * Digit1. The second field only exists once there is a first key: a chord with
+ * an empty first half would be reordered by the normaliser when it is read back.
+ */
+@Composable
+private fun KeyChordEditor(
+    value: String,
+    onCommit: (String) -> Unit,
+    blankHint: String,
+    modifier: Modifier = Modifier,
+) {
+    val parts = keyChordParts(value)
+    // The stored value is the source of truth; the fields are local views of it,
+    // rebuilt whenever it changes from elsewhere (a pick above, an import).
+    var first by remember(value) { mutableStateOf(parts.getOrElse(0) { "" }) }
+    var second by remember(value) { mutableStateOf(parts.getOrElse(1) { "" }) }
+    // No picker open (null), the first key (false), or the second one (true).
+    var pickingSecond by remember { mutableStateOf<Boolean?>(null) }
+
+    fun commit() {
+        val picked = listOf(first.trim(), second.trim()).filter { it.isNotEmpty() }
+        onCommit(keyChordValue(picked))
+    }
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = first,
+                onValueChange = { text ->
+                    first = text
+                    commit()
+                },
+                label = { Text("PC key") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { pickingSecond = false }) { Text("Pick") }
+        }
+
+        if (first.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = second,
+                    onValueChange = { text ->
+                        second = text
+                        commit()
+                    },
+                    label = { Text("2nd key (chord)") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { pickingSecond = true }) { Text("Pick") }
+            }
+        }
+
+        val unknownParts = parts.map(::canonicalKeyName)
+            .filter { part -> part.lowercase() !in knownCustomKeyNames }
+        Text(
+            when {
+                parts.isEmpty() -> blankHint
+                unknownParts.isNotEmpty() ->
+                    "\"${unknownParts.first()}\" is not a key the PC knows; it is ignored there."
+                parts.size == 2 ->
+                    "Sends ${canonicalKeyName(parts[0])} + ${canonicalKeyName(parts[1])}: " +
+                        "both go down in that order, then release together."
+                else -> "Sends ${canonicalKeyName(parts[0])}"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = if (unknownParts.isNotEmpty()) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+    }
+
+    pickingSecond?.let { secondSlot ->
+        KeyPickerDialog(
+            title = if (secondSlot) "Second key of the chord" else "Key",
+            onPick = { option ->
+                if (secondSlot) {
+                    second = option.key
+                } else {
+                    first = option.key
+                }
+                pickingSecond = null
+                commit()
+            },
+            onDismiss = { pickingSecond = null },
+        )
+    }
+}
 
 @Composable
 fun GamepadCustomizationScreen(
@@ -551,12 +771,37 @@ fun GamepadCustomizationScreen(
                     skin = gamepadSkin,
                     buttonConfigs = currentConfigs,
                     controllerLayout = currentLayout,
-                            bindings = bindings,
+                    bindings = bindings,
                     customKeyBindings = customKeyBindings,
+                    controlKeyBindings = controlKeyBindings,
                     showHandles = showHandles,
                     selected = editingComponent,
                     onSelect = { editingComponent = it },
-                    onConfigChange = { component, config -> updateConfig(component, config) }
+                    onConfigChange = { component, config -> updateConfig(component, config) },
+                    // Each edit persists straight away, like the remap dialogs do:
+                    // the pad picks the new binding up from the settings flow on
+                    // its next press.
+                    onActionChange = { id, action ->
+                        runBlocking {
+                            settingsRepository.setControllerBindings(bindings + (id to action))
+                        }
+                    },
+                    onControlKeyChange = { id, key ->
+                        runBlocking {
+                            settingsRepository.setControlKeyBindings(
+                                controlKeyBindings + (id to key)
+                            )
+                        }
+                    },
+                    onCustomKeyChange = { index, binding ->
+                        runBlocking {
+                            settingsRepository.setCustomKeyBindings(
+                                customKeyBindings.mapIndexed { i, existing ->
+                                    if (i == index) binding else existing
+                                }
+                            )
+                        }
+                    },
                 )
 
                 val component = editingComponent
@@ -569,7 +814,13 @@ fun GamepadCustomizationScreen(
                         controlIsOnRightHalf = config.anchor.horizontal == HorizontalAnchor.END ||
                             config.offsetX > 0.1f,
                         onConfigChange = { updateConfig(component, it) },
-                        onDismiss = { editingComponent = null }
+                        onDismiss = { editingComponent = null },
+                        bindings = bindings,
+                        controlKeyBindings = controlKeyBindings,
+                        customKeyBindings = customKeyBindings,
+                        onActionChange = onActionChange,
+                        onControlKeyChange = onControlKeyChange,
+                        onCustomKeyChange = onCustomKeyChange,
                     )
                 }
             }
@@ -874,15 +1125,19 @@ fun CustomKeysDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "Each of the four buttons sends one PC key while it is held. Type any key " +
-                        "or pick one: a letter (W), a digit (1, sent as Digit1), punctuation for " +
-                        "chat commands (/), F1-F12, Space, Tab, Shift, the mouse buttons. The " +
-                        "name has to be one the PC's key table knows; anything else is ignored " +
-                        "there instead of pressing a different key."
+                    "Each of the four buttons sends one PC key — or two as a chord — while it " +
+                        "is held. Type any key or pick one: a letter (W), a digit (1, sent as " +
+                        "Digit1), punctuation for chat commands (/), F1-F12, Space, Tab, Shift, " +
+                        "the mouse buttons. The name has to be one the PC's key table knows; " +
+                        "anything else is ignored there instead of pressing a different key. " +
+                        "Join two keys with + — for example LeftShift+C — and both go down " +
+                        "together while the button is held."
                 )
                 edited.forEachIndexed { index, binding ->
-                    val canonical = canonicalKeyName(binding.key)
-                    val known = canonical.lowercase() in knownCustomKeyNames
+                    val canonical = canonicalKeyChord(binding.key)
+                    val unknownParts = keyChordParts(binding.key)
+                        .map(::canonicalKeyName)
+                        .filter { part -> part.lowercase() !in knownCustomKeyNames }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -910,12 +1165,16 @@ fun CustomKeysDialog(
                         Text(
                             when {
                                 binding.key.isBlank() -> "No key: this button sends nothing."
-                                !known -> "\"$canonical\" is not a key the PC knows; it is ignored there."
+                                unknownParts.isNotEmpty() ->
+                                    "\"${unknownParts.first()}\" is not a key the PC knows; it is ignored there."
+                                keyChordParts(binding.key).size == 2 ->
+                                    "Sends $canonical as a chord: both keys go down while " +
+                                        "the button is held, then release together."
                                 canonical != binding.key -> "Sends $canonical"
                                 else -> "Sends $binding.key"
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (binding.key.isNotBlank() && !known) {
+                            color = if (binding.key.isNotBlank() && unknownParts.isNotEmpty()) {
                                 MaterialTheme.colorScheme.error
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -933,7 +1192,7 @@ fun CustomKeysDialog(
         },
         confirmButton = {
             Button(onClick = {
-                onSave(edited.map { it.copy(key = canonicalKeyName(it.key)) })
+                onSave(edited.map { it.copy(key = canonicalKeyChord(it.key)) })
             }) {
                 Text("Save keys")
             }
@@ -957,7 +1216,12 @@ fun CustomKeysDialog(
                 } else {
                     current.label
                 }
-                update(slot, current.copy(key = option.key, label = label))
+                // Repicks the first key; a chord's second key stays put.
+                val rest = keyChordParts(current.key).drop(1)
+                update(
+                    slot,
+                    current.copy(key = keyChordValue(listOf(option.key) + rest), label = label),
+                )
                 pickingSlot = null
             },
             onDismiss = { pickingSlot = null }
@@ -1004,13 +1268,18 @@ fun ControllerBindingsDialog(
                 Text(
                     "Choose which gamepad action each digital control sends, and — for a game " +
                         "that only reads a keyboard — the PC key it should send instead. A " +
-                        "control with a key sends that key and not its gamepad action. Analog " +
-                        "sticks and triggers keep their axis/pressure behavior."
+                        "control with a key sends that key and not its gamepad action. Two keys " +
+                        "joined with + (LeftShift+C) make a chord: on a tap both go down in that " +
+                        "order, then release together. Analog sticks keep their axis; a trigger " +
+                        "with a key bound sends it on a pull past half instead of its pressure."
                 )
                 bindingKeys.forEach { key ->
                     val boundKey = editedKeys[key].orEmpty()
-                    val canonical = canonicalKeyName(boundKey)
-                    val known = canonical.lowercase() in knownCustomKeyNames
+                    val parts = keyChordParts(boundKey)
+                    val canonical = canonicalKeyChord(boundKey)
+                    val unknownParts = parts
+                        .map(::canonicalKeyName)
+                        .filter { part -> part.lowercase() !in knownCustomKeyNames }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             controlLabel(key),
@@ -1047,13 +1316,17 @@ fun ControllerBindingsDialog(
                         Text(
                             when {
                                 boundKey.isBlank() -> "Sends its gamepad action"
-                                !known -> "\"$canonical\" is not a key the PC knows; this " +
-                                    "control keeps sending its gamepad action there."
+                                unknownParts.isNotEmpty() ->
+                                    "\"${unknownParts.first()}\" is not a key the PC knows; " +
+                                        "this control keeps sending its gamepad action there."
+                                parts.size == 2 ->
+                                    "Sends $canonical as a chord: both keys go down in " +
+                                        "that order, then release together."
                                 canonical != boundKey -> "Sends $canonical"
                                 else -> "Sends $boundKey"
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (boundKey.isNotBlank() && !known) {
+                            color = if (boundKey.isNotBlank() && unknownParts.isNotEmpty()) {
                                 MaterialTheme.colorScheme.error
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -1077,7 +1350,7 @@ fun ControllerBindingsDialog(
                 onSave(
                     edited,
                     normaliseControlKeyBindings(
-                        editedKeys.mapValues { (_, key) -> canonicalKeyName(key) }
+                        editedKeys.mapValues { (_, key) -> canonicalKeyChord(key) }
                     ),
                 )
             }) {
@@ -1095,7 +1368,10 @@ fun ControllerBindingsDialog(
         KeyPickerDialog(
             title = "Key for ${controlLabel(control)}",
             onPick = { option ->
-                editedKeys = editedKeys + (control to option.key)
+                // Repicks the first key; a second key picked for a chord stays.
+                val rest = keyChordParts(editedKeys[control].orEmpty()).drop(1)
+                editedKeys = editedKeys +
+                    (control to keyChordValue(listOf(option.key) + rest))
                 pickingKeyFor = null
             },
             onDismiss = { pickingKeyFor = null }

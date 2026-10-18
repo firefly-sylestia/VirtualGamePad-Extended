@@ -177,6 +177,19 @@ sending keys. This is what was built for it:
   gesture come back exactly as performed. Up to six takes, persisted on the phone.
 - [x] **Any digital control can be bound to a PC key** from the Remap editor, and
   a bound control sends only that key.
+- [x] **Remap is per key, from the customisation screen**: tapping a control opens
+  its editor with a *Sends* row per button that component stands for (each face
+  button, each D-pad direction, both shoulders, view/menu, plus/minus,
+  home/capture, sides, paddles, stick clicks, both triggers, each custom-key
+  button), each edit saved straight to settings. The whole-pad Remap table still
+  edits everything at once.
+- [x] **Two-key chords**: a bound value may hold two names joined with `+`, in the
+  order picked. Both go down in the same packet (first name first), are latched
+  until a packet carries the press, and release together — the press/released
+  latching of a single key, applied to both halves. Covered by `ControlKeysTest`
+  and `ControlPressTest`.
+- [x] **Triggers accept a key binding**: bound, a pull past half sends the key or
+  chord instead of the axis; with no key the axis behaves exactly as before.
 - [x] The M1–M4 macro editor was removed from the layout customisation screen: the
   recorder replaced it, and the recorded take carries what the stepped macro could
   not (simultaneous buttons and real timing).
