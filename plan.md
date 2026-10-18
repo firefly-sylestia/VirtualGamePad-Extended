@@ -169,6 +169,17 @@ sending keys. This is what was built for it:
 - [x] PC right-stick camera: mouse look is the default for the right stick, one
   migration carries an old arrow-key profile over once, and the pixel dead zone
   that required a half push before the camera moved is gone.
+- [x] **Recorder on the pad**: a REC control next to HOLD opens a non-modal panel
+  (the pad stays touchable) with icon buttons — record/stop-and-save, repeat, and
+  play — and a list of saved takes. A take is the *whole* input of the moment
+  (buttons, custom keys, sticks, triggers) on a 30 Hz clock, and playback walks
+  that clock through the same dispatchers the controls use, so a chord and a
+  gesture come back exactly as performed. Up to six takes, persisted on the phone.
+- [x] **Any digital control can be bound to a PC key** from the Remap editor, and
+  a bound control sends only that key.
+- [x] The M1–M4 macro editor was removed from the layout customisation screen: the
+  recorder replaced it, and the recorded take carries what the stepped macro could
+  not (simultaneous buttons and real timing).
 - [ ] Per-game automatic layout selection on the PC (the Minecraft layout is
   still selected by hand on the layouts page).
 

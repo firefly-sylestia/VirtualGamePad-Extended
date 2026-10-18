@@ -85,7 +85,6 @@ enum class ButtonComponent(
     REAR_PADDLES(R.string.component_rear_paddles, "Rear Paddles (P1–P4)", ButtonAnchor.BOTTOM_CENTER),
     TOUCH_SURFACE(R.string.component_touch_surface, "Touch Surface", ButtonAnchor.TOP_CENTER),
     GYRO_TOGGLE(R.string.component_gyro_toggle, "Gyroscope Aim Toggle", ButtonAnchor.BOTTOM_CENTER),
-    MACRO_BUTTONS(R.string.component_macro_buttons, "Macro Triggers (M1–M4)", ButtonAnchor.BOTTOM_CENTER),
 
     /**
      * A phone-only latch: tapping it keeps whatever is down at that moment down.
@@ -103,6 +102,12 @@ enum class ButtonComponent(
      * overlay and the HUD toggle have no gamepad equivalent at all.
      */
     CUSTOM_KEYS(R.string.component_custom_keys, "Custom Key Buttons", ButtonAnchor.TOP_CENTER),
+
+    /**
+     * The recorder, which watches the pad while a combination is performed and
+     * plays it back. Phone-only, like [HOLD]: it sends nothing to the PC.
+     */
+    RECORDER(R.string.component_recorder, "Record and repeat macros", ButtonAnchor.TOP_CENTER),
 
     /**
      * A pair of buttons for L3/R3, which are the stick clicks.

@@ -92,6 +92,7 @@ private fun ExtraButton(
     gamepadState: GamepadReading,
     metrics: AuxiliaryButtonMetrics,
     actionMask: Int,
+    bindingKey: String,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -102,6 +103,7 @@ private fun ExtraButton(
         source = "extra_${gameButton.name}",
         gamepadState = gamepadState,
         mask = actionMask,
+        controlKey = bindingKey,
     )
 
     OutlinedButton(
@@ -154,6 +156,7 @@ fun ExtraButtonCluster(
                 gamepadState = gamepadState,
                 metrics = metrics,
                 actionMask = bindings[spec.bindingKey]?.mask ?: spec.button.value,
+                bindingKey = spec.bindingKey,
             )
         }
     }

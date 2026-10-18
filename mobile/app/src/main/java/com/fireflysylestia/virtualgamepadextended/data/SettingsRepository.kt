@@ -52,17 +52,25 @@ class SettingsRepository(context: Context) {
         layoutFrom(preferences)
     }
 
-    val macros: Flow<List<MacroDefinition>> = dataStore.data.map { preferences ->
-        val jsonString = preferences[MACROS]
-        if (jsonString != null) {
+    /**
+     * The takes the recorder has saved.
+     *
+     * A recording is large compared to the other settings — a few hundred frames
+     * for a gesture — so the list is capped rather than unbounded, and an
+     * unreadable store is treated as empty instead of failing the screen.
+     */
+    val recordedMacros: Flow<List<RecordedMacro>> = dataStore.data.map { preferences ->
+        val jsonString = preferences[RECORDED_MACROS]
+        val stored = if (jsonString != null) {
             try {
-                Json.decodeFromString<List<MacroDefinition>>(jsonString)
+                Json.decodeFromString<List<RecordedMacro>>(jsonString)
             } catch (e: Exception) {
                 emptyList()
             }
         } else {
             emptyList()
         }
+        stored.takeLast(RECORDED_MACRO_LIMIT)
     }
 
     val controllerBindings: Flow<Map<String, ControllerAction>> = dataStore.data.map { preferences ->
@@ -75,6 +83,27 @@ class SettingsRepository(context: Context) {
             }
         } else {
             defaultControllerBindings
+        }
+    }
+
+    /**
+     * Which control sends which PC key, for the controls the player bound to one.
+     *
+     * Empty means every control sends its gamepad button, which is the state a
+     * fresh install is in.
+     */
+    val controlKeyBindings: Flow<Map<String, String>> = dataStore.data.map { preferences ->
+        val jsonString = preferences[CONTROL_KEY_BINDINGS]
+        if (jsonString != null) {
+            try {
+                normaliseControlKeyBindings(
+                    Json.decodeFromString<Map<String, String>>(jsonString)
+                )
+            } catch (e: Exception) {
+                defaultControlKeyBindings
+            }
+        } else {
+            defaultControlKeyBindings
         }
     }
 
@@ -224,15 +253,22 @@ class SettingsRepository(context: Context) {
         }
     }
 
-    suspend fun setMacros(macros: List<MacroDefinition>) {
+    suspend fun setRecordedMacros(macros: List<RecordedMacro>) {
         dataStore.edit { preferences ->
-            preferences[MACROS] = Json.encodeToString(macros)
+            preferences[RECORDED_MACROS] = Json.encodeToString(macros.takeLast(RECORDED_MACRO_LIMIT))
         }
     }
 
     suspend fun setControllerBindings(bindings: Map<String, ControllerAction>) {
         dataStore.edit { preferences ->
             preferences[CONTROLLER_BINDINGS] = Json.encodeToString(bindings)
+        }
+    }
+
+    suspend fun setControlKeyBindings(bindings: Map<String, String>) {
+        dataStore.edit { preferences ->
+            preferences[CONTROL_KEY_BINDINGS] =
+                Json.encodeToString(normaliseControlKeyBindings(bindings))
         }
     }
 
@@ -378,9 +414,10 @@ class SettingsRepository(context: Context) {
         private val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
         private val BUTTON_CONFIGS = stringPreferencesKey("button_configs")
         private val CONTROLLER_LAYOUT = stringPreferencesKey("controller_layout")
-        private val MACROS = stringPreferencesKey("controller_macros")
+        private val RECORDED_MACROS = stringPreferencesKey("recorded_macros")
         private val CONTROLLER_BINDINGS = stringPreferencesKey("controller_bindings")
         private val CUSTOM_KEY_BINDINGS = stringPreferencesKey("custom_key_bindings")
+        private val CONTROL_KEY_BINDINGS = stringPreferencesKey("control_key_bindings")
         private val LAST_CONNECTION_IP_ADDRESS = stringPreferencesKey("last_connection_ip_address")
         private val LAST_CONNECTION_PORT = stringPreferencesKey("last_connection_port")
         private val SAVE_CONNECTION_CREDENTIALS =

@@ -47,7 +47,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -72,17 +71,18 @@ import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.ControllerLayout
 import com.fireflysylestia.virtualgamepadextended.data.GamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
-import com.fireflysylestia.virtualgamepadextended.data.MacroAction
-import com.fireflysylestia.virtualgamepadextended.data.MacroDefinition
 import com.fireflysylestia.virtualgamepadextended.data.GamepadGeometry
 import com.fireflysylestia.virtualgamepadextended.data.HorizontalAnchor
-import com.fireflysylestia.virtualgamepadextended.data.MacroStep
 import com.fireflysylestia.virtualgamepadextended.data.OFFSET_VALUE_RANGE
 import com.fireflysylestia.virtualgamepadextended.data.horizontal
 import com.fireflysylestia.virtualgamepadextended.data.PreviewBase
 import com.fireflysylestia.virtualgamepadextended.data.SettingsRepository
 import com.fireflysylestia.virtualgamepadextended.data.buttonConfigsForLayout
 import com.fireflysylestia.virtualgamepadextended.data.CustomKeyBinding
+import com.fireflysylestia.virtualgamepadextended.data.CustomKeyOption
+import com.fireflysylestia.virtualgamepadextended.data.controlLabel
+import com.fireflysylestia.virtualgamepadextended.data.defaultControlKeyBindings
+import com.fireflysylestia.virtualgamepadextended.data.normaliseControlKeyBindings
 import com.fireflysylestia.virtualgamepadextended.data.canonicalKeyName
 import com.fireflysylestia.virtualgamepadextended.data.customKeyOptionGroups
 import com.fireflysylestia.virtualgamepadextended.data.knownCustomKeyNames
@@ -90,7 +90,6 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultCustomKeyBindings
 import com.fireflysylestia.virtualgamepadextended.data.normaliseCustomKeyBindings
-import com.fireflysylestia.virtualgamepadextended.ui.composables.BoundedNumericInput
 import com.fireflysylestia.virtualgamepadextended.ui.composables.ButtonConfigEditor
 import com.fireflysylestia.virtualgamepadextended.ui.composables.DrawGamepad
 import com.fireflysylestia.virtualgamepadextended.ui.composables.ListItemPicker
@@ -119,7 +118,6 @@ private fun sanitizeButtonConfigs(configs: Map<ButtonComponent, ButtonConfig>): 
 fun GamepadPreview(
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout,
-    macros: List<MacroDefinition>,
     bindings: Map<String, ControllerAction>,
     skin: GamepadSkin = GamepadSkin.DEFAULT,
     customKeyBindings: List<CustomKeyBinding> = defaultCustomKeyBindings,
@@ -139,7 +137,6 @@ fun GamepadPreview(
             gamepadState = gamepadState,
             buttonConfigs = buttonConfigs,
             controllerLayout = controllerLayout,
-            macros = macros,
             bindings = bindings,
             customKeyBindings = customKeyBindings,
         )
@@ -162,7 +159,6 @@ fun GamepadPreview(
 private fun GamepadEditorPreview(
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout,
-    macros: List<MacroDefinition>,
     bindings: Map<String, ControllerAction>,
     showHandles: Boolean,
     selected: ButtonComponent?,
@@ -190,8 +186,7 @@ private fun GamepadEditorPreview(
                 gamepadState = gamepadState,
                 buttonConfigs = buttonConfigs,
                 controllerLayout = controllerLayout,
-                macros = macros,
-                bindings = bindings,
+                    bindings = bindings,
                 customKeyBindings = customKeyBindings,
             )
         }
@@ -370,14 +365,14 @@ fun GamepadCustomizationScreen(
 ) {
     val buttonConfigs by settingsRepository.buttonConfigs.collectAsState(initial = defaultButtonConfigs)
     val controllerLayout by settingsRepository.controllerLayout.collectAsState(initial = ControllerLayout.SWITCH_2)
-    val macros by settingsRepository.macros.collectAsState(initial = emptyList())
     val bindings by settingsRepository.controllerBindings.collectAsState(initial = defaultControllerBindings)
+    val controlKeyBindings by settingsRepository.controlKeyBindings
+        .collectAsState(initial = defaultControlKeyBindings)
     val customKeyBindings by settingsRepository.customKeyBindings
         .collectAsState(initial = defaultCustomKeyBindings)
 
     var showCustomKeysEditor by rememberSaveable { mutableStateOf(false) }
     var showBindingEditor by rememberSaveable { mutableStateOf(false) }
-    var showMacroEditor by rememberSaveable { mutableStateOf(false) }
     var modifiedLayout by rememberSaveable { mutableStateOf<ControllerLayout?>(null) }
     var modifiedConfigs by rememberSaveable {
         mutableStateOf<Map<ButtonComponent, ButtonConfig>?>(null)
@@ -428,8 +423,8 @@ fun GamepadCustomizationScreen(
             ButtonComponent.REAR_PADDLES,
             ButtonComponent.TOUCH_SURFACE,
             ButtonComponent.GYRO_TOGGLE,
-            ButtonComponent.MACRO_BUTTONS,
             ButtonComponent.CUSTOM_KEYS,
+            ButtonComponent.RECORDER,
         )
         val base = currentConfigs.toMutableMap()
         extras.forEach { component ->
@@ -458,7 +453,6 @@ fun GamepadCustomizationScreen(
         GamepadPreview(
             buttonConfigs = currentConfigs,
             controllerLayout = currentLayout,
-            macros = macros,
             bindings = bindings,
             skin = gamepadSkin,
             customKeyBindings = customKeyBindings,
@@ -473,8 +467,12 @@ fun GamepadCustomizationScreen(
     if (showBindingEditor) {
         ControllerBindingsDialog(
             bindings = bindings,
-            onSave = { updated ->
-                runBlocking { settingsRepository.setControllerBindings(updated) }
+            keyBindings = controlKeyBindings,
+            onSave = { updated, updatedKeys ->
+                runBlocking {
+                    settingsRepository.setControllerBindings(updated)
+                    settingsRepository.setControlKeyBindings(updatedKeys)
+                }
                 showBindingEditor = false
             },
             onDismiss = { showBindingEditor = false }
@@ -489,17 +487,6 @@ fun GamepadCustomizationScreen(
                 showCustomKeysEditor = false
             },
             onDismiss = { showCustomKeysEditor = false }
-        )
-    }
-
-    if (showMacroEditor) {
-        MacroEditorDialog(
-            macros = macros,
-            onSave = { updated ->
-                runBlocking { settingsRepository.setMacros(updated) }
-                showMacroEditor = false
-            },
-            onDismiss = { showMacroEditor = false }
         )
     }
 
@@ -564,8 +551,7 @@ fun GamepadCustomizationScreen(
                     skin = gamepadSkin,
                     buttonConfigs = currentConfigs,
                     controllerLayout = currentLayout,
-                    macros = macros,
-                    bindings = bindings,
+                            bindings = bindings,
                     customKeyBindings = customKeyBindings,
                     showHandles = showHandles,
                     selected = editingComponent,
@@ -622,7 +608,6 @@ fun GamepadCustomizationScreen(
                     label = stringResource(R.string.customization_preview),
                     onClick = { showPlayPreview = true }
                 )
-                ToolButton(label = "Macros", onClick = { showMacroEditor = true })
                 ToolButton(label = "Keys", onClick = { showCustomKeysEditor = true })
                 ToolButton(label = "Remap", onClick = { showBindingEditor = true })
 
@@ -861,151 +846,6 @@ fun GamepadCustomizationScreenPreview() {
 }
 
 
-@Composable
-fun MacroEditorDialog(
-    macros: List<MacroDefinition>,
-    onSave: (List<MacroDefinition>) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val initial = remember(macros) {
-        (0..3).map { slot ->
-            macros.getOrNull(slot) ?: MacroDefinition(name = "Macro ${slot + 1}")
-        }
-    }
-    var definitions by remember(macros) { mutableStateOf(initial) }
-    var slot by rememberSaveable { mutableIntStateOf(0) }
-    var name by rememberSaveable { mutableStateOf(initial.first().name) }
-    var steps by remember { mutableStateOf(initial.first().steps) }
-    var action by rememberSaveable { mutableStateOf(MacroAction.A) }
-    var value by rememberSaveable { mutableStateOf(1f) }
-    var holdMillis by rememberSaveable { mutableIntStateOf(120) }
-    var gapMillis by rememberSaveable { mutableIntStateOf(40) }
-
-    fun commitCurrent(): List<MacroDefinition> {
-        val updated = definitions.toMutableList()
-        updated[slot] = MacroDefinition(
-            name = name.trim().ifEmpty { "Macro ${slot + 1}" },
-            steps = steps.take(32),
-        )
-        definitions = updated
-        return updated
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Macro editor") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("Create up to four macros. Button and D-pad steps use press/release; trigger and axis steps use the value below.")
-                ListItemPicker(
-                    modifier = Modifier.fillMaxWidth(),
-                    list = (0..3).asIterable(),
-                    selectedItem = slot,
-                    label = "Macro slot",
-                    formattedDisplay = { Text("M${it + 1}") },
-                    onItemSelected = { nextSlot ->
-                        commitCurrent()
-                        slot = nextSlot
-                        name = definitions[nextSlot].name
-                        steps = definitions[nextSlot].steps
-                    }
-                )
-                TextField(
-                    value = name,
-                    onValueChange = { name = it.take(48) },
-                    label = { Text("Macro name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                ListItemPicker(
-                    modifier = Modifier.fillMaxWidth(),
-                    list = MacroAction.entries.asIterable(),
-                    selectedItem = action,
-                    label = "Action",
-                    formattedDisplay = { Text(it.name.replace('_', ' ')) },
-                    onItemSelected = { action = it }
-                )
-                BoundedNumericInput(
-                    value = value,
-                    onValueChange = { value = it },
-                    label = "Axis / trigger value",
-                    minValue = -1f,
-                    maxValue = 1f,
-                    parseValue = { it.toFloatOrNull() },
-                    formatValue = { "%.2f".format(it) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BoundedNumericInput(
-                        value = holdMillis,
-                        onValueChange = { holdMillis = it },
-                        label = "Hold (ms)",
-                        minValue = 10,
-                        maxValue = 5000,
-                        parseValue = { it.toIntOrNull() },
-                        modifier = Modifier.weight(1f)
-                    )
-                    BoundedNumericInput(
-                        value = gapMillis,
-                        onValueChange = { gapMillis = it },
-                        label = "Gap (ms)",
-                        minValue = 0,
-                        maxValue = 5000,
-                        parseValue = { it.toIntOrNull() },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Button(
-                    onClick = {
-                        if (steps.size < 32) {
-                            steps = steps + MacroStep(
-                                action = action,
-                                value = value,
-                                holdMillis = holdMillis,
-                                gapMillis = gapMillis,
-                            )
-                        }
-                    },
-                    enabled = steps.size < 32,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Add step (${steps.size}/32)")
-                }
-                steps.forEachIndexed { index, step ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "${index + 1}. ${step.action.name.replace('_', ' ')} · ${step.holdMillis} ms",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Button(onClick = { steps = steps.filterIndexed { i, _ -> i != index } }) {
-                            Text("Remove")
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onSave(commitCurrent()) }) {
-                Text("Save macros")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
-}
 
 
 @Composable
@@ -1105,66 +945,50 @@ fun CustomKeysDialog(
         }
     )
 
-    val slot = pickingSlot
-    if (slot != null) {
-        AlertDialog(
-            onDismissRequest = { pickingSlot = null },
-            title = { Text("Pick a key") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    customKeyOptionGroups.forEach { (group, options) ->
-                        Text(group, style = MaterialTheme.typography.labelMedium)
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            options.forEach { option ->
-                                OutlinedButton(
-                                    onClick = {
-                                        val current = edited[slot]
-                                        // A label that is still the key it came with follows
-                                        // the new key; one the player typed is left alone.
-                                        val label = if (current.label.isBlank() ||
-                                            current.label == current.key
-                                        ) {
-                                            option.label
-                                        } else {
-                                            current.label
-                                        }
-                                        update(slot, current.copy(key = option.key, label = label))
-                                        pickingSlot = null
-                                    }
-                                ) {
-                                    Text(option.label)
-                                }
-                            }
-                        }
-                    }
+    pickingSlot?.let { slot ->
+        KeyPickerDialog(
+            title = "Pick a key",
+            onPick = { option ->
+                val current = edited[slot]
+                // A label that is still the key it came with follows the new key;
+                // one the player typed is left alone.
+                val label = if (current.label.isBlank() || current.label == current.key) {
+                    option.label
+                } else {
+                    current.label
                 }
+                update(slot, current.copy(key = option.key, label = label))
+                pickingSlot = null
             },
-            confirmButton = {
-                Button(onClick = { pickingSlot = null }) {
-                    Text("Done")
-                }
-            }
+            onDismiss = { pickingSlot = null }
         )
     }
 }
 
+/**
+ * One row per control: what gamepad action it sends, and the PC key it sends
+ * instead when one is given.
+ *
+ * The two choices sit together because they answer the same question — what does
+ * this button do? — and a control bound to a key sends only that key, which is
+ * what makes a pad button work in a game that never looks at a controller. Any
+ * key the PC's table knows can be typed or picked, and an unknown name is
+ * flagged here and ignored there rather than sending some other key.
+ */
 @Composable
 fun ControllerBindingsDialog(
     bindings: Map<String, ControllerAction>,
-    onSave: (Map<String, ControllerAction>) -> Unit,
+    keyBindings: Map<String, String>,
+    onSave: (Map<String, ControllerAction>, Map<String, String>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var edited by remember(bindings) {
         mutableStateOf(defaultControllerBindings + bindings)
     }
+    var editedKeys by remember(keyBindings) {
+        mutableStateOf(normaliseControlKeyBindings(keyBindings))
+    }
+    var pickingKeyFor by remember { mutableStateOf<String?>(null) }
     val bindingKeys = defaultControllerBindings.keys.sorted()
 
     AlertDialog(
@@ -1175,13 +999,21 @@ fun ControllerBindingsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Choose which gamepad action each visible digital control sends. Analog sticks and triggers keep their axis/pressure behavior.")
+                Text(
+                    "Choose which gamepad action each digital control sends, and — for a game " +
+                        "that only reads a keyboard — the PC key it should send instead. A " +
+                        "control with a key sends that key and not its gamepad action. Analog " +
+                        "sticks and triggers keep their axis/pressure behavior."
+                )
                 bindingKeys.forEach { key ->
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val boundKey = editedKeys[key].orEmpty()
+                    val canonical = canonicalKeyName(boundKey)
+                    val known = canonical.lowercase() in knownCustomKeyNames
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            key.replace('_', ' ').uppercase(),
+                            controlLabel(key),
                             style = MaterialTheme.typography.labelMedium
                         )
                         ListItemPicker(
@@ -1194,10 +1026,46 @@ fun ControllerBindingsDialog(
                                 edited = edited + (key to action)
                             }
                         )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = boundKey,
+                                onValueChange = { text ->
+                                    editedKeys = editedKeys + (key to text.trim())
+                                },
+                                label = { Text("PC key (optional)") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { pickingKeyFor = key }) {
+                                Text("Pick")
+                            }
+                        }
+                        Text(
+                            when {
+                                boundKey.isBlank() -> "Sends its gamepad action"
+                                !known -> "\"$canonical\" is not a key the PC knows; this " +
+                                    "control keeps sending its gamepad action there."
+                                canonical != boundKey -> "Sends $canonical"
+                                else -> "Sends $boundKey"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (boundKey.isNotBlank() && !known) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
                     }
                 }
                 Button(
-                    onClick = { edited = defaultControllerBindings },
+                    onClick = {
+                        edited = defaultControllerBindings
+                        editedKeys = emptyMap()
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Reset mappings")
@@ -1205,13 +1073,77 @@ fun ControllerBindingsDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(edited) }) {
+            Button(onClick = {
+                onSave(
+                    edited,
+                    normaliseControlKeyBindings(
+                        editedKeys.mapValues { (_, key) -> canonicalKeyName(key) }
+                    ),
+                )
+            }) {
                 Text("Save mappings")
             }
         },
         dismissButton = {
             Button(onClick = onDismiss) {
                 Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+
+    pickingKeyFor?.let { control ->
+        KeyPickerDialog(
+            title = "Key for ${controlLabel(control)}",
+            onPick = { option ->
+                editedKeys = editedKeys + (control to option.key)
+                pickingKeyFor = null
+            },
+            onDismiss = { pickingKeyFor = null }
+        )
+    }
+}
+
+/**
+ * Every key the PC's table can resolve, grouped the way a keyboard is.
+ *
+ * Shared by the custom-key buttons and the per-control key bindings, so a key
+ * that can be picked for one can be picked for the other and neither list can
+ * drift from the other.
+ */
+@Composable
+fun KeyPickerDialog(
+    title: String,
+    onPick: (CustomKeyOption) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                customKeyOptionGroups.forEach { (group, options) ->
+                    Text(group, style = MaterialTheme.typography.labelMedium)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        options.forEach { option ->
+                            OutlinedButton(onClick = { onPick(option) }) {
+                                Text(option.label)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Done")
             }
         }
     )

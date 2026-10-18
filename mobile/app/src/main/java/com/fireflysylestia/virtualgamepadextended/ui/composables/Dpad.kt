@@ -120,6 +120,8 @@ fun DpadButton(
             source = "dpad_${type.name}",
             gamepadState = gamepadState,
             mask = buttonMask,
+            // The id is the source in lower case: dpad_up, dpad_left, and so on.
+            controlKey = "dpad_${type.name.lowercase()}",
         )
     }
 

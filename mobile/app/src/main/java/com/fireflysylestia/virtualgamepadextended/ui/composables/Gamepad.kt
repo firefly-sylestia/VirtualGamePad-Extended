@@ -19,7 +19,6 @@ import com.fireflysylestia.virtualgamepadextended.data.ButtonConfig
 import com.fireflysylestia.virtualgamepadextended.data.ControllerLayout
 import com.fireflysylestia.virtualgamepadextended.data.FaceButtonStyle
 import com.fireflysylestia.virtualgamepadextended.data.GamepadGeometry
-import com.fireflysylestia.virtualgamepadextended.data.MacroDefinition
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
 import com.fireflysylestia.virtualgamepadextended.data.CustomKeyBinding
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
@@ -29,6 +28,7 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.defaultTouchSensitivity
+import com.fireflysylestia.virtualgamepadextended.ui.utils.ControlPress
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.utils.InputHold
 import com.fireflysylestia.virtualgamepadextended.ui.utils.KeyButtonDispatcher
@@ -50,7 +50,6 @@ fun DrawGamepad(
     gamepadState: GamepadReading,
     buttonConfigs: Map<ButtonComponent, ButtonConfig>,
     controllerLayout: ControllerLayout = ControllerLayout.SWITCH_2,
-    macros: List<MacroDefinition> = emptyList(),
     bindings: Map<String, ControllerAction> = defaultControllerBindings,
     // How far a stick push is amplified before it is sent.
     stickSensitivity: Float = defaultStickSensitivity,
@@ -71,10 +70,21 @@ fun DrawGamepad(
     hold: InputHold? = null,
     // Label and PC key for each custom-key button.
     customKeyBindings: List<CustomKeyBinding> = defaultCustomKeyBindings,
+    // Control id to PC key, for the controls the player has bound to a key.
+    controlKeyBindings: Map<String, String> = emptyMap(),
+    // Whether the recorder panel is open, and whether a take is being recorded.
+    recorderOpen: Boolean = false,
+    isRecording: Boolean = false,
+    onRecorderTap: () -> Unit = {},
     // How far a touch on the surface is amplified before it drives the pointer.
     touchSensitivity: Float = defaultTouchSensitivity,
 ) {
     val activeHold = hold ?: remember { InputHold() }
+
+    // The controls route their presses through this, so it has to know the
+    // bindings before any of them draws. Assigned on every recomposition: the
+    // bindings flow can emit while the pad is on screen.
+    ControlPress.keyBindings = controlKeyBindings
 
     DisposableEffect(gamepadState) {
         onDispose {
@@ -161,6 +171,7 @@ fun DrawGamepad(
                     gamepadState = gamepadState,
                     type = AnalogStickType.LEFT,
                     clickButtonMask = bindings["left_stick_click"]?.mask,
+                    clickControlKey = "left_stick_click",
                     sensitivity = stickSensitivity,
                     largeTouchArea = leftStickLargeTouchArea,
                 )
@@ -178,6 +189,7 @@ fun DrawGamepad(
                     gamepadState = gamepadState,
                     type = AnalogStickType.RIGHT,
                     clickButtonMask = bindings["right_stick_click"]?.mask,
+                    clickControlKey = "right_stick_click",
                     sensitivity = stickSensitivity,
                     largeTouchArea = rightStickLargeTouchArea,
                 )
@@ -375,15 +387,18 @@ fun DrawGamepad(
                 )
             }
 
-            RenderComponent(ButtonComponent.MACRO_BUTTONS) { config ->
-                MacroButtonCluster(
-                    macros = macros,
-                    gamepadState = gamepadState,
-                    metrics = AuxiliaryButtonMetrics.of(baseDp, 4, config.scale),
+            // The recorder: tapping it opens the panel the combination is
+            // performed into. Like HOLD it sends nothing to the PC.
+            RenderComponent(ButtonComponent.RECORDER) { config ->
+                RecorderButton(
+                    panelOpen = recorderOpen,
+                    recording = isRecording,
+                    metrics = AuxiliaryButtonMetrics.of(baseDp, 1, config.scale),
                     modifier = Modifier.offset(
                         x = (config.offsetX * baseDp).dp,
                         y = (config.offsetY * baseDp).dp
-                    )
+                    ),
+                    onTap = onRecorderTap,
                 )
             }
         }

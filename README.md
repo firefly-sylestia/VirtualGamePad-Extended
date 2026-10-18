@@ -77,13 +77,27 @@ Settings also cover how the controller itself behaves:
   chosen program is not running, input is paused instead of being sent elsewhere.
   The list is built from the top-level windows open on Windows; other platforms
   do not offer the lock. Press **Refresh** after starting or restarting the game.
-- B (the back/cancel button) defaults to Backspace, not Escape: Escape drops most
-  full-screen games out of full screen. Profiles saved with the old default are
-  migrated when they are loaded; a B the user deliberately bound to Escape is
-  kept.
+- B sends the letter **B**. Escape was the old default and was dropped because it
+  throws most full-screen games out of full screen; Backspace replaced it, and the
+  letter is what a game that names a key "B" reads, with Escape still one tap away
+  on a phone custom-key button. Profiles saved with either old default are
+  migrated when they are loaded; a key the user bound to B by hand is kept.
+- The old M1–M4 macro editor is gone from the layout customisation screen: a
+  macro is performed and recorded on the pad now, not typed into a dialog.
 - The virtual pad is plugged in as soon as the PC application starts and the device chosen in Preferences is applied immediately, so the controller is registered with the system without the user having to open the server page first. The server page states which device is presenting and what the system itself reports for it (the XInput slot it answers on, or how many controllers the system's DirectInput list shows), because an Xbox 360 pad is XInput-class and therefore never appears in Windows' own "Set up USB game controllers" list, while a DualShock 4 does.
 - The mobile editor supports per-control digital action remapping, and the existing component groups can be shown/hidden/repositioned/resized. Arbitrary duplicate instances and a fully dynamic control library remain planned. The PC keymap UI has not been redesigned to expose the new default keyboard mappings.
-- Macros are local to the mobile app and support sequential button, trigger, and axis steps with bounded durations. Simultaneous/chord steps and macro inclusion in the controller-layout JSON export are not implemented yet.
+- **Recorded macros**: the pad's REC button (next to HOLD) opens the recorder, and
+takes are recorded rather than scripted — the dots and stop square are the only
+buttons, playback walks the take's own clock, and the loop button repeats it. A
+recording holds the whole input of the moment, so a chord stays a chord and a
+stick sweep stays a sweep. Up to six takes are kept, and they live on the phone:
+nothing about them reaches the PC.
+- **Any control can send a PC key.** The Remap editor gives every digital control
+  a key field next to its gamepad action (type one, or pick one from the same list
+  the custom-key buttons use). A control with a key sends that key and not its
+  button, which is how a pad's A becomes Space in a game that reads no controller.
+  Analog sticks and triggers keep their axes; clearing the field hands the control
+  back to its gamepad action.
 
 See [`plan.md`](plan.md) for the detailed checklist, compatibility notes, and remaining work.
 

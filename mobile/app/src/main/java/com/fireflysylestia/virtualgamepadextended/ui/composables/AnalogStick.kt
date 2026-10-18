@@ -29,8 +29,8 @@ import io.github.kitswas.VGP_Data_Exchange.GameButtons
 import io.github.kitswas.VGP_Data_Exchange.GamepadReading
 import com.fireflysylestia.virtualgamepadextended.ui.theme.darken
 import com.fireflysylestia.virtualgamepadextended.ui.theme.lighten
+import com.fireflysylestia.virtualgamepadextended.ui.utils.ControlPress
 import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
-import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.utils.StickResponse
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -177,6 +177,8 @@ fun AnalogStick(
     gamepadState: GamepadReading,
     type: AnalogStickType,
     clickButtonMask: Int? = null,
+    // The stick click's id in the key remap table, so it can send a key too.
+    clickControlKey: String? = null,
     sensitivity: Float = 1f,
     largeTouchArea: Boolean = false,
 ) {
@@ -217,12 +219,17 @@ fun AnalogStick(
                 LaunchedEffect(taps, clickMask) {
                     if (taps == 0) return@LaunchedEffect
                     clickHeld = true
-                    GamepadButtonDispatcher.press(gamepadState, "stick_${type.name}", clickMask)
+                    ControlPress.press(
+                        gamepadState,
+                        "stick_${type.name}",
+                        clickControlKey,
+                        clickMask,
+                    )
                     HapticUtils.performButtonPressFeedback(view)
                     try {
                         delay(STICK_CLICK_HOLD_MS)
                     } finally {
-                        GamepadButtonDispatcher.release(gamepadState, "stick_${type.name}")
+                        ControlPress.release(gamepadState, "stick_${type.name}")
                         HapticUtils.performButtonReleaseFeedback(view)
                         clickHeld = false
                     }

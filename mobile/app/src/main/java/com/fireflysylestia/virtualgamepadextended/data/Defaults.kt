@@ -231,7 +231,7 @@ val defaultButtonConfigs = mapOf(
         offsetY = 0.145f,
         anchor = ButtonAnchor.TOP_CENTER
     ),
-    // Row 3, the middle strip: paddles left of centre, macros right of it.
+    // Row 3, the middle strip: paddles left of centre.
     ButtonComponent.REAR_PADDLES to ButtonConfig(
         component = ButtonComponent.REAR_PADDLES,
         visible = false,
@@ -240,14 +240,7 @@ val defaultButtonConfigs = mapOf(
         offsetY = 0.29f,
         anchor = ButtonAnchor.TOP_CENTER
     ),
-    ButtonComponent.MACRO_BUTTONS to ButtonConfig(
-        component = ButtonComponent.MACRO_BUTTONS,
-        visible = false,
-        scale = 1.0f,
-        offsetX = 0.31f,
-        offsetY = 0.29f,
-        anchor = ButtonAnchor.TOP_CENTER
-    ),
+
     // Row 3, far right: the custom-key block sits in the band between the
     // shoulder buttons and the right stick, under the thumb that reaches for a
     // quick key. It is a 2x2 block (see GamepadGeometry.footprint), which is why
@@ -293,6 +286,18 @@ val defaultButtonConfigs = mapOf(
         scale = 1.0f,
         offsetX = 0.65f,
         offsetY = 0f,
+        anchor = ButtonAnchor.TOP_CENTER
+    ),
+
+    // --- Below HOLD: the recorder, the other phone-only control. It is visible
+    // everywhere for the same reason: recording a combination is something the
+    // phone does, not something a controller family has.
+    ButtonComponent.RECORDER to ButtonConfig(
+        component = ButtonComponent.RECORDER,
+        visible = true,
+        scale = 1.0f,
+        offsetX = 0.65f,
+        offsetY = 0.145f,
         anchor = ButtonAnchor.TOP_CENTER
     )
 )

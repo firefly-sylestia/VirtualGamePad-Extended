@@ -77,6 +77,10 @@ fun ShoulderButton(
         source = "shoulder_${type.name}",
         gamepadState = gamepadState,
         mask = buttonMask,
+        controlKey = when (type) {
+            ShoulderButtonType.LEFT -> "left_shoulder"
+            ShoulderButtonType.RIGHT -> "right_shoulder"
+        },
     )
 
     Button(
@@ -142,6 +146,10 @@ fun MenuButton(
         source = "menu_${type.name}",
         gamepadState = gamepadState,
         mask = buttonMask,
+        controlKey = when (type) {
+            MenuButtonType.VIEW -> "view"
+            MenuButtonType.MENU -> "menu"
+        },
     )
 
     OutlinedIconButton(

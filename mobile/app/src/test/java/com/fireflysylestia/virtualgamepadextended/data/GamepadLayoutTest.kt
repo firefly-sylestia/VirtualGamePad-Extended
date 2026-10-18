@@ -132,7 +132,6 @@ class GamepadLayoutTest {
     fun `the Switch 2 preset hides controls the controller does not have`() {
         val switch2 = buttonConfigsForLayout(ControllerLayout.SWITCH_2)
         listOf(
-            ButtonComponent.MACRO_BUTTONS,
             ButtonComponent.REAR_PADDLES,
             ButtonComponent.TOUCH_SURFACE,
             ButtonComponent.SELECT_BUTTON,
@@ -163,7 +162,7 @@ class GamepadLayoutTest {
     }
 
     @Test
-    fun `the Minecraft preset shows the quick keys and no macros`() {
+    fun `the Minecraft preset shows the quick keys and hides the rest`() {
         val minecraft = buttonConfigsForLayout(ControllerLayout.MINECRAFT)
         listOf(
             ButtonComponent.CUSTOM_KEYS,
@@ -179,7 +178,6 @@ class GamepadLayoutTest {
             )
         }
         listOf(
-            ButtonComponent.MACRO_BUTTONS,
             ButtonComponent.REAR_PADDLES,
             ButtonComponent.TOUCH_SURFACE,
         ).forEach { component ->

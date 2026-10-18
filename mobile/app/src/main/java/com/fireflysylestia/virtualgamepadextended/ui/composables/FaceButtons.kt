@@ -41,7 +41,7 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.ui.theme.darken
 import com.fireflysylestia.virtualgamepadextended.ui.theme.faceButtonTextStyle
 import com.fireflysylestia.virtualgamepadextended.ui.theme.lighten
-import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
+import com.fireflysylestia.virtualgamepadextended.ui.utils.ControlPress
 import com.fireflysylestia.virtualgamepadextended.ui.utils.HapticUtils
 import kotlin.math.abs
 import kotlin.math.max
@@ -195,6 +195,7 @@ fun FaceButton(
             source = "face_${type.name}",
             gamepadState = gamepadState,
             mask = buttonMask,
+            controlKey = faceBindingKeys[type],
         )
     }
 
@@ -311,11 +312,14 @@ fun FaceButtons(
                     if (next == current) return
 
                     (current - next).forEach {
-                        GamepadButtonDispatcher.release(gamepadState, faceSource(it))
+                        ControlPress.release(gamepadState, faceSource(it))
                     }
                     (next - current).forEach {
-                        GamepadButtonDispatcher.press(
-                            gamepadState, faceSource(it), faceMask(it, bindings)
+                        ControlPress.press(
+                            gamepadState,
+                            faceSource(it),
+                            faceBindingKeys[it],
+                            faceMask(it, bindings),
                         )
                     }
                     // Slide mode skips PressAndHold, so the press buzzes here instead:
@@ -342,7 +346,7 @@ fun FaceButtons(
                         }
                     } finally {
                         pressed.value.forEach {
-                            GamepadButtonDispatcher.release(gamepadState, faceSource(it))
+                            ControlPress.release(gamepadState, faceSource(it))
                         }
                         pressed.value = emptySet()
                     }

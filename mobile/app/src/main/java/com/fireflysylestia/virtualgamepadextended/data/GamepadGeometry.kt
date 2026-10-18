@@ -89,7 +89,6 @@ object GamepadGeometry {
         ButtonComponent.STICK_CLICKS -> 2
 
         ButtonComponent.REAR_PADDLES,
-        ButtonComponent.MACRO_BUTTONS,
         ButtonComponent.CUSTOM_KEYS -> 4
 
         else -> 1
