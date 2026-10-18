@@ -613,6 +613,32 @@ fun GamepadCustomizationScreen(
         modifiedConfigs = base + (component to config)
     }
 
+    // Each remap edit persists straight away, like the remap dialogs do: the pad
+    // picks the new binding up from the settings flow on its next press. Both the
+    // preview and the floating editor write through these, so a tap anywhere on
+    // the screen saves the same way.
+    fun saveAction(id: String, action: ControllerAction) {
+        runBlocking {
+            settingsRepository.setControllerBindings(bindings + (id to action))
+        }
+    }
+
+    fun saveControlKey(id: String, key: String) {
+        runBlocking {
+            settingsRepository.setControlKeyBindings(controlKeyBindings + (id to key))
+        }
+    }
+
+    fun saveCustomKey(index: Int, binding: CustomKeyBinding) {
+        runBlocking {
+            settingsRepository.setCustomKeyBindings(
+                customKeyBindings.mapIndexed { i, existing ->
+                    if (i == index) binding else existing
+                }
+            )
+        }
+    }
+
     fun applyPreset(layout: ControllerLayout) {
         modifiedLayout = layout
         if (layout != ControllerLayout.CUSTOM) {
@@ -781,26 +807,10 @@ fun GamepadCustomizationScreen(
                     // Each edit persists straight away, like the remap dialogs do:
                     // the pad picks the new binding up from the settings flow on
                     // its next press.
-                    onActionChange = { id, action ->
-                        runBlocking {
-                            settingsRepository.setControllerBindings(bindings + (id to action))
-                        }
-                    },
-                    onControlKeyChange = { id, key ->
-                        runBlocking {
-                            settingsRepository.setControlKeyBindings(
-                                controlKeyBindings + (id to key)
-                            )
-                        }
-                    },
+                    onActionChange = { id, action -> saveAction(id, action) },
+                    onControlKeyChange = { id, key -> saveControlKey(id, key) },
                     onCustomKeyChange = { index, binding ->
-                        runBlocking {
-                            settingsRepository.setCustomKeyBindings(
-                                customKeyBindings.mapIndexed { i, existing ->
-                                    if (i == index) binding else existing
-                                }
-                            )
-                        }
+                        saveCustomKey(index, binding)
                     },
                 )
 
@@ -818,9 +828,11 @@ fun GamepadCustomizationScreen(
                         bindings = bindings,
                         controlKeyBindings = controlKeyBindings,
                         customKeyBindings = customKeyBindings,
-                        onActionChange = onActionChange,
-                        onControlKeyChange = onControlKeyChange,
-                        onCustomKeyChange = onCustomKeyChange,
+                        onActionChange = { id, action -> saveAction(id, action) },
+                        onControlKeyChange = { id, key -> saveControlKey(id, key) },
+                        onCustomKeyChange = { index, binding ->
+                            saveCustomKey(index, binding)
+                        },
                     )
                 }
             }
