@@ -78,6 +78,21 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    /** What each custom-key button says and which PC key it sends. */
+    val customKeyBindings: Flow<List<CustomKeyBinding>> = dataStore.data.map { preferences ->
+        val jsonString = preferences[CUSTOM_KEY_BINDINGS]
+        val stored = if (jsonString != null) {
+            try {
+                Json.decodeFromString<List<CustomKeyBinding>>(jsonString)
+            } catch (e: Exception) {
+                defaultCustomKeyBindings
+            }
+        } else {
+            defaultCustomKeyBindings
+        }
+        normaliseCustomKeyBindings(stored)
+    }
+
     val lastConnectionIpAddress: Flow<String> = dataStore.data.map { preferences ->
         preferences[LAST_CONNECTION_IP_ADDRESS] ?: ""
     }
@@ -221,6 +236,13 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setCustomKeyBindings(bindings: List<CustomKeyBinding>) {
+        dataStore.edit { preferences ->
+            preferences[CUSTOM_KEY_BINDINGS] =
+                Json.encodeToString(normaliseCustomKeyBindings(bindings))
+        }
+    }
+
     suspend fun setLastConnectionCredentials(ipAddress: String, port: String) {
         dataStore.edit { preferences ->
             preferences[LAST_CONNECTION_IP_ADDRESS] = ipAddress
@@ -358,6 +380,7 @@ class SettingsRepository(context: Context) {
         private val CONTROLLER_LAYOUT = stringPreferencesKey("controller_layout")
         private val MACROS = stringPreferencesKey("controller_macros")
         private val CONTROLLER_BINDINGS = stringPreferencesKey("controller_bindings")
+        private val CUSTOM_KEY_BINDINGS = stringPreferencesKey("custom_key_bindings")
         private val LAST_CONNECTION_IP_ADDRESS = stringPreferencesKey("last_connection_ip_address")
         private val LAST_CONNECTION_PORT = stringPreferencesKey("last_connection_port")
         private val SAVE_CONNECTION_CREDENTIALS =

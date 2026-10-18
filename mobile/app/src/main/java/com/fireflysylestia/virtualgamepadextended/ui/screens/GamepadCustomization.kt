@@ -37,8 +37,11 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -79,8 +82,14 @@ import com.fireflysylestia.virtualgamepadextended.data.horizontal
 import com.fireflysylestia.virtualgamepadextended.data.PreviewBase
 import com.fireflysylestia.virtualgamepadextended.data.SettingsRepository
 import com.fireflysylestia.virtualgamepadextended.data.buttonConfigsForLayout
+import com.fireflysylestia.virtualgamepadextended.data.CustomKeyBinding
+import com.fireflysylestia.virtualgamepadextended.data.canonicalKeyName
+import com.fireflysylestia.virtualgamepadextended.data.customKeyOptionGroups
+import com.fireflysylestia.virtualgamepadextended.data.knownCustomKeyNames
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
+import com.fireflysylestia.virtualgamepadextended.data.defaultCustomKeyBindings
+import com.fireflysylestia.virtualgamepadextended.data.normaliseCustomKeyBindings
 import com.fireflysylestia.virtualgamepadextended.ui.composables.BoundedNumericInput
 import com.fireflysylestia.virtualgamepadextended.ui.composables.ButtonConfigEditor
 import com.fireflysylestia.virtualgamepadextended.ui.composables.DrawGamepad
@@ -113,6 +122,7 @@ fun GamepadPreview(
     macros: List<MacroDefinition>,
     bindings: Map<String, ControllerAction>,
     skin: GamepadSkin = GamepadSkin.DEFAULT,
+    customKeyBindings: List<CustomKeyBinding> = defaultCustomKeyBindings,
 ) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp
@@ -130,7 +140,8 @@ fun GamepadPreview(
             buttonConfigs = buttonConfigs,
             controllerLayout = controllerLayout,
             macros = macros,
-            bindings = bindings
+            bindings = bindings,
+            customKeyBindings = customKeyBindings,
         )
     }
 }
@@ -159,6 +170,7 @@ private fun GamepadEditorPreview(
     onConfigChange: (ButtonComponent, ButtonConfig) -> Unit,
     modifier: Modifier = Modifier,
     skin: GamepadSkin = GamepadSkin.DEFAULT,
+    customKeyBindings: List<CustomKeyBinding> = defaultCustomKeyBindings,
 ) {
     val gamepadState = remember { GamepadReading() }
     val density = LocalDensity.current
@@ -180,6 +192,7 @@ private fun GamepadEditorPreview(
                 controllerLayout = controllerLayout,
                 macros = macros,
                 bindings = bindings,
+                customKeyBindings = customKeyBindings,
             )
         }
 
@@ -359,7 +372,10 @@ fun GamepadCustomizationScreen(
     val controllerLayout by settingsRepository.controllerLayout.collectAsState(initial = ControllerLayout.SWITCH_2)
     val macros by settingsRepository.macros.collectAsState(initial = emptyList())
     val bindings by settingsRepository.controllerBindings.collectAsState(initial = defaultControllerBindings)
+    val customKeyBindings by settingsRepository.customKeyBindings
+        .collectAsState(initial = defaultCustomKeyBindings)
 
+    var showCustomKeysEditor by rememberSaveable { mutableStateOf(false) }
     var showBindingEditor by rememberSaveable { mutableStateOf(false) }
     var showMacroEditor by rememberSaveable { mutableStateOf(false) }
     var modifiedLayout by rememberSaveable { mutableStateOf<ControllerLayout?>(null) }
@@ -413,6 +429,7 @@ fun GamepadCustomizationScreen(
             ButtonComponent.TOUCH_SURFACE,
             ButtonComponent.GYRO_TOGGLE,
             ButtonComponent.MACRO_BUTTONS,
+            ButtonComponent.CUSTOM_KEYS,
         )
         val base = currentConfigs.toMutableMap()
         extras.forEach { component ->
@@ -444,6 +461,7 @@ fun GamepadCustomizationScreen(
             macros = macros,
             bindings = bindings,
             skin = gamepadSkin,
+            customKeyBindings = customKeyBindings,
         )
         return
     }
@@ -460,6 +478,17 @@ fun GamepadCustomizationScreen(
                 showBindingEditor = false
             },
             onDismiss = { showBindingEditor = false }
+        )
+    }
+
+    if (showCustomKeysEditor) {
+        CustomKeysDialog(
+            bindings = customKeyBindings,
+            onSave = { updated ->
+                runBlocking { settingsRepository.setCustomKeyBindings(updated) }
+                showCustomKeysEditor = false
+            },
+            onDismiss = { showCustomKeysEditor = false }
         )
     }
 
@@ -537,6 +566,7 @@ fun GamepadCustomizationScreen(
                     controllerLayout = currentLayout,
                     macros = macros,
                     bindings = bindings,
+                    customKeyBindings = customKeyBindings,
                     showHandles = showHandles,
                     selected = editingComponent,
                     onSelect = { editingComponent = it },
@@ -593,6 +623,7 @@ fun GamepadCustomizationScreen(
                     onClick = { showPlayPreview = true }
                 )
                 ToolButton(label = "Macros", onClick = { showMacroEditor = true })
+                ToolButton(label = "Keys", onClick = { showCustomKeysEditor = true })
                 ToolButton(label = "Remap", onClick = { showBindingEditor = true })
 
                 Box {
@@ -976,6 +1007,154 @@ fun MacroEditorDialog(
     )
 }
 
+
+@Composable
+fun CustomKeysDialog(
+    bindings: List<CustomKeyBinding>,
+    onSave: (List<CustomKeyBinding>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var edited by remember(bindings) {
+        mutableStateOf(normaliseCustomKeyBindings(bindings))
+    }
+    var pickingSlot by remember { mutableStateOf<Int?>(null) }
+
+    fun update(index: Int, binding: CustomKeyBinding) {
+        edited = edited.toMutableList().also { it[index] = binding }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Custom key buttons") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "Each of the four buttons sends one PC key while it is held. Type any key " +
+                        "or pick one: a letter (W), a digit (1, sent as Digit1), punctuation for " +
+                        "chat commands (/), F1-F12, Space, Tab, Shift, the mouse buttons. The " +
+                        "name has to be one the PC's key table knows; anything else is ignored " +
+                        "there instead of pressing a different key."
+                )
+                edited.forEachIndexed { index, binding ->
+                    val canonical = canonicalKeyName(binding.key)
+                    val known = canonical.lowercase() in knownCustomKeyNames
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = binding.label,
+                                onValueChange = { text -> update(index, binding.copy(label = text)) },
+                                label = { Text("Label") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = binding.key,
+                                onValueChange = { text -> update(index, binding.copy(key = text)) },
+                                label = { Text("Key") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { pickingSlot = index }) {
+                                Text("Pick")
+                            }
+                        }
+                        Text(
+                            when {
+                                binding.key.isBlank() -> "No key: this button sends nothing."
+                                !known -> "\"$canonical\" is not a key the PC knows; it is ignored there."
+                                canonical != binding.key -> "Sends $canonical"
+                                else -> "Sends $binding.key"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (binding.key.isNotBlank() && !known) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                }
+                Button(
+                    onClick = { edited = defaultCustomKeyBindings },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Minecraft defaults")
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onSave(edited.map { it.copy(key = canonicalKeyName(it.key)) })
+            }) {
+                Text("Save keys")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+
+    val slot = pickingSlot
+    if (slot != null) {
+        AlertDialog(
+            onDismissRequest = { pickingSlot = null },
+            title = { Text("Pick a key") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    customKeyOptionGroups.forEach { (group, options) ->
+                        Text(group, style = MaterialTheme.typography.labelMedium)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            options.forEach { option ->
+                                OutlinedButton(
+                                    onClick = {
+                                        val current = edited[slot]
+                                        // A label that is still the key it came with follows
+                                        // the new key; one the player typed is left alone.
+                                        val label = if (current.label.isBlank() ||
+                                            current.label == current.key
+                                        ) {
+                                            option.label
+                                        } else {
+                                            current.label
+                                        }
+                                        update(slot, current.copy(key = option.key, label = label))
+                                        pickingSlot = null
+                                    }
+                                ) {
+                                    Text(option.label)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { pickingSlot = null }) {
+                    Text("Done")
+                }
+            }
+        )
+    }
+}
 
 @Composable
 fun ControllerBindingsDialog(

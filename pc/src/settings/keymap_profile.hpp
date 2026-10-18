@@ -89,4 +89,14 @@ class KeymapProfile : public QObject
 	 * to bind to Escape by hand keeps its "Escape" display name and is left alone.
 	 */
 	bool m_migratedBackKey = false;
+
+	/**
+	 * Whether the right stick was still the old arrow-key default.
+	 *
+	 * The camera lives on the right stick in most games and the mouse look is
+	 * what Minecraft reads, while the D-pad already covers the arrow keys, so the
+	 * default is now mouse movement. A profile saved before that keeps its arrows
+	 * unless they are exactly the old default, which is migrated once.
+	 */
+	bool m_migratedRightStickMouse = false;
 };

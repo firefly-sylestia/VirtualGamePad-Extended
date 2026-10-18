@@ -248,6 +248,18 @@ val defaultButtonConfigs = mapOf(
         offsetY = 0.29f,
         anchor = ButtonAnchor.TOP_CENTER
     ),
+    // Row 3, far right: the custom-key block sits in the band between the
+    // shoulder buttons and the right stick, under the thumb that reaches for a
+    // quick key. It is a 2x2 block (see GamepadGeometry.footprint), which is why
+    // it clears the macro row to its left on every supported screen.
+    ButtonComponent.CUSTOM_KEYS to ButtonConfig(
+        component = ButtonComponent.CUSTOM_KEYS,
+        visible = false,
+        scale = 1.0f,
+        offsetX = 0.8f,
+        offsetY = 0.25f,
+        anchor = ButtonAnchor.TOP_CENTER
+    ),
 
     // --- Bottom centre: the touch surface fills the gap between the sticks
     ButtonComponent.TOUCH_SURFACE to ButtonConfig(

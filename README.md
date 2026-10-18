@@ -18,6 +18,7 @@ The current mobile layout editor provides starting presets for:
 - Xbox
 - PlayStation DualSense-inspired
 - Steam Deck-inspired
+- Minecraft (keyboard-style: camera on the right stick, quick keys for chat/inventory)
 - Custom
 
 The Switch-first layout adds independent Plus/Minus and Home/Capture button events, optional Joy-Con-style SL/SR controls, optional rear paddles, a gyroscope aiming toggle, a software touch surface, analog-like trigger drag input, and configurable M1–M4 macro sequences. Existing L3/R3 stick-click events are reused instead of duplicated. Presets can be selected in the mobile customization screen; the component editor still supports visibility, size, anchor, and offset customization.
@@ -36,6 +37,19 @@ Settings also cover how the controller itself behaves:
   exactly those controls held — a stick pushed forward, a trigger half-pulled —
   so the finger can be lifted; tapping it again releases everything it captured.
   It is not sent to the PC and does not appear as a controller button there.
+- **Custom Key Buttons** (the **Keys** button in the customisation screen) send a
+  PC key by name while held, for games that read a keyboard and no controller.
+  Any letter, digit, F-key, numpad key, editing/navigation key, mouse button or
+  punctuation key works (type it, or pick it from the list); a single character is
+  shorthand, so `/` sends Slash and `1` sends Digit1. The Minecraft preset shows
+  the four quick keys on a 2x2 block above the right stick. A name the PC does not
+  know is ignored there rather than pressing a different key, and the keys are sent
+  by the PC's **Keyboard + mouse** backend: the virtual-pad backend has no keyboard
+  to type into.
+- **Right stick camera**: the right stick is mouse look by default (a profile
+  saved before this defaults to the arrow keys once, then stays where it is put),
+  and the PC applies no second dead zone to its pixels, so small pushes turn the
+  camera instead of being swallowed.
 - **Slide Between Buttons** turns the D-pad and the A/B/X/Y cluster into one
   surface each: the direction or button follows the finger, so a press rolls from
   one into the next without lifting it, and a diagonal is the finger between two.

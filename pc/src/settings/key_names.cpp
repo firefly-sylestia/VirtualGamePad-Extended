@@ -39,6 +39,48 @@ const KeyDef kDigits[] = {
 	{"Digit0", '0', 11, false, false},
 };
 
+/**
+ * Punctuation, by its keyboard legend. These are the OEM keys on Windows and
+ * the punctuation keys in evdev on Linux; the ASCII code is not the same thing
+ * as either, so each platform gets its own number here. A phone custom-key
+ * button that sends "/" is how a Minecraft chat command is typed.
+ */
+const KeyDef kSymbols[] = {
+	{"Slash", 0xBF, 53, false, false},       {"Backslash", 0xDC, 43, false, false},
+	{"Semicolon", 0xBA, 39, false, false},   {"Apostrophe", 0xDE, 40, false, false},
+	{"Comma", 0xBC, 51, false, false},       {"Period", 0xBE, 52, false, false},
+	{"Minus", 0xBD, 12, false, false},       {"Equal", 0xBB, 13, false, false},
+	{"LeftBracket", 0xDB, 26, false, false}, {"RightBracket", 0xDD, 27, false, false},
+	{"Grave", 0xC0, 41, false, false},
+};
+
+/**
+ * The single-character shorthand for a key, or an empty string when the
+ * character is not one. Used so a phone can send "/" or "1" and still reach
+ * the table above, which names the keys after their legends. The codes are
+ * Unicode code points, which keeps the punctuation out of C++ character
+ * literals that would need escaping.
+ */
+const char *shorthandName(QChar character)
+{
+	struct Shorthand
+	{
+		ushort code;
+		const char *name;
+	};
+	static const Shorthand table[] = {
+		{0x2F, "Slash"},       {0x5C, "Backslash"}, {0x3B, "Semicolon"}, {0x27, "Apostrophe"},
+		{0x2C, "Comma"},       {0x2E, "Period"},    {0x2D, "Minus"},     {0x3D, "Equal"},
+		{0x5B, "LeftBracket"}, {0x5D, "RightBracket"}, {0x60, "Grave"},
+	};
+	for (const auto &entry : table)
+	{
+		if (entry.code == character.unicode())
+			return entry.name;
+	}
+	return "";
+}
+
 const KeyDef kSpecial[] = {
 	{"Space", 0x20, 57, false, false},
 	{"Enter", 0x0D, 28, false, false},
@@ -104,6 +146,8 @@ const QList<KeyDef> &allDefs()
 			list.append(def);
 		for (const auto &def : kDigits)
 			list.append(def);
+		for (const auto &def : kSymbols)
+			list.append(def);
 		for (const auto &def : kSpecial)
 			list.append(def);
 		return list;
@@ -145,12 +189,20 @@ std::optional<ResolvedKey> resolve(const QString &name)
 		return key;
 	}
 
-	// Allow a single letter as shorthand (e.g. "w" for the W key).
+	// Allow a single character as shorthand: "w" for the W key, "1" for
+	// Digit1, "/" for Slash. The punctuation names exist because a phone's
+	// custom-key button sends what the player typed, and a Minecraft chat
+	// command starts with a slash.
 	if (name.size() == 1)
 	{
-		const QString upper = name.toUpper();
-		if (upper.at(0).isLetter())
-			return resolve(upper);
+		const QChar character = name.at(0);
+		if (character.isLetter())
+			return resolve(name.toUpper());
+		if (character.isDigit())
+			return resolve(QStringLiteral("Digit%1").arg(character));
+		const QString symbol = QString::fromLatin1(shorthandName(character));
+		if (!symbol.isEmpty())
+			return resolve(symbol);
 	}
 
 	return std::nullopt;

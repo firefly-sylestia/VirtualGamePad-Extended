@@ -23,6 +23,12 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
  * still be re-pressed while the hold is on. Only the values captured at arm time
  * are written back on top; the rest of the reading is whatever the player is
  * doing now.
+ *
+ * Custom-key buttons are part of the snapshot too, but they cannot be written
+ * back the same way: the held key names belong to [KeyButtonDispatcher], which
+ * rebuilds them whenever a button changes. The snapshot re-presses them under its
+ * own hold sources instead, so a key can be latched and pressed by a finger at
+ * the same time.
  */
 class InputHold {
 
@@ -45,6 +51,12 @@ class InputHold {
 
     private var rightTriggerHeld = false
     private var rightTrigger = 0f
+
+    /** The custom-key names that were down when the snapshot was taken. */
+    private var latchedKeys = emptyList<String>()
+
+    /** How many hold sources still have to be let go after the snapshot ended. */
+    private var keysToRelease = 0
 
     /** Arms the hold with whatever [state] currently contains, or releases it. */
     fun toggle(state: GamepadReading) {
@@ -69,12 +81,18 @@ class InputHold {
         rightTrigger = state.RightTrigger
         rightTriggerHeld = rightTrigger != 0f
 
+        latchedKeys = state.KeysDown.toList()
+
         isLatched = true
     }
 
     /** Lets go of everything the hold was keeping down. */
     fun clear() {
         isLatched = false
+        // The keys are let go through the dispatcher, which owns the array, so
+        // the release happens on the next packet rather than here.
+        keysToRelease = latchedKeys.size
+        latchedKeys = emptyList()
         buttonsDown = 0
         leftStickHeld = false
         rightStickHeld = false
@@ -98,6 +116,7 @@ class InputHold {
      * latched button is not briefly reported as both pressed and released.
      */
     fun applyTo(state: GamepadReading) {
+        applyKeysTo(state)
         if (!isLatched) return
 
         state.ButtonsDown = state.ButtonsDown or buttonsDown
@@ -114,4 +133,30 @@ class InputHold {
         if (leftTriggerHeld) state.LeftTrigger = leftTrigger
         if (rightTriggerHeld) state.RightTrigger = rightTrigger
     }
+
+    /**
+     * Keeps the latched custom keys down, through the dispatcher that owns them.
+     *
+     * A custom key is not a value on the reading the way a stick or a trigger is:
+     * [KeyButtonDispatcher] rebuilds the held names whenever a button changes, so
+     * writing the array here would be overwritten by the next press or release.
+     * The snapshot is therefore re-pressed under its own hold sources, and one a
+     * finger is still on keeps its own source as well — the count in the
+     * dispatcher is what lets both hold the same key at once.
+     */
+    private fun applyKeysTo(state: GamepadReading) {
+        if (isLatched) {
+            latchedKeys.forEachIndexed { index, key ->
+                KeyButtonDispatcher.press(state, holdKeySource(index), key)
+            }
+            return
+        }
+
+        repeat(keysToRelease) { index ->
+            KeyButtonDispatcher.release(state, holdKeySource(index))
+        }
+        keysToRelease = 0
+    }
+
+    private fun holdKeySource(index: Int) = "hold_key_$index"
 }

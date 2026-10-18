@@ -180,6 +180,7 @@
     <string name="component_gyro_toggle">Gyroscope Aim Toggle</string>
     <string name="component_stick_clicks">Stick Clicks (L3 / R3)</string>
     <string name="component_hold">Hold (latch inputs)</string>
+    <string name="component_custom_keys">Custom Key Buttons</string>
     <string name="component_macro_buttons">Macro Triggers (M1–M4)</string>
 
     <!-- Color Schemes -->

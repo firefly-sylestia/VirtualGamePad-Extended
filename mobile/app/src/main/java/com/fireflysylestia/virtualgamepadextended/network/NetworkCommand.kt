@@ -31,6 +31,11 @@ sealed class NetworkCommand {
             RightThumbstickY = originalState.RightThumbstickY
             LeftTrigger = originalState.LeftTrigger
             RightTrigger = originalState.RightTrigger
+            // The custom-key buttons hold PC key names. A copy of the array, not
+            // the array itself: the dispatcher replaces it on the state while this
+            // command is still queued, and the packet has to carry what was held
+            // when it was built.
+            KeysDown = originalState.KeysDown.copyOf()
         }
     }
 

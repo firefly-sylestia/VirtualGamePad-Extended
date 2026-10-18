@@ -32,6 +32,14 @@ struct ParseResult
 ParseResult parse_gamepad_state(const char *data, size_t len);
 
 /**
+ * Frees the key names a parsed reading holds.
+ *
+ * The generated unmarshal allocates them and the reading has no destructor, so
+ * the caller releases them once the packet has been used.
+ */
+void freeGamepadReadingKeys(vgp_data_exchange_gamepad_reading &reading);
+
+/**
  * An executor Interface for handling gamepad state injection
  */
 class ExecutorInterface

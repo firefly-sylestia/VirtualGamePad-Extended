@@ -76,7 +76,7 @@ void KeymapProfile::initializeDefaultMappings()
 		{Thumbstick_Left,
 		 {false, {'W', false, "W"}, {'S', false, "S"}, {'A', false, "A"}, {'D', false, "D"}}},
 		{Thumbstick_Right,
-		 {false,
+		 {true,
 		  {VK_UP, false, "Up"},
 		  {VK_DOWN, false, "Down"},
 		  {VK_LEFT, false, "Left"},
@@ -116,7 +116,7 @@ void KeymapProfile::initializeDefaultMappings()
 		{Thumbstick_Left,
 		 {false, {KEY_W, false, "W"}, {KEY_S, false, "S"}, {KEY_A, false, "A"}, {KEY_D, false, "D"}}},
 		{Thumbstick_Right,
-		 {false,
+		 {true,
 		  {KEY_UP, false, "Up"},
 		  {KEY_DOWN, false, "Down"},
 		  {KEY_LEFT, false, "Left"},
@@ -140,14 +140,17 @@ bool KeymapProfile::load(const QString &profilePath) noexcept
 	{
 		QSettings settings(profilePath, QSettings::IniFormat);
 		loadFromSettings(settings);
-		if (m_migratedBackKey)
+		if (m_migratedBackKey || m_migratedRightStickMouse)
 		{
-			// Write the migrated value back, so the next run starts from it too.
+			// Write the migrated values back, so the next run starts from them too.
 			QSettings writeBack(profilePath, QSettings::IniFormat);
 			saveToSettings(writeBack);
 			writeBack.sync();
-			qInfo() << "Migrated B from Escape to Backspace in profile" << profilePath;
+			qInfo() << "Migrated profile" << profilePath
+					<< "(B to Backspace:" << m_migratedBackKey
+					<< ", right stick to mouse look:" << m_migratedRightStickMouse << ")";
 			m_migratedBackKey = false;
+			m_migratedRightStickMouse = false;
 		}
 	}
 	catch (...)
@@ -277,6 +280,7 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	buttonMappings.clear();
 	buttonDisplayNames.clear();
 	m_migratedBackKey = false;
+	m_migratedRightStickMouse = false;
 
 	// Load with platform-specific defaults
 #ifdef WIN32
@@ -444,6 +448,26 @@ void KeymapProfile::loadFromSettings(QSettings const &settings)
 	right.right.displayName =
 		settings.value("thumbstick_display_names/RightThumbstickRight", "").toString();
 
+	// The right stick used to default to the arrow keys, which the D-pad already
+	// sends; the camera is what a right stick is for on a PC. A profile that has
+	// never been saved since is migrated once, and the marker written on the next
+	// save keeps a deliberate choice from being changed back.
+#ifdef WIN32
+	const bool defaultArrowStick = right.up.vk == VK_UP && right.down.vk == VK_DOWN &&
+								   right.left.vk == VK_LEFT && right.right.vk == VK_RIGHT;
+#elif defined(__linux__)
+	const bool defaultArrowStick = right.up.vk == KEY_UP && right.down.vk == KEY_DOWN &&
+								   right.left.vk == KEY_LEFT && right.right.vk == KEY_RIGHT;
+#else
+	const bool defaultArrowStick = false;
+#endif
+	if (!right.is_mouse_move && defaultArrowStick &&
+		!settings.value("thumbsticks/RightThumbstickMouseDefault", false).toBool())
+	{
+		right.is_mouse_move = true;
+		m_migratedRightStickMouse = true;
+	}
+
 	thumbstickMappings[Thumbstick_Left] = left;
 	thumbstickMappings[Thumbstick_Right] = right;
 
@@ -606,6 +630,9 @@ void KeymapProfile::saveToSettings(QSettings &settings) const
 					  right.left.vk);
 	settings.setValue(thumbstick_settings[setting_keys::thumbstick_keys::RightThumbstickRightKey],
 					  right.right.vk);
+	// Written rather than read for its value: its presence is what stops the
+	// one-time carry-over of the right stick to mouse look from repeating.
+	settings.setValue("thumbsticks/RightThumbstickMouseDefault", true);
 
 	// Thumbstick display names
 	settings.setValue("thumbstick_display_names/LeftThumbstickUp", left.up.displayName);

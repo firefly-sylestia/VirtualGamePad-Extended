@@ -152,7 +152,27 @@ The PC side already consumes that schema and has keyboard/mouse mappings for ord
 - [ ] Switch, Xbox, PlayStation, Steam Deck-inspired, and generic layouts can be added through data/configuration rather than duplicated renderer implementations.
 - [ ] Build/test results are recorded before the work is declared complete.
 
-## 6. Non-goals for this iteration
+## 6. Minecraft and keyboard-only games
+
+Minecraft reads a keyboard and a mouse, so a virtual pad can drive it only by
+sending keys. This is what was built for it:
+
+- [x] A **Minecraft** mobile preset: Xbox labels, both sticks, D-pad, face
+  buttons, shoulders, triggers, and the `+`/`−`/HOME/CAPTURE cluster the PC's
+  Minecraft layout binds to chat, HUD and debug keys.
+- [x] **Custom key buttons** on the phone: four buttons whose key names travel in
+  `GamepadReading.KeysDown`, resolved on the PC with the same `KeyNames` table
+  the layouts use. Unknown names are ignored, never guessed.
+- [x] Letter, digit, function, numpad, navigation, modifier, mouse and
+  punctuation names (`/`, `;`, `,`, `.`, `-`, `=`, `[`, `]`, `` ` ``, `\`), with
+  single-character shorthand on the PC (`/` is Slash, `1` is Digit1).
+- [x] PC right-stick camera: mouse look is the default for the right stick, one
+  migration carries an old arrow-key profile over once, and the pixel dead zone
+  that required a half push before the camera moved is gone.
+- [ ] Per-game automatic layout selection on the PC (the Minecraft layout is
+  still selected by hand on the layouts page).
+
+## 7. Non-goals for this iteration
 
 - [ ] No PC-side layout editor redesign.
 - [ ] No claim that a mobile layout can create hardware capabilities absent from the host's virtual-device backend.

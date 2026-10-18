@@ -29,6 +29,7 @@ import com.fireflysylestia.virtualgamepadextended.data.LocalGamepadSkin
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
 import com.fireflysylestia.virtualgamepadextended.data.defaultFullScreenCameraEnabled
+import com.fireflysylestia.virtualgamepadextended.data.defaultCustomKeyBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultLeftStickLargeTouchArea
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
@@ -86,6 +87,9 @@ fun GamePad(
     val leftStickLargeTouchArea = settingsRepository.leftStickLargeTouchArea
         .collectAsState(defaultLeftStickLargeTouchArea).value
 
+    val customKeyBindings = settingsRepository.customKeyBindings
+        .collectAsState(defaultCustomKeyBindings).value
+
     val touchSensitivity = settingsRepository.touchSensitivity
         .collectAsState(defaultTouchSensitivity).value
     val gamepadSkin = settingsRepository.gamepadSkin.collectAsState(GamepadSkin.DEFAULT).value
@@ -122,6 +126,7 @@ fun GamePad(
             rightStickLargeTouchArea = rightStickLargeTouchArea,
             leftStickLargeTouchArea = leftStickLargeTouchArea,
             hold = inputHold,
+            customKeyBindings = customKeyBindings,
             touchSensitivity = touchSensitivity,
         )
     }
@@ -149,6 +154,7 @@ fun GamePad(
                             gamepadState.RightThumbstickY = 0F
                             gamepadState.LeftTrigger = 0F
                             gamepadState.RightTrigger = 0F
+                            gamepadState.KeysDown = emptyArray()
                             connectionViewModel.enqueueGamepadState(gamepadState)
                             connectionViewModel.disconnect()
                             Log.d(tag, "Disconnected")
@@ -197,6 +203,9 @@ fun GamePad(
             // release that was waiting for it can go out now. This also clears
             // ButtonsUp, and only after the edges have been transmitted.
             GamepadButtonDispatcher.afterSend(gamepadState)
+            // The same for the custom-key names: a tapped key stays in the array
+            // until the packet that carried it has gone out.
+            KeyButtonDispatcher.afterSend(gamepadState)
 
             // Wait before next update
             delay(pollingDelay)

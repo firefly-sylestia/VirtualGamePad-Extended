@@ -11,6 +11,7 @@ enum class ControllerLayout(val displayName: String) {
     XBOX("Xbox"),
     PLAYSTATION("PlayStation DualSense"),
     STEAM_DECK("Steam Deck"),
+    MINECRAFT("Minecraft"),
     CUSTOM("Custom");
 
     companion object {
@@ -22,35 +23,35 @@ enum class ControllerLayout(val displayName: String) {
         get() = when (this) {
             SWITCH_2, SWITCH, POKEMON_ZA -> FaceButtonStyle.NINTENDO
             PLAYSTATION -> FaceButtonStyle.PLAYSTATION
-            XBOX, STEAM_DECK, CUSTOM -> FaceButtonStyle.XBOX
+            XBOX, STEAM_DECK, MINECRAFT, CUSTOM -> FaceButtonStyle.XBOX
         }
 
     val leftShoulderLabel: String
         get() = when (this) {
             SWITCH_2, SWITCH, POKEMON_ZA -> "L"
             PLAYSTATION, STEAM_DECK -> "L1"
-            XBOX, CUSTOM -> "LB"
+            XBOX, MINECRAFT, CUSTOM -> "LB"
         }
 
     val rightShoulderLabel: String
         get() = when (this) {
             SWITCH_2, SWITCH, POKEMON_ZA -> "R"
             PLAYSTATION, STEAM_DECK -> "R1"
-            XBOX, CUSTOM -> "RB"
+            XBOX, MINECRAFT, CUSTOM -> "RB"
         }
 
     val leftTriggerLabel: String
         get() = when (this) {
             SWITCH_2, SWITCH, POKEMON_ZA -> "ZL"
             PLAYSTATION, STEAM_DECK -> "L2"
-            XBOX, CUSTOM -> "LT"
+            XBOX, MINECRAFT, CUSTOM -> "LT"
         }
 
     val rightTriggerLabel: String
         get() = when (this) {
             SWITCH_2, SWITCH, POKEMON_ZA -> "ZR"
             PLAYSTATION, STEAM_DECK -> "R2"
-            XBOX, CUSTOM -> "RT"
+            XBOX, MINECRAFT, CUSTOM -> "RT"
         }
 }
 
@@ -106,6 +107,7 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
         show(ButtonComponent.TOUCH_SURFACE, false)
         show(ButtonComponent.GYRO_TOGGLE, false)
         show(ButtonComponent.MACRO_BUTTONS, false)
+        show(ButtonComponent.CUSTOM_KEYS, false)
     }
 
     when (layout) {
@@ -149,6 +151,19 @@ fun buttonConfigsForLayout(layout: ControllerLayout): Map<ButtonComponent, Butto
             show(ButtonComponent.HOME_CAPTURE, true)
             show(ButtonComponent.GYRO_TOGGLE, true)
             show(ButtonComponent.TOUCH_SURFACE, true)
+        }
+
+        ControllerLayout.MINECRAFT -> {
+            // Minecraft has no controller support: the camera is the mouse and
+            // chat, the inventory and the debug overlay are keys. The preset is
+            // therefore the plain controller set plus the two clusters those
+            // live on — the +/−/HOME/CAPTURE pair the PC Minecraft layout binds
+            // to its custom keys, and the quick-key buttons themselves.
+            coreControls()
+            onlySharedExtras()
+            show(ButtonComponent.PLUS_MINUS, true)
+            show(ButtonComponent.HOME_CAPTURE, true)
+            show(ButtonComponent.CUSTOM_KEYS, true)
         }
 
         ControllerLayout.STEAM_DECK -> {

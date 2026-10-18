@@ -21,7 +21,9 @@ import com.fireflysylestia.virtualgamepadextended.data.FaceButtonStyle
 import com.fireflysylestia.virtualgamepadextended.data.GamepadGeometry
 import com.fireflysylestia.virtualgamepadextended.data.MacroDefinition
 import com.fireflysylestia.virtualgamepadextended.data.ControllerAction
+import com.fireflysylestia.virtualgamepadextended.data.CustomKeyBinding
 import com.fireflysylestia.virtualgamepadextended.data.defaultButtonConfigs
+import com.fireflysylestia.virtualgamepadextended.data.defaultCustomKeyBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultControllerBindings
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroBias
 import com.fireflysylestia.virtualgamepadextended.data.defaultGyroSensitivity
@@ -29,6 +31,7 @@ import com.fireflysylestia.virtualgamepadextended.data.defaultStickSensitivity
 import com.fireflysylestia.virtualgamepadextended.data.defaultTouchSensitivity
 import com.fireflysylestia.virtualgamepadextended.ui.utils.GamepadButtonDispatcher
 import com.fireflysylestia.virtualgamepadextended.ui.utils.InputHold
+import com.fireflysylestia.virtualgamepadextended.ui.utils.KeyButtonDispatcher
 
 /** How far the background is pushed toward the accent colour in camera mode. */
 private const val CAMERA_TINT = 0.35f
@@ -66,6 +69,8 @@ fun DrawGamepad(
     leftStickLargeTouchArea: Boolean = false,
     // Keeps whatever is down when the HOLD button is tapped held.
     hold: InputHold? = null,
+    // Label and PC key for each custom-key button.
+    customKeyBindings: List<CustomKeyBinding> = defaultCustomKeyBindings,
     // How far a touch on the surface is amplified before it drives the pointer.
     touchSensitivity: Float = defaultTouchSensitivity,
 ) {
@@ -77,6 +82,7 @@ fun DrawGamepad(
             // with the previous session's controls pressed.
             activeHold.clear()
             GamepadButtonDispatcher.releaseAll(gamepadState)
+            KeyButtonDispatcher.releaseAll(gamepadState)
             gamepadState.LeftTrigger = 0f
             gamepadState.RightTrigger = 0f
             gamepadState.LeftThumbstickX = 0f
@@ -352,6 +358,20 @@ fun DrawGamepad(
                     sensitivity = gyroSensitivity,
                     biasX = gyroBiasX,
                     biasY = gyroBiasY,
+                )
+            }
+
+            // Custom key buttons: the Minecraft-style quick keys, drawn as a 2x2
+            // block in the free band above the right stick.
+            RenderComponent(ButtonComponent.CUSTOM_KEYS) { config ->
+                CustomKeyCluster(
+                    bindings = customKeyBindings,
+                    gamepadState = gamepadState,
+                    metrics = AuxiliaryButtonMetrics.of(baseDp, 4, config.scale),
+                    modifier = Modifier.offset(
+                        x = (config.offsetX * baseDp).dp,
+                        y = (config.offsetY * baseDp).dp
+                    ),
                 )
             }
 

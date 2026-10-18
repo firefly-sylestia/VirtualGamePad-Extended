@@ -1,6 +1,7 @@
 #include "executor.hpp"
 
 #include "../settings/input_types.hpp"
+#include "../settings/key_names.hpp"
 #include "../settings/settings_singleton.hpp"
 #include "../simulation/gamepadSim.hpp"
 #include "../simulation/keyboardSim.hpp"
@@ -12,6 +13,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <errno.h>
 #include <sstream>
 #include <string>
@@ -126,6 +128,10 @@ ParseResult parse_gamepad_state(const char *data, size_t len)
 	result.reading.left_thumbstick_y = 0;
 	result.reading.right_thumbstick_x = 0;
 	result.reading.right_thumbstick_y = 0;
+	// The unmarshal allocates these, so an unused reading must start empty for
+	// the free that follows a successful parse to be safe.
+	result.reading.keys_down.list = nullptr;
+	result.reading.keys_down.len = 0;
 	result.bytes_consumed = 0;
 	result.success = false;
 
@@ -388,11 +394,12 @@ void KeyboardMouseExecutor::collectThumbstickOutputs(const ThumbstickInput &thum
 		auto offsetY = static_cast<int>(
 			squareY * static_cast<float>(SettingsSingleton::instance().mouseSensitivity()));
 
-		// Only move if offset is above threshold
-		if (double thresholdPixels =
-				threshold * static_cast<double>(SettingsSingleton::instance().mouseSensitivity());
-			std::abs(offsetX) < thresholdPixels && std::abs(offsetY) < thresholdPixels)
-			return;
+		// No second dead zone here. The phone already applies a radial dead zone
+		// and a response curve, and the old check compared the offset against
+		// `threshold * sensitivity` in *pixels*: at the default sensitivity that is
+		// 50px, so the camera did not move until the stick was pushed past half
+		// its travel. A zero reading still produces no movement, because the
+		// offsets are zero and there is nothing to step.
 
 		// qDebug() << "Moving mouse by offset:" << offsetX << "," << offsetY;
 
@@ -429,6 +436,29 @@ void KeyboardMouseExecutor::collectThumbstickOutputs(const ThumbstickInput &thum
 		add(thumbstick.down.vk);
 	else if (y_value < -threshold)
 		add(thumbstick.up.vk);
+}
+
+/**
+ * Releases the key names a parsed packet allocated.
+ *
+ * The generated unmarshal allocates each name and its list, and the reading is
+ * a plain struct with no destructor, so nothing frees them: a phone holding a
+ * key would leak a little on every packet. Called once the packet has been used.
+ */
+void freeGamepadReadingKeys(vgp_data_exchange_gamepad_reading &reading)
+{
+	if (reading.keys_down.list == nullptr)
+	{
+		reading.keys_down.len = 0;
+		return;
+	}
+
+	for (size_t i = 0; i < reading.keys_down.len; ++i)
+		free(const_cast<char *>(reading.keys_down.list[i].utf8));
+	free(reading.keys_down.list);
+
+	reading.keys_down.list = nullptr;
+	reading.keys_down.len = 0;
 }
 
 void KeyboardMouseExecutor::collectWantedOutputs(
@@ -483,6 +513,20 @@ void KeyboardMouseExecutor::collectWantedOutputs(
 							 THRESHOLD,
 							 1,
 							 wanted);
+
+	// Keys the phone is holding by name, from the custom-key buttons. They are
+	// independent of the profile: the phone chose them, and the name is resolved
+	// with the same table the layouts use. An unknown name is skipped, so a typo
+	// cannot send some other key.
+	for (size_t i = 0; i < reading.keys_down.len; ++i)
+	{
+		const colfer_text &text = reading.keys_down.list[i];
+		if (text.utf8 == nullptr || text.len == 0)
+			continue;
+		const QString name = QString::fromUtf8(text.utf8, static_cast<int>(text.len));
+		if (const auto resolved = KeyNames::resolve(name))
+			wanted.insert(resolved->code);
+	}
 
 	// Extra keys the profile layers on top of the standard map.
 	for (const auto &binding : profile.customBindings())

@@ -89,7 +89,8 @@ object GamepadGeometry {
         ButtonComponent.STICK_CLICKS -> 2
 
         ButtonComponent.REAR_PADDLES,
-        ButtonComponent.MACRO_BUTTONS -> 4
+        ButtonComponent.MACRO_BUTTONS,
+        ButtonComponent.CUSTOM_KEYS -> 4
 
         else -> 1
     }
@@ -141,6 +142,14 @@ object GamepadGeometry {
 
             ButtonComponent.GYRO_TOGGLE ->
                 extraButtonWidth(baseDp, scale) to extraButtonHeight(baseDp, scale)
+
+            // The custom-key cluster is a 2x2 block rather than one long row: a
+            // row of four no longer fits beside the pads on a phone, while the
+            // block sits in the free band above the right stick, where the thumb
+            // that reaches for a quick key already is.
+            ButtonComponent.CUSTOM_KEYS ->
+                2f * extraButtonWidth(baseDp, scale) + EXTRA_GAP_FRACTION * baseDp * scale to
+                    2f * extraButtonHeight(baseDp, scale) + EXTRA_GAP_FRACTION * baseDp * scale
 
             else ->
                 extraClusterWidth(count, baseDp, scale) to extraButtonHeight(baseDp, scale)

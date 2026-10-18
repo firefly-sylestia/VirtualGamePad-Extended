@@ -97,6 +97,14 @@ enum class ButtonComponent(
     HOLD(R.string.component_hold, "Hold (latch inputs)", ButtonAnchor.TOP_CENTER),
 
     /**
+     * Buttons that send a PC key by name, for games that read a keyboard only.
+     *
+     * Minecraft is the case this was built for: chat, the inventory, the debug
+     * overlay and the HUD toggle have no gamepad equivalent at all.
+     */
+    CUSTOM_KEYS(R.string.component_custom_keys, "Custom Key Buttons", ButtonAnchor.TOP_CENTER),
+
+    /**
      * A pair of buttons for L3/R3, which are the stick clicks.
      *
      * The sticks still send a click on a deliberate tap, but a stick click is

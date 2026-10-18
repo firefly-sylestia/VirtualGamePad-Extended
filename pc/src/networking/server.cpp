@@ -693,6 +693,10 @@ void Server::serveClient()
 					.arg(status.backendName, status.detail));
 		}
 
+		// The packet has been used, so the key names it allocated can go. A
+		// phone holding a custom key would otherwise leak a little per packet.
+		freeGamepadReadingKeys(result.reading);
+
 		// Remove the processed data from the buffer
 		dataBuffer.remove(0, result.bytes_consumed);
 

@@ -163,6 +163,34 @@ class GamepadLayoutTest {
     }
 
     @Test
+    fun `the Minecraft preset shows the quick keys and no macros`() {
+        val minecraft = buttonConfigsForLayout(ControllerLayout.MINECRAFT)
+        listOf(
+            ButtonComponent.CUSTOM_KEYS,
+            ButtonComponent.PLUS_MINUS,
+            ButtonComponent.HOME_CAPTURE,
+            ButtonComponent.LEFT_ANALOG_STICK,
+            ButtonComponent.RIGHT_ANALOG_STICK,
+            ButtonComponent.FACE_BUTTONS,
+        ).forEach { component ->
+            assertTrue(
+                "$component should be visible on Minecraft",
+                minecraft.getValue(component).visible,
+            )
+        }
+        listOf(
+            ButtonComponent.MACRO_BUTTONS,
+            ButtonComponent.REAR_PADDLES,
+            ButtonComponent.TOUCH_SURFACE,
+        ).forEach { component ->
+            assertTrue(
+                "$component should start hidden on Minecraft",
+                minecraft.getValue(component).visible.not(),
+            )
+        }
+    }
+
+    @Test
     fun `the Pokemon preset drops touch and gyro`() {
         val za = buttonConfigsForLayout(ControllerLayout.POKEMON_ZA)
         assertTrue("touch surface should be hidden", za.getValue(ButtonComponent.TOUCH_SURFACE).visible.not())
