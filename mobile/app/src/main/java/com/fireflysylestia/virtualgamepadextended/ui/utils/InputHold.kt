@@ -24,11 +24,19 @@ import io.github.kitswas.VGP_Data_Exchange.GamepadReading
  * are written back on top; the rest of the reading is whatever the player is
  * doing now.
  *
- * Custom-key buttons are part of the snapshot too, but they cannot be written
- * back the same way: the held key names belong to [KeyButtonDispatcher], which
- * rebuilds them whenever a button changes. The snapshot re-presses them under its
- * own hold sources instead, so a key can be latched and pressed by a finger at
- * the same time.
+ * ## Letting go has to give the values back
+ *
+ * A control writes the reading when it changes and then says nothing while the
+ * finger rests, so a latched value left behind would be the last word on it: the
+ * packet keeps carrying a pulled trigger long after the hold was switched off,
+ * and the PC — which holds whatever the last packet asked for — never lets it go.
+ * Unlatching therefore takes back what the hold wrote, on the packet that follows.
+ *
+ * Buttons and custom keys go back through their dispatchers, which count holders,
+ * so one the player is still pressing stays down when the hold lets go. Analog
+ * values have no such bookkeeping, so they are only taken back while they still
+ * hold exactly the value the snapshot wrote; a control that has written something
+ * else since owns the value and is left alone.
  */
 class InputHold {
 
@@ -36,7 +44,8 @@ class InputHold {
     var isLatched by mutableStateOf(false)
         private set
 
-    private var buttonsDown = 0
+    /** One single-bit mask per button in the snapshot, as a hold source each. */
+    private var latchedButtons = emptyList<Int>()
 
     private var leftStickHeld = false
     private var leftX = 0f
@@ -55,8 +64,12 @@ class InputHold {
     /** The custom-key names that were down when the snapshot was taken. */
     private var latchedKeys = emptyList<String>()
 
-    /** How many hold sources still have to be let go after the snapshot ended. */
+    /** Hold sources still to be let go of after the snapshot ended. */
+    private var buttonsToRelease = 0
     private var keysToRelease = 0
+
+    /** Whether the analog values the snapshot wrote still have to be taken back. */
+    private var retractPending = false
 
     /** Arms the hold with whatever [state] currently contains, or releases it. */
     fun toggle(state: GamepadReading) {
@@ -65,7 +78,7 @@ class InputHold {
 
     /** Copies the currently held inputs out of [state]. */
     fun latch(state: GamepadReading) {
-        buttonsDown = state.ButtonsDown
+        latchedButtons = bitsOf(state.ButtonsDown)
 
         leftX = state.LeftThumbstickX
         leftY = state.LeftThumbstickY
@@ -83,27 +96,26 @@ class InputHold {
 
         latchedKeys = state.KeysDown.toList()
 
+        // A latch that follows a release before the next packet re-presses these
+        // same hold sources, so nothing is left outstanding from the old snapshot.
+        buttonsToRelease = 0
+        keysToRelease = 0
+        retractPending = false
+
         isLatched = true
     }
 
-    /** Lets go of everything the hold was keeping down. */
+    /**
+     * Lets go of everything the hold was keeping down.
+     *
+     * The snapshot is not forgotten here: the next [applyTo] needs it to give the
+     * values back, and the two dispatchers need it to let the sources go.
+     */
     fun clear() {
         isLatched = false
-        // The keys are let go through the dispatcher, which owns the array, so
-        // the release happens on the next packet rather than here.
+        buttonsToRelease = latchedButtons.size
         keysToRelease = latchedKeys.size
-        latchedKeys = emptyList()
-        buttonsDown = 0
-        leftStickHeld = false
-        rightStickHeld = false
-        leftTriggerHeld = false
-        rightTriggerHeld = false
-        leftX = 0f
-        leftY = 0f
-        rightX = 0f
-        rightY = 0f
-        leftTrigger = 0f
-        rightTrigger = 0f
+        retractPending = true
     }
 
     /**
@@ -112,26 +124,47 @@ class InputHold {
      * Called just before a packet is sent, after the controls have written their
      * own values. A release that happened in the meantime clears the live value,
      * and this puts the latched one back, which is what keeps a released stick
-     * "down" on the PC. The matching release edge is dropped as well, so a
-     * latched button is not briefly reported as both pressed and released.
+     * "down" on the PC.
      */
     fun applyTo(state: GamepadReading) {
+        applyButtonsTo(state)
         applyKeysTo(state)
-        if (!isLatched) return
 
-        state.ButtonsDown = state.ButtonsDown or buttonsDown
-        state.ButtonsUp = state.ButtonsUp and buttonsDown.inv()
+        if (isLatched) {
+            applyAnalogTo(state)
+            return
+        }
 
-        if (leftStickHeld) {
-            state.LeftThumbstickX = leftX
-            state.LeftThumbstickY = leftY
+        retractAnalog(state)
+    }
+
+    /**
+     * Holds the snapshot's buttons through the dispatcher that counts holders.
+     *
+     * A button is not a value the hold can own: several controls can drive the
+     * same output, and the dispatcher is what knows which of them are still
+     * pressed. Pressing the snapshot's bits under hold sources is therefore what
+     * lets one of them be let go on its own when the hold ends, instead of the
+     * bit being cleared out from under a finger that never left it.
+     *
+     * The release edge of a bit a hold source is holding is dropped as well, so a
+     * latched button is not briefly reported as both pressed and released.
+     */
+    private fun applyButtonsTo(state: GamepadReading) {
+        if (!isLatched) {
+            repeat(buttonsToRelease) { index ->
+                GamepadButtonDispatcher.release(state, holdButtonSource(index))
+            }
+            buttonsToRelease = 0
+            return
         }
-        if (rightStickHeld) {
-            state.RightThumbstickX = rightX
-            state.RightThumbstickY = rightY
+
+        latchedButtons.forEachIndexed { index, mask ->
+            GamepadButtonDispatcher.press(state, holdButtonSource(index), mask)
         }
-        if (leftTriggerHeld) state.LeftTrigger = leftTrigger
-        if (rightTriggerHeld) state.RightTrigger = rightTrigger
+
+        val heldMask = latchedButtons.fold(0) { mask, bit -> mask or bit }
+        state.ButtonsUp = state.ButtonsUp and heldMask.inv()
     }
 
     /**
@@ -157,6 +190,53 @@ class InputHold {
         }
         keysToRelease = 0
     }
+
+    private fun applyAnalogTo(state: GamepadReading) {
+        if (leftStickHeld) {
+            state.LeftThumbstickX = leftX
+            state.LeftThumbstickY = leftY
+        }
+        if (rightStickHeld) {
+            state.RightThumbstickX = rightX
+            state.RightThumbstickY = rightY
+        }
+        if (leftTriggerHeld) state.LeftTrigger = leftTrigger
+        if (rightTriggerHeld) state.RightTrigger = rightTrigger
+    }
+
+    /**
+     * Puts the analog values back to neutral, once, on the packet after the hold
+     * ended — but only where they still read as what the snapshot wrote, which is
+     * this hold's own writing and nothing else's.
+     */
+    private fun retractAnalog(state: GamepadReading) {
+        if (!retractPending) return
+        retractPending = false
+
+        if (leftStickHeld && state.LeftThumbstickX == leftX && state.LeftThumbstickY == leftY) {
+            state.LeftThumbstickX = 0f
+            state.LeftThumbstickY = 0f
+        }
+        if (rightStickHeld && state.RightThumbstickX == rightX && state.RightThumbstickY == rightY) {
+            state.RightThumbstickX = 0f
+            state.RightThumbstickY = 0f
+        }
+        if (leftTriggerHeld && state.LeftTrigger == leftTrigger) state.LeftTrigger = 0f
+        if (rightTriggerHeld && state.RightTrigger == rightTrigger) state.RightTrigger = 0f
+
+        leftStickHeld = false
+        rightStickHeld = false
+        leftTriggerHeld = false
+        rightTriggerHeld = false
+    }
+
+    /** The set bits of [mask], one per button the snapshot holds. */
+    private fun bitsOf(mask: Int): List<Int> =
+        (0 until Int.SIZE_BITS)
+            .map { 1 shl it }
+            .filter { mask and it != 0 }
+
+    private fun holdButtonSource(index: Int) = "hold_button_$index"
 
     private fun holdKeySource(index: Int) = "hold_key_$index"
 }
